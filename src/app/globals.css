@@ -1,0 +1,26 @@
+@import url('/design-system/colors_and_type.css');
+@import url('/design-system/dark.css');
+@import url('/design-system/lib/lib.css');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--ds-typography-font-family-text);
+  line-height: var(--ds-typography-line-height-148);
+  color: var(--ds-color-text-03-high);
+  background: var(--ds-color-bg-01);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
