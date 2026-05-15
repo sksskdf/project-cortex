@@ -1,22 +1,17 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
+import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
+import { currentUser } from '@/lib/config';
 import {
-  agentWorkloads,
-  currentUser,
-  dashboardClusters,
-  dashboardStats,
-  recentAutoMerges,
-  todayReviewCount,
-  todoRows,
-  weekAutoMergedCount,
-  type AgentWorkload,
-  type GaugeTier,
-  type TagTone,
-  type TodoRow,
-  type WorkloadBarTone,
-} from '@/mocks/dashboard';
-import type { StatDelta } from '@/lib/types';
+  getDashboardClusters,
+  getDashboardStats,
+  getRecentAutoMerges,
+  getTodayRows,
+} from '@/lib/dashboard';
+import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
 import styles from './page.module.css';
+
+type WorkloadBarTone = AgentWorkload['bar'];
 
 const tagToneClass: Record<TagTone, string> = {
   red: 'ds-tag--red',
@@ -299,7 +294,8 @@ function DeltaBadge({ delta }: { delta: StatDelta }) {
   );
 }
 
-function TodoRowCard({ row }: { row: TodoRow }) {
+function TodoRowCard({ row }: { row: PR }) {
+  const isAlert = row.reason.tone === 'alert';
   return (
     <Link href={`/pr/${row.id}`} className={styles.todoRow}>
       <Gauge value={row.gauge.value} tier={row.gauge.tier} />
@@ -307,10 +303,10 @@ function TodoRowCard({ row }: { row: TodoRow }) {
         <div className={styles.todoTitle}>{row.title}</div>
         <div className={styles.todoMeta}>
           <span
-            className={`${styles.author} ${row.agent.kind === 'agent' ? styles.authorAgent : styles.authorHuman}`}
+            className={`${styles.author} ${row.author.kind === 'agent' ? styles.authorAgent : styles.authorHuman}`}
           >
             {agentFaceIcon()}
-            {row.agent.name}
+            {row.author.name}
           </span>
           {row.tags.map((tag) => (
             <span key={tag.label} className={`ds-tag ds-tag--md ${tagToneClass[tag.tone]}`}>
@@ -318,10 +314,8 @@ function TodoRowCard({ row }: { row: TodoRow }) {
             </span>
           ))}
         </div>
-        <div
-          className={`${styles.todoReason} ${row.reason.tone === 'info' ? styles.todoReasonInfo : ''}`}
-        >
-          {row.reason.tone === 'alert' ? alertIcon() : infoIcon()}
+        <div className={`${styles.todoReason} ${isAlert ? '' : styles.todoReasonInfo}`}>
+          {isAlert ? alertIcon() : infoIcon()}
           {row.reason.text}
         </div>
       </div>
@@ -359,7 +353,16 @@ function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkload> }) {
   );
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const [dashboardStats, todoRows, recentAutoMerges, dashboardClusters] = await Promise.all([
+    getDashboardStats(),
+    getTodayRows(3),
+    getRecentAutoMerges(5),
+    getDashboardClusters(),
+  ]);
+  const todayReviewCount = dashboardStats.pendingReview.value;
+  const weekAutoMergedCount = dashboardStats.autoMergedThisWeek.value;
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
