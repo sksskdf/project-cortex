@@ -14,12 +14,12 @@ export default function Page() {
         style={{
           fontSize: 'var(--ds-typography-font-size-24)',
           fontWeight: 'var(--ds-typography-font-weight-bold)',
-          color: 'var(--ds-color-text-04-extra-high)',
+          color: 'var(--ds-color-text-03-high)',
         }}
       >
         {ko.scaffold.title}
       </h1>
-      <p style={{ color: 'var(--ds-color-text-02-medium)' }}>{ko.scaffold.body}</p>
+      <p style={{ color: 'var(--ds-color-text-02)' }}>{ko.scaffold.body}</p>
     </main>
   );
 }

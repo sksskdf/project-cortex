@@ -13,7 +13,7 @@
  * - Brand blue (secondary-01) is bumped ONE step lighter for AA contrast on dark
  * - Soft tints become dark hue washes (same meaning, low chroma)
  * - State colors (success/error/warning) keep their hue, lighten text variants
- * - The signature focus ring uses secondary-07 (darker) to fit on dark surfaces
+ * - The signature focus ring uses secondary-03 (darker) to fit on dark surfaces
  */
 
 [data-theme="dark"] {
