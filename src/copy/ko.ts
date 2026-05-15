@@ -142,4 +142,46 @@ export const ko = {
       mergeAll: '전체 머지',
     },
   },
+  cluster: {
+    backToInbox: '인박스로 돌아가기',
+    chip: '클러스터',
+    detectedAgo: (text: string) => `${text} 자동 묶음`,
+    prList: {
+      ariaLabel: '클러스터 PR 목록',
+      title: (count: number) => `묶인 PR · ${count}건`,
+      similarity: {
+        identical: '동일',
+        different: '약간 다름',
+      },
+    },
+    info: {
+      title: '클러스터 요약',
+      subtitle: (count: number, author: string, repo: string) =>
+        `전체 PR ${count}건 · 작성자 ${author} · 대상 ${repo}`,
+      avgScore: '평균 신뢰 점수',
+      totalAdditions: '총 변경 라인',
+      filesChanged: '변경 파일',
+      tests: '테스트 결과',
+      testsAllPass: '전체 통과',
+    },
+    pattern: {
+      title: (count: number) => `공통 패턴 — ${count}개 PR 모두 같은 변경을 합니다`,
+      example: (sample: string) => `예시: ${sample}`,
+    },
+    diff: {
+      title: '각 PR의 차이점',
+      idList: (numbers: ReadonlyArray<number>) => numbers.map((n) => `#${n}`).join(' · '),
+    },
+    action: {
+      ariaLabel: '결정',
+      title: '결정',
+      countLabel: '개 PR을 한 번에',
+      timeNote: '개별 검토 시 평균 8분 → 클러스터로 1분',
+      mergeAll: (count: number) => `전체 ${count}개 머지`,
+      splitMerge: (mergeCount: number, individualNumber: number) =>
+        `${mergeCount}개만 머지 · #${individualNumber} 개별 검토`,
+      switchIndividual: '개별 검토로 전환',
+      dissolve: '클러스터 해제',
+    },
+  },
 } as const;

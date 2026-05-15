@@ -15,6 +15,7 @@ const tagToneClass: Record<TagTone, string> = {
   green: 'ds-tag--green',
   gray: 'ds-tag--gray',
   'sky-blue': 'ds-tag--sky-blue',
+  cyan: 'ds-tag--cyan',
 };
 
 const fileStatusClass: Record<FileStatus, string> = {
