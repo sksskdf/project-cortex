@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>클러스터 — Cortex</title>
+  <link rel="stylesheet" href="./design-system/colors_and_type.css">
+  <link rel="stylesheet" href="./design-system/lib/lib.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: var(--ds-typography-font-family-text);
+      line-height: var(--ds-typography-line-height-148);
+      color: var(--ds-color-text-03-high);
+      background: var(--ds-color-bg-01);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    ul { list-style: none; }
+    button { font-family: inherit; }
+
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* === Sidebar (shared) === */
+    .sidebar { background: var(--ds-color-bg-00); border-right: var(--ds-border-width-1) solid var(--ds-color-line-02); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar__brand { display: flex; align-items: center; gap: var(--ds-spacing-8); padding: var(--ds-spacing-20); font-size: var(--ds-typography-font-size-18); font-weight: var(--ds-typography-font-weight-bold); letter-spacing: var(--ds-typography-letter-spacing-tight); border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02); }
+    .sidebar__brand-mark { width: 10px; height: 10px; border-radius: 50%; background: var(--ds-color-secondary-01); box-shadow: 0 0 0 3px var(--ds-color-secondary-03); }
+    .sidebar__section { padding: var(--ds-spacing-14) var(--ds-spacing-12) var(--ds-spacing-6); }
+    .sidebar__section-title { padding: 0 var(--ds-spacing-8); margin-bottom: var(--ds-spacing-6); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .sidebar__list { display: flex; flex-direction: column; gap: var(--ds-spacing-2); }
+    .sidebar__item { display: flex; align-items: center; gap: var(--ds-spacing-10); padding: var(--ds-spacing-8) var(--ds-spacing-10); border-radius: var(--ds-border-radius-8); font-size: var(--ds-typography-font-size-14); color: var(--ds-color-text-02); cursor: pointer; transition: background-color 0.15s, color 0.15s; }
+    .sidebar__item:hover { background: var(--ds-color-bg-01); color: var(--ds-color-text-03-high); }
+    .sidebar__item--active { background: var(--ds-color-bg-04-primary); color: var(--ds-color-secondary-01); font-weight: var(--ds-typography-font-weight-semibold); }
+    .sidebar__item--active:hover { background: var(--ds-color-bg-04-primary); color: var(--ds-color-secondary-01); }
+    .sidebar__item svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .sidebar__item-count { margin-left: auto; font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .sidebar__item--active .sidebar__item-count { color: var(--ds-color-secondary-01); }
+    .sidebar__item-count--alert { background: var(--ds-color-state-error-strong); color: var(--ds-color-bg-00); padding: 1px var(--ds-spacing-6); border-radius: 999px; }
+    .sidebar__divider { flex: 1; }
+    .sidebar__footer { padding: var(--ds-spacing-12); border-top: var(--ds-border-width-1) solid var(--ds-color-line-02); }
+    .sidebar__user { display: flex; align-items: center; gap: var(--ds-spacing-10); padding: var(--ds-spacing-8) var(--ds-spacing-10); border-radius: var(--ds-border-radius-8); }
+    .sidebar__avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ds-color-secondary-03); color: var(--ds-color-text-06-secondary); display: inline-flex; align-items: center; justify-content: center; font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-bold); }
+    .sidebar__user-name { font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-03-high); }
+    .sidebar__user-role { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* === Cluster layout: PR list + main + action panel === */
+    .cluster { display: grid; grid-template-columns: 280px 1fr 300px; min-height: 100vh; }
+
+    /* === Left: PR list === */
+    .pr-list {
+      background: var(--ds-color-bg-00);
+      border-right: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      padding: var(--ds-spacing-20) var(--ds-spacing-12);
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    .pr-list__title { padding: 0 var(--ds-spacing-8) var(--ds-spacing-12); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .pr-list__item {
+      display: flex; flex-direction: column; gap: var(--ds-spacing-6);
+      padding: var(--ds-spacing-12);
+      border-radius: var(--ds-border-radius-8);
+      cursor: pointer;
+      margin-bottom: var(--ds-spacing-2);
+      transition: background-color 0.15s;
+      border: 1px solid transparent;
+    }
+    .pr-list__item:hover { background: var(--ds-color-bg-01); }
+    .pr-list__item--active { background: var(--ds-color-bg-04-primary); border-color: var(--ds-color-secondary-01); }
+    .pr-list__top { display: flex; align-items: center; gap: var(--ds-spacing-8); }
+    .pr-list__check {
+      width: 16px; height: 16px; border-radius: 4px;
+      background: var(--ds-color-secondary-01);
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .pr-list__check svg { width: 10px; height: 10px; color: var(--ds-color-bg-00); }
+    .pr-list__id { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .pr-list__similarity {
+      margin-left: auto;
+      font-size: var(--ds-typography-font-size-11);
+      padding: 1px var(--ds-spacing-6);
+      border-radius: 999px;
+      background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark);
+      font-weight: var(--ds-typography-font-weight-medium);
+    }
+    .pr-list__similarity--diff { background: var(--ds-color-soft-yellow); color: var(--ds-color-state-warning-text-dark); }
+    .pr-list__title-text { font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-03-high); line-height: var(--ds-typography-line-height-140); }
+    .pr-list__meta { display: flex; align-items: center; gap: var(--ds-spacing-8); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .pr-list__gauge { display: inline-flex; align-items: center; gap: var(--ds-spacing-4); }
+    .pr-list__gauge-num { font-family: var(--ds-typography-font-family-number); font-weight: var(--ds-typography-font-weight-bold); }
+    .pr-list__gauge-num--success { color: var(--ds-color-state-success-text-dark); }
+
+    /* === Center: main === */
+    .cluster-main { padding: var(--ds-spacing-32) var(--ds-spacing-32) 80px; min-width: 0; }
+    .cluster-back { display: inline-flex; align-items: center; gap: var(--ds-spacing-4); font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02); cursor: pointer; margin-bottom: var(--ds-spacing-12); }
+    .cluster-back:hover { color: var(--ds-color-secondary-01); }
+    .cluster-back svg { width: 14px; height: 14px; }
+    .cluster-header { margin-bottom: var(--ds-spacing-24); }
+    .cluster-header__top { display: flex; align-items: center; gap: var(--ds-spacing-10); margin-bottom: var(--ds-spacing-8); }
+    .cluster-header__chip {
+      display: inline-flex; align-items: center; gap: var(--ds-spacing-6);
+      padding: var(--ds-spacing-4) var(--ds-spacing-10);
+      border-radius: 999px;
+      background: var(--ds-color-bg-04-primary);
+      color: var(--ds-color-secondary-01);
+      font-size: var(--ds-typography-font-size-12);
+      font-weight: var(--ds-typography-font-weight-semibold);
+    }
+    .cluster-header__chip svg { width: 12px; height: 12px; }
+    .cluster-title { font-size: var(--ds-typography-font-size-28); font-weight: var(--ds-typography-font-weight-bold); letter-spacing: var(--ds-typography-letter-spacing-tight); line-height: var(--ds-typography-line-height-136); }
+    .cluster-sub { font-size: var(--ds-typography-font-size-14); color: var(--ds-color-text-02); margin-top: var(--ds-spacing-6); }
+
+    /* === Cluster info card === */
+    .info-card {
+      padding: var(--ds-spacing-20);
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+      margin-bottom: var(--ds-spacing-20);
+    }
+    .info-card__head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: var(--ds-spacing-14);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      margin-bottom: var(--ds-spacing-14);
+    }
+    .info-card__title { font-size: var(--ds-typography-font-size-16); font-weight: var(--ds-typography-font-weight-bold); }
+    .info-card__sub { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .info-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ds-spacing-16); }
+    .info-stat__label { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); margin-bottom: var(--ds-spacing-4); }
+    .info-stat__value { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-24); font-weight: var(--ds-typography-font-weight-bold); letter-spacing: var(--ds-typography-letter-spacing-tighter); }
+    .info-stat__value--success { color: var(--ds-color-state-success-text-dark); }
+
+    /* === Common pattern card === */
+    .pattern-card {
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+      overflow: hidden;
+      margin-bottom: var(--ds-spacing-16);
+    }
+    .pattern-card__head {
+      padding: var(--ds-spacing-12) var(--ds-spacing-20);
+      background: var(--ds-color-bg-01);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .pattern-card__head-title { font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-semibold); }
+    .pattern-card__head-sub { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .pattern-card__code { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-13); line-height: 1.55; }
+    .code-line { display: flex; }
+    .code-line__num { width: 50px; padding: 0 var(--ds-spacing-10); text-align: right; color: var(--ds-color-text-02); font-size: var(--ds-typography-font-size-12); user-select: none; flex-shrink: 0; }
+    .code-line__sign { width: 18px; text-align: center; user-select: none; flex-shrink: 0; }
+    .code-line__text { flex: 1; padding-right: var(--ds-spacing-20); white-space: pre; overflow-x: auto; }
+    .code-line--ctx { background: var(--ds-color-bg-00); }
+    .code-line--add { background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark); }
+    .code-line--add .code-line__sign { color: var(--ds-color-state-success-text-dark); }
+    .code-line--del { background: var(--ds-color-soft-red); color: var(--ds-color-state-error-strong); }
+    .code-line--del .code-line__sign { color: var(--ds-color-state-error-strong); }
+
+    /* === Differences card === */
+    .diff-card {
+      padding: var(--ds-spacing-20);
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+    }
+    .diff-card__title { font-size: var(--ds-typography-font-size-16); font-weight: var(--ds-typography-font-weight-bold); margin-bottom: var(--ds-spacing-14); }
+    .diff-row {
+      display: flex; gap: var(--ds-spacing-12); align-items: flex-start;
+      padding: var(--ds-spacing-12) 0;
+      border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      font-size: var(--ds-typography-font-size-13);
+    }
+    .diff-row:first-of-type { border-top: none; padding-top: 0; }
+    .diff-row__id { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); flex-shrink: 0; min-width: 56px; padding-top: 2px; }
+    .diff-row__body { flex: 1; }
+    .diff-row__title { font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-03-high); margin-bottom: 2px; }
+    .diff-row__detail { color: var(--ds-color-text-02); }
+    .diff-row__detail code { font-family: var(--ds-typography-font-family-number); background: var(--ds-color-bg-01); padding: 1px 6px; border-radius: 4px; font-size: 0.92em; }
+    .diff-row__flag { flex-shrink: 0; }
+
+    /* === Right: action panel === */
+    .action-panel {
+      background: var(--ds-color-bg-00);
+      border-left: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      padding: var(--ds-spacing-32) var(--ds-spacing-24);
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    .action-panel__title { font-size: var(--ds-typography-font-size-14); font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-02); margin-bottom: var(--ds-spacing-12); }
+    .summary-stat {
+      padding: var(--ds-spacing-16);
+      background: var(--ds-color-bg-04-primary);
+      border-radius: var(--ds-border-radius-card);
+      margin-bottom: var(--ds-spacing-20);
+      text-align: center;
+    }
+    .summary-stat__num { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-36); font-weight: var(--ds-typography-font-weight-bold); color: var(--ds-color-secondary-01); line-height: 1; letter-spacing: var(--ds-typography-letter-spacing-tighter); }
+    .summary-stat__label { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-03-high); margin-top: var(--ds-spacing-6); font-weight: var(--ds-typography-font-weight-medium); }
+    .summary-stat__sub { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); margin-top: var(--ds-spacing-2); }
+    .action-panel__actions { display: flex; flex-direction: column; gap: var(--ds-spacing-8); margin-bottom: var(--ds-spacing-24); }
+    .action-panel__divider { height: 1px; background: var(--ds-color-line-02); margin: var(--ds-spacing-8) 0; }
+    .action-panel__note {
+      padding: var(--ds-spacing-12);
+      background: var(--ds-color-soft-yellow);
+      color: var(--ds-color-state-warning-text-dark);
+      border-radius: var(--ds-border-radius-8);
+      font-size: var(--ds-typography-font-size-12);
+      line-height: var(--ds-typography-line-height-148);
+      display: flex; gap: var(--ds-spacing-8); align-items: flex-start;
+    }
+    .action-panel__note svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="워크스페이스">
+      <div class="sidebar__brand">
+        <span class="sidebar__brand-mark" aria-hidden="true"></span>
+        Cortex
+      </div>
+      <nav class="sidebar__section">
+        <div class="sidebar__section-title">워크스페이스</div>
+        <ul class="sidebar__list">
+          <li class="sidebar__item" onclick="location.href='index.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg><span>대시보드</span></li>
+          <li class="sidebar__item" onclick="location.href='inbox.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><span>인박스</span><span class="sidebar__item-count sidebar__item-count--alert">8</span></li>
+          <li class="sidebar__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span>프로젝트</span><span class="sidebar__item-count">12</span></li>
+          <li class="sidebar__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1m15.36-7.36-4.24 4.24m-4.24 4.24-4.24 4.24m12.72 0-4.24-4.24M7.76 7.76 3.52 3.52"/></svg><span>에이전트</span><span class="sidebar__item-count">7</span></li>
+          <li class="sidebar__item sidebar__item--active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M9 8l3 8m3-8l-3 8"/></svg><span>클러스터</span><span class="sidebar__item-count">2</span></li>
+          <li class="sidebar__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="20" y1="20" x2="20" y2="14"/></svg><span>보고서</span></li>
+        </ul>
+      </nav>
+      <div class="sidebar__divider"></div>
+      <div class="sidebar__footer">
+        <div class="sidebar__user">
+          <span class="sidebar__avatar">JH</span>
+          <div>
+            <div class="sidebar__user-name">정현</div>
+            <div class="sidebar__user-role">엔지니어링 리드</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Cluster body -->
+    <div class="cluster">
+      <!-- Left: 5 PRs in cluster -->
+      <aside class="pr-list" aria-label="클러스터 PR 목록">
+        <div class="pr-list__title">묶인 PR · 5건</div>
+
+        <div class="pr-list__item pr-list__item--active">
+          <div class="pr-list__top">
+            <span class="pr-list__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="pr-list__id">#841</span>
+            <span class="pr-list__similarity">동일</span>
+          </div>
+          <div class="pr-list__title-text">설정 페이지 — i18n 라벨 추가</div>
+          <div class="pr-list__meta">
+            <span class="pr-list__gauge"><span class="pr-list__gauge-num pr-list__gauge-num--success">92</span></span>
+            <span>·</span>
+            <span>cortex-web</span>
+          </div>
+        </div>
+
+        <div class="pr-list__item">
+          <div class="pr-list__top">
+            <span class="pr-list__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="pr-list__id">#840</span>
+            <span class="pr-list__similarity">동일</span>
+          </div>
+          <div class="pr-list__title-text">알림 페이지 — i18n 라벨 추가</div>
+          <div class="pr-list__meta">
+            <span class="pr-list__gauge"><span class="pr-list__gauge-num pr-list__gauge-num--success">94</span></span>
+            <span>·</span>
+            <span>cortex-web</span>
+          </div>
+        </div>
+
+        <div class="pr-list__item">
+          <div class="pr-list__top">
+            <span class="pr-list__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="pr-list__id">#839</span>
+            <span class="pr-list__similarity">동일</span>
+          </div>
+          <div class="pr-list__title-text">프로필 페이지 — i18n 라벨 추가</div>
+          <div class="pr-list__meta">
+            <span class="pr-list__gauge"><span class="pr-list__gauge-num pr-list__gauge-num--success">91</span></span>
+            <span>·</span>
+            <span>cortex-web</span>
+          </div>
+        </div>
+
+        <div class="pr-list__item">
+          <div class="pr-list__top">
+            <span class="pr-list__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="pr-list__id">#838</span>
+            <span class="pr-list__similarity">동일</span>
+          </div>
+          <div class="pr-list__title-text">결제 페이지 — i18n 라벨 추가</div>
+          <div class="pr-list__meta">
+            <span class="pr-list__gauge"><span class="pr-list__gauge-num pr-list__gauge-num--success">93</span></span>
+            <span>·</span>
+            <span>cortex-web</span>
+          </div>
+        </div>
+
+        <div class="pr-list__item">
+          <div class="pr-list__top">
+            <span class="pr-list__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="pr-list__id">#837</span>
+            <span class="pr-list__similarity pr-list__similarity--diff">약간 다름</span>
+          </div>
+          <div class="pr-list__title-text">대시보드 — i18n 라벨 + 신규 키 정의</div>
+          <div class="pr-list__meta">
+            <span class="pr-list__gauge"><span class="pr-list__gauge-num">85</span></span>
+            <span>·</span>
+            <span>cortex-web</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: pattern + diff -->
+      <main class="cluster-main">
+        <a class="cluster-back" onclick="location.href='inbox.html'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          인박스로 돌아가기
+        </a>
+
+        <header class="cluster-header">
+          <div class="cluster-header__top">
+            <span class="cluster-header__chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M9 8l3 8m3-8l-3 8"/></svg>
+              클러스터
+            </span>
+            <span style="font-size:var(--ds-typography-font-size-12);color:var(--ds-color-text-02);">3시간 전 자동 묶음</span>
+          </div>
+          <h1 class="cluster-title">i18n 라벨 추가 패턴</h1>
+          <p class="cluster-sub">5개 PR이 동일한 패턴으로 <code style="font-family:var(--ds-typography-font-family-number);font-size:0.92em;background:var(--ds-color-bg-04-primary);padding:1px 6px;border-radius:4px;color:var(--ds-color-secondary-07);">t()</code> 호출을 추가합니다. 한 번의 결정으로 처리할 수 있어요.</p>
+        </header>
+
+        <!-- Cluster info -->
+        <section class="info-card">
+          <header class="info-card__head">
+            <span class="info-card__title">클러스터 요약</span>
+            <span class="info-card__sub">전체 PR 5건 · 작성자 Devin · 대상 cortex-web</span>
+          </header>
+          <div class="info-stats">
+            <div class="info-stat">
+              <div class="info-stat__label">평균 신뢰 점수</div>
+              <div class="info-stat__value info-stat__value--success">91</div>
+            </div>
+            <div class="info-stat">
+              <div class="info-stat__label">총 변경 라인</div>
+              <div class="info-stat__value">+184</div>
+            </div>
+            <div class="info-stat">
+              <div class="info-stat__label">변경 파일</div>
+              <div class="info-stat__value">18</div>
+            </div>
+            <div class="info-stat">
+              <div class="info-stat__label">테스트 결과</div>
+              <div class="info-stat__value info-stat__value--success" style="font-size:var(--ds-typography-font-size-18);">전체 통과</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Common pattern -->
+        <section class="pattern-card">
+          <header class="pattern-card__head">
+            <span class="pattern-card__head-title">공통 패턴 — 5개 PR 모두 같은 변경을 합니다</span>
+            <span class="pattern-card__head-sub">예시: settings/page.tsx (#841)</span>
+          </header>
+          <div class="pattern-card__code">
+            <div class="code-line code-line--ctx"><span class="code-line__num">12</span><span class="code-line__sign"> </span><span class="code-line__text">import { useState } from 'react';</span></div>
+            <div class="code-line code-line--add"><span class="code-line__num">13</span><span class="code-line__sign">+</span><span class="code-line__text">import { useTranslation } from '@/i18n';</span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">14</span><span class="code-line__sign"> </span><span class="code-line__text"></span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">15</span><span class="code-line__sign"> </span><span class="code-line__text">export default function SettingsPage() {</span></div>
+            <div class="code-line code-line--add"><span class="code-line__num">16</span><span class="code-line__sign">+</span><span class="code-line__text">  const { t } = useTranslation('settings');</span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">17</span><span class="code-line__sign"> </span><span class="code-line__text">  return (</span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">18</span><span class="code-line__sign"> </span><span class="code-line__text">    &lt;div&gt;</span></div>
+            <div class="code-line code-line--del"><span class="code-line__num">19</span><span class="code-line__sign">−</span><span class="code-line__text">      &lt;h1&gt;설정&lt;/h1&gt;</span></div>
+            <div class="code-line code-line--del"><span class="code-line__num">20</span><span class="code-line__sign">−</span><span class="code-line__text">      &lt;p&gt;계정 정보를 관리하세요&lt;/p&gt;</span></div>
+            <div class="code-line code-line--add"><span class="code-line__num">19</span><span class="code-line__sign">+</span><span class="code-line__text">      &lt;h1&gt;{t('title')}&lt;/h1&gt;</span></div>
+            <div class="code-line code-line--add"><span class="code-line__num">20</span><span class="code-line__sign">+</span><span class="code-line__text">      &lt;p&gt;{t('description')}&lt;/p&gt;</span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">21</span><span class="code-line__sign"> </span><span class="code-line__text">    &lt;/div&gt;</span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">22</span><span class="code-line__sign"> </span><span class="code-line__text">  );</span></div>
+            <div class="code-line code-line--ctx"><span class="code-line__num">23</span><span class="code-line__sign"> </span><span class="code-line__text">}</span></div>
+          </div>
+        </section>
+
+        <!-- Differences -->
+        <section class="diff-card">
+          <h2 class="diff-card__title">각 PR의 차이점</h2>
+
+          <div class="diff-row">
+            <span class="diff-row__id">#841 · #840 · #839 · #838</span>
+            <div class="diff-row__body">
+              <div class="diff-row__title">기존 i18n 키 참조만 추가</div>
+              <div class="diff-row__detail">이미 정의된 키(<code>settings.title</code>, <code>notifications.title</code> 등)를 <code>t()</code>로 감싸기만 합니다. 새 키 정의 없음.</div>
+            </div>
+            <span class="ds-tag ds-tag--md ds-tag--cyan diff-row__flag">동일 패턴</span>
+          </div>
+
+          <div class="diff-row">
+            <span class="diff-row__id">#837</span>
+            <div class="diff-row__body">
+              <div class="diff-row__title">i18n 라벨 + 신규 키 8개 정의</div>
+              <div class="diff-row__detail">대시보드 페이지는 일부 텍스트의 키가 아직 <code>i18n/ko.json</code>에 없어서 <b>신규 키 8개</b>를 함께 정의합니다. 키 이름 컨벤션은 다른 PR과 동일하지만, 검토 시 새 키의 영문 번역도 확인이 필요합니다.</div>
+            </div>
+            <span class="ds-tag ds-tag--md ds-tag--yellow diff-row__flag">차이 있음</span>
+          </div>
+        </section>
+
+        <div style="height:24px;"></div>
+      </main>
+
+      <!-- Right: action panel -->
+      <aside class="action-panel" aria-label="결정">
+        <div class="action-panel__title">결정</div>
+
+        <div class="summary-stat">
+          <div class="summary-stat__num">5</div>
+          <div class="summary-stat__label">개 PR을 한 번에</div>
+          <div class="summary-stat__sub">개별 검토 시 평균 8분 → 클러스터로 1분</div>
+        </div>
+
+        <div class="action-panel__actions">
+          <button class="ds-btn ds-btn--lg ds-btn--filled-blue ds-btn--full-width">
+            <span class="ds-btn__label">전체 5개 머지</span>
+          </button>
+          <button class="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width">
+            <span class="ds-btn__label">4개만 머지 · #837 개별 검토</span>
+          </button>
+          <div class="action-panel__divider"></div>
+          <button class="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width">
+            <span class="ds-btn__label">개별 검토로 전환</span>
+          </button>
+          <button class="ds-btn ds-btn--md ds-btn--filled-gray ds-btn--full-width">
+            <span class="ds-btn__label">클러스터 해제</span>
+          </button>
+        </div>
+
+        <div class="action-panel__note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <div>
+            <b style="font-weight:var(--ds-typography-font-weight-semibold);">#837은 신규 키 정의를 포함합니다.</b> 일괄 머지 시 새 키 8개가 함께 들어갑니다 — 영문 번역이 빠져 있지 않은지 확인하세요.
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // PR list selection
+    document.querySelectorAll('.pr-list__item').forEach(function (it) {
+      it.addEventListener('click', function () {
+        document.querySelectorAll('.pr-list__item').forEach(function (x) { x.classList.remove('pr-list__item--active'); });
+        it.classList.add('pr-list__item--active');
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PR 리뷰 — Cortex</title>
+  <link rel="stylesheet" href="./design-system/colors_and_type.css">
+  <link rel="stylesheet" href="./design-system/lib/lib.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: var(--ds-typography-font-family-text);
+      line-height: var(--ds-typography-line-height-148);
+      color: var(--ds-color-text-03-high);
+      background: var(--ds-color-bg-01);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    ul { list-style: none; }
+    button { font-family: inherit; }
+
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* === Sidebar (shared, same as other pages) === */
+    .sidebar { background: var(--ds-color-bg-00); border-right: var(--ds-border-width-1) solid var(--ds-color-line-02); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar__brand { display: flex; align-items: center; gap: var(--ds-spacing-8); padding: var(--ds-spacing-20); font-size: var(--ds-typography-font-size-18); font-weight: var(--ds-typography-font-weight-bold); letter-spacing: var(--ds-typography-letter-spacing-tight); border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02); }
+    .sidebar__brand-mark { width: 10px; height: 10px; border-radius: 50%; background: var(--ds-color-secondary-01); box-shadow: 0 0 0 3px var(--ds-color-secondary-03); }
+    .sidebar__section { padding: var(--ds-spacing-14) var(--ds-spacing-12) var(--ds-spacing-6); }
+    .sidebar__section-title { padding: 0 var(--ds-spacing-8); margin-bottom: var(--ds-spacing-6); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .sidebar__list { display: flex; flex-direction: column; gap: var(--ds-spacing-2); }
+    .sidebar__item { display: flex; align-items: center; gap: var(--ds-spacing-10); padding: var(--ds-spacing-8) var(--ds-spacing-10); border-radius: var(--ds-border-radius-8); font-size: var(--ds-typography-font-size-14); color: var(--ds-color-text-02); cursor: pointer; transition: background-color 0.15s, color 0.15s; }
+    .sidebar__item:hover { background: var(--ds-color-bg-01); color: var(--ds-color-text-03-high); }
+    .sidebar__item--active { background: var(--ds-color-bg-04-primary); color: var(--ds-color-secondary-01); font-weight: var(--ds-typography-font-weight-semibold); }
+    .sidebar__item--active:hover { background: var(--ds-color-bg-04-primary); color: var(--ds-color-secondary-01); }
+    .sidebar__item svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .sidebar__item-count { margin-left: auto; font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .sidebar__item--active .sidebar__item-count { color: var(--ds-color-secondary-01); }
+    .sidebar__item-count--alert { background: var(--ds-color-state-error-strong); color: var(--ds-color-bg-00); padding: 1px var(--ds-spacing-6); border-radius: 999px; }
+    .sidebar__divider { flex: 1; }
+    .sidebar__footer { padding: var(--ds-spacing-12); border-top: var(--ds-border-width-1) solid var(--ds-color-line-02); }
+    .sidebar__user { display: flex; align-items: center; gap: var(--ds-spacing-10); padding: var(--ds-spacing-8) var(--ds-spacing-10); border-radius: var(--ds-border-radius-8); }
+    .sidebar__avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ds-color-secondary-03); color: var(--ds-color-text-06-secondary); display: inline-flex; align-items: center; justify-content: center; font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-bold); }
+    .sidebar__user-name { font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-03-high); }
+    .sidebar__user-role { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* === PR layout: file tree + main diff === */
+    .pr { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+    .tree {
+      background: var(--ds-color-bg-00);
+      border-right: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      padding: var(--ds-spacing-20) var(--ds-spacing-12);
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    .tree__title { padding: 0 var(--ds-spacing-8) var(--ds-spacing-8); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .tree__summary {
+      padding: var(--ds-spacing-12);
+      background: var(--ds-color-bg-04-primary);
+      border-radius: var(--ds-border-radius-8);
+      margin-bottom: var(--ds-spacing-16);
+    }
+    .tree__summary-row { display: flex; justify-content: space-between; font-size: var(--ds-typography-font-size-12); margin-bottom: var(--ds-spacing-4); }
+    .tree__summary-row:last-child { margin-bottom: 0; }
+    .tree__summary-label { color: var(--ds-color-text-02); }
+    .tree__summary-val { font-family: var(--ds-typography-font-family-number); font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-03-high); }
+    .tree__list { display: flex; flex-direction: column; gap: 1px; }
+    .tree__item {
+      display: flex; align-items: center; gap: var(--ds-spacing-8);
+      padding: var(--ds-spacing-6) var(--ds-spacing-10);
+      border-radius: var(--ds-border-radius-8);
+      font-size: var(--ds-typography-font-size-13);
+      color: var(--ds-color-text-03-high);
+      cursor: pointer;
+    }
+    .tree__item:hover { background: var(--ds-color-bg-01); }
+    .tree__item--active { background: var(--ds-color-bg-01); font-weight: var(--ds-typography-font-weight-semibold); }
+    .tree__item-status {
+      width: 14px; height: 14px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .tree__item-status svg { width: 10px; height: 10px; }
+    .tree__item-status--ok { background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark); }
+    .tree__item-status--warn { background: var(--ds-color-soft-yellow); color: var(--ds-color-state-warning-text-dark); }
+    .tree__item-status--alert { background: var(--ds-color-soft-red); color: var(--ds-color-state-error-strong); }
+    .tree__item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-12); }
+    .tree__item-diff { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-11); color: var(--ds-color-text-02); }
+    .tree__group { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); padding: var(--ds-spacing-10) var(--ds-spacing-10) var(--ds-spacing-4); }
+
+    /* === Diff area === */
+    .diff-area { padding: var(--ds-spacing-32) var(--ds-spacing-32) 80px; min-width: 0; max-width: 1100px; }
+
+    .pr-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-spacing-16);
+      margin-bottom: var(--ds-spacing-16);
+    }
+    .pr-back {
+      display: inline-flex; align-items: center; gap: var(--ds-spacing-4);
+      font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02);
+      cursor: pointer; margin-bottom: var(--ds-spacing-12);
+    }
+    .pr-back:hover { color: var(--ds-color-secondary-01); }
+    .pr-back svg { width: 14px; height: 14px; }
+    .pr-title-wrap { flex: 1; min-width: 0; }
+    .pr-title { font-size: var(--ds-typography-font-size-24); font-weight: var(--ds-typography-font-weight-bold); letter-spacing: var(--ds-typography-letter-spacing-tight); line-height: var(--ds-typography-line-height-136); }
+    .pr-sub { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02); margin-top: var(--ds-spacing-6); display: flex; gap: var(--ds-spacing-8); align-items: center; flex-wrap: wrap; }
+    .pr-sub-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--ds-color-line-04); }
+    .author { display: inline-flex; align-items: center; gap: var(--ds-spacing-4); padding: 2px var(--ds-spacing-8); border-radius: 999px; font-size: var(--ds-typography-font-size-12); font-weight: var(--ds-typography-font-weight-medium); }
+    .author--agent { background: var(--ds-color-soft-blue); color: var(--ds-color-secondary-07); }
+    .author svg { width: 12px; height: 12px; }
+
+    /* === Big gauge === */
+    .pr-gauge { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
+    .pr-gauge__svg { transform: rotate(-90deg); }
+    .pr-gauge__track { fill: none; stroke: var(--ds-color-line-02); }
+    .pr-gauge__bar { fill: none; stroke-linecap: round; stroke: var(--ds-color-state-error-strong); }
+    .pr-gauge__center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .pr-gauge__num { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-32); font-weight: var(--ds-typography-font-weight-bold); line-height: 1; letter-spacing: var(--ds-typography-letter-spacing-tighter); color: var(--ds-color-state-error-strong); }
+    .pr-gauge__label { font-size: var(--ds-typography-font-size-11); color: var(--ds-color-text-02); margin-top: 4px; }
+
+    /* === AI summary card === */
+    .ai-card {
+      padding: var(--ds-spacing-20);
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+      box-shadow: var(--ds-shadow-scale-black-01);
+      margin-bottom: var(--ds-spacing-20);
+    }
+    .ai-card__head { display: flex; align-items: center; gap: var(--ds-spacing-10); margin-bottom: var(--ds-spacing-12); }
+    .ai-card__icon { width: 32px; height: 32px; border-radius: var(--ds-border-radius-input); background: var(--ds-color-soft-blue); color: var(--ds-color-secondary-01); display: inline-flex; align-items: center; justify-content: center; }
+    .ai-card__icon svg { width: 16px; height: 16px; }
+    .ai-card__title { font-size: var(--ds-typography-font-size-14); font-weight: var(--ds-typography-font-weight-semibold); }
+    .ai-card__title-sub { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .ai-card__summary {
+      font-size: var(--ds-typography-font-size-14);
+      line-height: var(--ds-typography-line-height-148);
+      color: var(--ds-color-text-03-high);
+      margin-bottom: var(--ds-spacing-14);
+    }
+    .ai-card__summary b { font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-state-error-strong); }
+    .ai-card__checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--ds-spacing-12); }
+    .ai-check {
+      padding: var(--ds-spacing-12) var(--ds-spacing-14);
+      background: var(--ds-color-bg-01);
+      border-radius: var(--ds-border-radius-8);
+      display: flex; gap: var(--ds-spacing-10); align-items: flex-start;
+    }
+    .ai-check__icon { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ai-check__icon svg { width: 12px; height: 12px; }
+    .ai-check__icon--ok { background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark); }
+    .ai-check__icon--warn { background: var(--ds-color-soft-yellow); color: var(--ds-color-state-warning-text-dark); }
+    .ai-check__icon--alert { background: var(--ds-color-soft-red); color: var(--ds-color-state-error-strong); }
+    .ai-check__label { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+    .ai-check__value { font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-semibold); color: var(--ds-color-text-03-high); margin-top: 2px; }
+
+    /* === Diff blocks === */
+    .file-block {
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+      margin-bottom: var(--ds-spacing-16);
+      overflow: hidden;
+    }
+    .file-block__head {
+      display: flex; align-items: center; gap: var(--ds-spacing-12);
+      padding: var(--ds-spacing-12) var(--ds-spacing-20);
+      background: var(--ds-color-bg-01);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+    }
+    .file-block__head-status {
+      width: 18px; height: 18px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .file-block__head-status svg { width: 12px; height: 12px; }
+    .file-block__head-status--ok { background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark); }
+    .file-block__head-status--warn { background: var(--ds-color-soft-yellow); color: var(--ds-color-state-warning-text-dark); }
+    .file-block__head-status--alert { background: var(--ds-color-soft-red); color: var(--ds-color-state-error-strong); }
+    .file-block__head-name { flex: 1; font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-13); font-weight: var(--ds-typography-font-weight-semibold); }
+    .file-block__head-diff { font-family: var(--ds-typography-font-family-number); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* Collapsed hunk row */
+    .hunk-collapsed {
+      display: flex; align-items: center; gap: var(--ds-spacing-12);
+      padding: var(--ds-spacing-10) var(--ds-spacing-20);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+    .hunk-collapsed:last-child { border-bottom: none; }
+    .hunk-collapsed:hover { background: var(--ds-color-bg-01); }
+    .hunk-collapsed__check { width: 18px; height: 18px; border-radius: 4px; background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .hunk-collapsed__check svg { width: 12px; height: 12px; }
+    .hunk-collapsed__label { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02); flex: 1; }
+    .hunk-collapsed__label b { color: var(--ds-color-text-03-high); font-family: var(--ds-typography-font-family-number); font-weight: var(--ds-typography-font-weight-semibold); }
+    .hunk-collapsed__expand { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-secondary-01); }
+
+    /* Expanded hunk */
+    .hunk {
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+    }
+    .hunk:last-child { border-bottom: none; }
+    .hunk__reason {
+      padding: var(--ds-spacing-12) var(--ds-spacing-20);
+      background: var(--ds-color-soft-yellow);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      display: flex; align-items: center; gap: var(--ds-spacing-10);
+      font-size: var(--ds-typography-font-size-13);
+      color: var(--ds-color-state-warning-text-dark);
+    }
+    .hunk__reason--alert { background: var(--ds-color-soft-red); color: var(--ds-color-state-error-strong); }
+    .hunk__reason svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .hunk__reason b { font-weight: var(--ds-typography-font-weight-semibold); }
+    .hunk__code {
+      font-family: var(--ds-typography-font-family-number);
+      font-size: var(--ds-typography-font-size-13);
+      line-height: 1.55;
+    }
+    .code-line { display: flex; padding: 0; }
+    .code-line__num { width: 50px; padding: 0 var(--ds-spacing-10); text-align: right; color: var(--ds-color-text-02); font-size: var(--ds-typography-font-size-12); user-select: none; flex-shrink: 0; }
+    .code-line__sign { width: 18px; text-align: center; color: var(--ds-color-text-02); user-select: none; flex-shrink: 0; }
+    .code-line__text { flex: 1; padding-right: var(--ds-spacing-20); white-space: pre; overflow-x: auto; }
+    .code-line--ctx { background: var(--ds-color-bg-00); }
+    .code-line--add { background: var(--ds-color-soft-green); color: var(--ds-color-state-success-text-dark); }
+    .code-line--add .code-line__sign { color: var(--ds-color-state-success-text-dark); }
+    .code-line--del { background: var(--ds-color-soft-red); color: var(--ds-color-state-error-strong); }
+    .code-line--del .code-line__sign { color: var(--ds-color-state-error-strong); }
+    .code-line--hunk-head { background: var(--ds-color-bg-01); color: var(--ds-color-text-02); }
+    .code-line--hunk-head .code-line__text { font-style: normal; }
+
+    /* AI inline comment */
+    .ai-comment {
+      margin: 0 var(--ds-spacing-20) var(--ds-spacing-4);
+      padding: var(--ds-spacing-12) var(--ds-spacing-14);
+      background: var(--ds-color-bg-04-primary);
+      border-left: 3px solid var(--ds-color-secondary-01);
+      border-radius: 0 var(--ds-border-radius-8) var(--ds-border-radius-8) 0;
+      font-size: var(--ds-typography-font-size-13);
+      line-height: var(--ds-typography-line-height-148);
+    }
+    .ai-comment__head { display: flex; align-items: center; gap: var(--ds-spacing-6); margin-bottom: var(--ds-spacing-4); font-size: var(--ds-typography-font-size-12); color: var(--ds-color-secondary-07); font-weight: var(--ds-typography-font-weight-semibold); }
+    .ai-comment__head svg { width: 12px; height: 12px; }
+    .ai-comment__body { color: var(--ds-color-text-03-high); }
+    .ai-comment__body code { font-family: var(--ds-typography-font-family-number); background: var(--ds-color-bg-00); padding: 1px 6px; border-radius: 4px; font-size: 0.92em; }
+
+    /* === Sticky action bar === */
+    .action-bar {
+      position: sticky; bottom: 0;
+      margin: var(--ds-spacing-24) calc(-1 * var(--ds-spacing-32)) 0;
+      padding: var(--ds-spacing-16) var(--ds-spacing-32);
+      background: var(--ds-color-bg-00);
+      border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      box-shadow: var(--ds-shadow-scale-black-03);
+      display: flex; gap: var(--ds-spacing-10); justify-content: space-between; align-items: center;
+    }
+    .action-bar__left { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02); }
+    .action-bar__left b { color: var(--ds-color-text-03-high); }
+    .action-bar__right { display: flex; gap: var(--ds-spacing-8); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="워크스페이스">
+      <div class="sidebar__brand">
+        <span class="sidebar__brand-mark" aria-hidden="true"></span>
+        Cortex
+      </div>
+      <nav class="sidebar__section">
+        <div class="sidebar__section-title">워크스페이스</div>
+        <ul class="sidebar__list">
+          <li class="sidebar__item" onclick="location.href='index.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg><span>대시보드</span></li>
+          <li class="sidebar__item sidebar__item--active" onclick="location.href='inbox.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><span>인박스</span><span class="sidebar__item-count sidebar__item-count--alert">8</span></li>
+          <li class="sidebar__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span>프로젝트</span><span class="sidebar__item-count">12</span></li>
+          <li class="sidebar__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1m15.36-7.36-4.24 4.24m-4.24 4.24-4.24 4.24m12.72 0-4.24-4.24M7.76 7.76 3.52 3.52"/></svg><span>에이전트</span><span class="sidebar__item-count">7</span></li>
+          <li class="sidebar__item" onclick="location.href='cluster.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M9 8l3 8m3-8l-3 8"/></svg><span>클러스터</span><span class="sidebar__item-count">2</span></li>
+          <li class="sidebar__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="20" y1="20" x2="20" y2="14"/></svg><span>보고서</span></li>
+        </ul>
+      </nav>
+      <div class="sidebar__divider"></div>
+      <div class="sidebar__footer">
+        <div class="sidebar__user">
+          <span class="sidebar__avatar">JH</span>
+          <div>
+            <div class="sidebar__user-name">정현</div>
+            <div class="sidebar__user-role">엔지니어링 리드</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- PR main area -->
+    <div class="pr">
+      <!-- File tree + summary -->
+      <aside class="tree" aria-label="파일 트리">
+        <div class="tree__summary">
+          <div class="tree__summary-row"><span class="tree__summary-label">변경 파일</span><span class="tree__summary-val">14</span></div>
+          <div class="tree__summary-row"><span class="tree__summary-label">변경 라인</span><span class="tree__summary-val" style="color:var(--ds-color-state-success-text-dark);">+286</span></div>
+          <div class="tree__summary-row"><span class="tree__summary-label">삭제 라인</span><span class="tree__summary-val" style="color:var(--ds-color-state-error-strong);">−47</span></div>
+          <div class="tree__summary-row"><span class="tree__summary-label">자동 승인 가능</span><span class="tree__summary-val">11 hunk</span></div>
+          <div class="tree__summary-row"><span class="tree__summary-label">검토 필요</span><span class="tree__summary-val" style="color:var(--ds-color-state-error-strong);">3 hunk</span></div>
+        </div>
+
+        <div class="tree__group">검토 필요 파일</div>
+        <div class="tree__list">
+          <div class="tree__item tree__item--active">
+            <span class="tree__item-status tree__item-status--alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <span class="tree__item-name">refund/service.ts</span>
+            <span class="tree__item-diff" style="color:var(--ds-color-state-error-strong);">+82 −18</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <span class="tree__item-name">refund/policy.ts</span>
+            <span class="tree__item-diff">+34 −9</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <span class="tree__item-name">refund/api.ts</span>
+            <span class="tree__item-diff">+28 −0</span>
+          </div>
+        </div>
+
+        <div class="tree__group">자동 승인 가능</div>
+        <div class="tree__list">
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="tree__item-name">refund/types.ts</span>
+            <span class="tree__item-diff">+14 −2</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="tree__item-name">utils/format.ts</span>
+            <span class="tree__item-diff">+5 −0</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="tree__item-name">i18n/ko.json</span>
+            <span class="tree__item-diff">+8 −0</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="tree__item-name">i18n/en.json</span>
+            <span class="tree__item-diff">+8 −0</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="tree__item-name">tests/refund.spec.ts</span>
+            <span class="tree__item-diff">+62 −10</span>
+          </div>
+          <div class="tree__item">
+            <span class="tree__item-status tree__item-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="tree__item-name" style="color:var(--ds-color-text-02);">외 8개 파일</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Diff main -->
+      <main class="diff-area">
+        <a class="pr-back" onclick="location.href='inbox.html'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          인박스로 돌아가기
+        </a>
+
+        <div class="pr-head">
+          <div class="pr-title-wrap">
+            <h1 class="pr-title">결제 모듈 — 환불 정책 변경</h1>
+            <div class="pr-sub">
+              <span style="font-family:var(--ds-typography-font-family-number);">payments-api</span>
+              <span class="pr-sub-dot"></span>
+              <span style="font-family:var(--ds-typography-font-family-number);">#1142</span>
+              <span class="pr-sub-dot"></span>
+              <span class="author author--agent">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="15" cy="10" r="1.5" fill="currentColor"/><path d="M9 15h6"/></svg>
+                Devin이 생성
+              </span>
+              <span class="pr-sub-dot"></span>
+              <span>12분 전</span>
+              <span class="pr-sub-dot"></span>
+              <span class="ds-tag ds-tag--md ds-tag--red">결제 모듈</span>
+              <span class="ds-tag ds-tag--md ds-tag--yellow">테스트 부족</span>
+            </div>
+          </div>
+          <div class="pr-gauge">
+            <svg class="pr-gauge__svg" width="96" height="96" viewBox="0 0 96 96">
+              <circle class="pr-gauge__track" cx="48" cy="48" r="40" stroke-width="7"/>
+              <circle class="pr-gauge__bar" cx="48" cy="48" r="40" stroke-width="7" stroke-dasharray="251.33" stroke-dashoffset="135.72"/>
+            </svg>
+            <div class="pr-gauge__center">
+              <span class="pr-gauge__num">46</span>
+              <span class="pr-gauge__label">신뢰 점수</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI summary -->
+        <section class="ai-card">
+          <div class="ai-card__head">
+            <span class="ai-card__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </span>
+            <div>
+              <div class="ai-card__title">Cortex 사전 리뷰</div>
+              <div class="ai-card__title-sub">2분 전 자동 분석 완료 · 사람 검토를 권장합니다</div>
+            </div>
+          </div>
+          <div class="ai-card__summary">
+            이 PR은 결제 모듈을 수정하므로 <b>자동 머지 정책에서 제외</b>되었습니다. 17개 hunk 중 <b>3개</b>가 검토를 필요로 합니다. 환불 정책의 임계값 변경이 핵심이며, 기존 환불 케이스의 회귀 테스트가 추가되었습니다. 다만 동시성 시나리오에 대한 테스트가 누락되어 있어 확인이 필요합니다.
+          </div>
+          <div class="ai-card__checks">
+            <div class="ai-check">
+              <span class="ai-check__icon ai-check__icon--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div>
+                <div class="ai-check__label">테스트 실행</div>
+                <div class="ai-check__value">통과 (134/134)</div>
+              </div>
+            </div>
+            <div class="ai-check">
+              <span class="ai-check__icon ai-check__icon--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+              <div>
+                <div class="ai-check__label">커버리지</div>
+                <div class="ai-check__value">58% · 기준 미달</div>
+              </div>
+            </div>
+            <div class="ai-check">
+              <span class="ai-check__icon ai-check__icon--alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+              <div>
+                <div class="ai-check__label">위험 영역</div>
+                <div class="ai-check__value">결제 도메인</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- File 1: refund/service.ts (active) -->
+        <section class="file-block">
+          <header class="file-block__head">
+            <span class="file-block__head-status file-block__head-status--alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <span class="file-block__head-name">refund/service.ts</span>
+            <span class="file-block__head-diff"><span style="color:var(--ds-color-state-success-text-dark);">+82</span> <span style="color:var(--ds-color-state-error-strong);">−18</span></span>
+          </header>
+
+          <!-- Collapsed hunk -->
+          <div class="hunk-collapsed">
+            <span class="hunk-collapsed__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="hunk-collapsed__label">자동 승인 가능 · <b>import 정리</b> · 5줄 변경</span>
+            <span class="hunk-collapsed__expand">펼치기 →</span>
+          </div>
+
+          <!-- Expanded hunk 1: alert -->
+          <div class="hunk">
+            <div class="hunk__reason hunk__reason--alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div><b>이유:</b> 환불 임계값을 50,000원에서 100,000원으로 상향 — 비즈니스 정책 변경입니다. 승인된 변경인지 확인이 필요합니다.</div>
+            </div>
+            <div class="hunk__code">
+              <div class="code-line code-line--hunk-head"><span class="code-line__num">42</span><span class="code-line__sign"></span><span class="code-line__text">@@ -42,8 +42,8 @@ class RefundService {</span></div>
+              <div class="code-line code-line--ctx"><span class="code-line__num">42</span><span class="code-line__sign"> </span><span class="code-line__text">  async processRefund(orderId: string, amount: number) {</span></div>
+              <div class="code-line code-line--ctx"><span class="code-line__num">43</span><span class="code-line__sign"> </span><span class="code-line__text">    const order = await this.orderRepo.findById(orderId);</span></div>
+              <div class="code-line code-line--del"><span class="code-line__num">44</span><span class="code-line__sign">−</span><span class="code-line__text">    if (amount > 50_000) {</span></div>
+              <div class="code-line code-line--del"><span class="code-line__num">45</span><span class="code-line__sign">−</span><span class="code-line__text">      throw new Error('환불 한도 초과');</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">44</span><span class="code-line__sign">+</span><span class="code-line__text">    if (amount > REFUND_LIMIT) {</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">45</span><span class="code-line__sign">+</span><span class="code-line__text">      throw new RefundLimitError(amount, REFUND_LIMIT);</span></div>
+              <div class="code-line code-line--ctx"><span class="code-line__num">46</span><span class="code-line__sign"> </span><span class="code-line__text">    }</span></div>
+            </div>
+            <div class="ai-comment">
+              <div class="ai-comment__head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Cortex 코멘트
+              </div>
+              <div class="ai-comment__body">
+                <code>REFUND_LIMIT</code>이 <code>policy.ts</code>에서 <code>100_000</code>으로 정의되어 있습니다. 기존 50,000원 → 100,000원으로 상향되는데, 이는 명시적 비즈니스 결정인지 확인이 필요합니다. 관련 이슈 또는 ADR 링크가 PR 설명에 없습니다.
+              </div>
+            </div>
+          </div>
+
+          <!-- Expanded hunk 2: warn -->
+          <div class="hunk">
+            <div class="hunk__reason">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div><b>이유:</b> 동시 환불 호출에 대한 락(lock) 추가 — 동시성 패턴이 비표준입니다.</div>
+            </div>
+            <div class="hunk__code">
+              <div class="code-line code-line--hunk-head"><span class="code-line__num">68</span><span class="code-line__sign"></span><span class="code-line__text">@@ -68,4 +68,12 @@ class RefundService {</span></div>
+              <div class="code-line code-line--ctx"><span class="code-line__num">68</span><span class="code-line__sign"> </span><span class="code-line__text">    await this.transactionRepo.markRefunded(orderId);</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">69</span><span class="code-line__sign">+</span><span class="code-line__text">    const lockKey = `refund:${orderId}`;</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">70</span><span class="code-line__sign">+</span><span class="code-line__text">    const acquired = await this.cache.setNX(lockKey, '1', 30);</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">71</span><span class="code-line__sign">+</span><span class="code-line__text">    if (!acquired) throw new Error('동시 환불 시도 감지');</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">72</span><span class="code-line__sign">+</span><span class="code-line__text">    try {</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">73</span><span class="code-line__sign">+</span><span class="code-line__text">      return await this.gateway.processRefund(order, amount);</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">74</span><span class="code-line__sign">+</span><span class="code-line__text">    } finally {</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">75</span><span class="code-line__sign">+</span><span class="code-line__text">      await this.cache.del(lockKey);</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">76</span><span class="code-line__sign">+</span><span class="code-line__text">    }</span></div>
+            </div>
+            <div class="ai-comment">
+              <div class="ai-comment__head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Cortex 코멘트
+              </div>
+              <div class="ai-comment__body">
+                레포의 다른 서비스(<code>order/service.ts:218</code>, <code>inventory/service.ts:94</code>)에서는 <code>this.lockService.withLock()</code> 헬퍼를 사용합니다. 일관성을 위해 같은 헬퍼를 쓰는 것이 좋아 보입니다. 또한 락 획득 실패 시 <code>RefundLockError</code> 같은 도메인 오류로 던지는 게 호출자에게 더 명확합니다.
+              </div>
+            </div>
+          </div>
+
+          <!-- More collapsed hunks -->
+          <div class="hunk-collapsed">
+            <span class="hunk-collapsed__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="hunk-collapsed__label">자동 승인 가능 · <b>에러 메시지 i18n 처리</b> · 8줄 변경</span>
+            <span class="hunk-collapsed__expand">펼치기 →</span>
+          </div>
+          <div class="hunk-collapsed">
+            <span class="hunk-collapsed__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="hunk-collapsed__label">자동 승인 가능 · <b>리턴 타입 명시화</b> · 3줄 변경</span>
+            <span class="hunk-collapsed__expand">펼치기 →</span>
+          </div>
+        </section>
+
+        <!-- File 2: refund/policy.ts -->
+        <section class="file-block">
+          <header class="file-block__head">
+            <span class="file-block__head-status file-block__head-status--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <span class="file-block__head-name">refund/policy.ts</span>
+            <span class="file-block__head-diff"><span style="color:var(--ds-color-state-success-text-dark);">+34</span> <span style="color:var(--ds-color-state-error-strong);">−9</span></span>
+          </header>
+          <div class="hunk">
+            <div class="hunk__reason">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div><b>이유:</b> 신규 상수 정의 — 위 변경의 임계값 원천입니다.</div>
+            </div>
+            <div class="hunk__code">
+              <div class="code-line code-line--hunk-head"><span class="code-line__num">12</span><span class="code-line__sign"></span><span class="code-line__text">@@ -12,2 +12,5 @@ export const REFUND_POLICY = {</span></div>
+              <div class="code-line code-line--ctx"><span class="code-line__num">12</span><span class="code-line__sign"> </span><span class="code-line__text">  windowDays: 7,</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">13</span><span class="code-line__sign">+</span><span class="code-line__text">  // 2026-05-15: CFO 결재. 임계값 50_000 → 100_000으로 상향 (참조: GOV-142).</span></div>
+              <div class="code-line code-line--add"><span class="code-line__num">14</span><span class="code-line__sign">+</span><span class="code-line__text">  refundLimitKrw: 100_000,</span></div>
+              <div class="code-line code-line--ctx"><span class="code-line__num">15</span><span class="code-line__sign"> </span><span class="code-line__text">};</span></div>
+            </div>
+            <div class="ai-comment">
+              <div class="ai-comment__head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Cortex 코멘트
+              </div>
+              <div class="ai-comment__body">
+                <code>GOV-142</code> 거버넌스 티켓이 ApprovalDB에서 확인됩니다 — 5월 12일 CFO 결재 완료. 임계값 변경 자체는 거버넌스 통과 상태입니다.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- File 3 -->
+        <section class="file-block">
+          <header class="file-block__head">
+            <span class="file-block__head-status file-block__head-status--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <span class="file-block__head-name">refund/api.ts</span>
+            <span class="file-block__head-diff"><span style="color:var(--ds-color-state-success-text-dark);">+28</span> <span style="color:var(--ds-color-text-02);">−0</span></span>
+          </header>
+          <div class="hunk-collapsed">
+            <span class="hunk-collapsed__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="hunk-collapsed__label">검토 필요 · <b>새 엔드포인트 POST /refund/preview</b> · 28줄 추가</span>
+            <span class="hunk-collapsed__expand">펼치기 →</span>
+          </div>
+        </section>
+
+        <!-- Other files (collapsed) -->
+        <section class="file-block">
+          <header class="file-block__head">
+            <span class="file-block__head-status file-block__head-status--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="file-block__head-name">자동 승인 가능 파일 11개</span>
+            <span class="file-block__head-diff" style="color:var(--ds-color-text-02);">전체 펼치기 →</span>
+          </header>
+        </section>
+
+        <!-- Sticky action bar -->
+        <div class="action-bar">
+          <div class="action-bar__left">
+            <b>3개 hunk</b> 검토 필요 · <b>11개</b> 자동 승인 가능
+          </div>
+          <div class="action-bar__right">
+            <button class="ds-btn ds-btn--md ds-btn--outlined-basic">의문점 남기기</button>
+            <button class="ds-btn ds-btn--md ds-btn--outlined-red">변경 요청</button>
+            <button class="ds-btn ds-btn--md ds-btn--filled-blue">머지</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Expand collapsed hunks on click
+    document.querySelectorAll('.hunk-collapsed').forEach(function (h) {
+      h.addEventListener('click', function () {
+        h.style.background = 'var(--ds-color-bg-01)';
+        h.querySelector('.hunk-collapsed__expand').textContent = '(데모: 클릭 시 펼칩니다)';
+      });
+    });
+    // File tree active state
+    document.querySelectorAll('.tree__item').forEach(function (it) {
+      it.addEventListener('click', function () {
+        document.querySelectorAll('.tree__item').forEach(function (x) { x.classList.remove('tree__item--active'); });
+        it.classList.add('tree__item--active');
+      });
+    });
+  </script>
+</body>
+</html>

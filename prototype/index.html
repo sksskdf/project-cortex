@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>워크스페이스 — Cortex</title>
+  <link rel="stylesheet" href="./design-system/colors_and_type.css">
+  <link rel="stylesheet" href="./design-system/lib/lib.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: var(--ds-typography-font-family-text);
+      line-height: var(--ds-typography-line-height-148);
+      color: var(--ds-color-text-03-high);
+      background: var(--ds-color-bg-01);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    ul { list-style: none; }
+    button { font-family: inherit; }
+
+    /* === App shell === */
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* === Sidebar (shared across screens) === */
+    .sidebar {
+      background: var(--ds-color-bg-00);
+      border-right: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .sidebar__brand {
+      display: flex; align-items: center; gap: var(--ds-spacing-8);
+      padding: var(--ds-spacing-20);
+      font-size: var(--ds-typography-font-size-18);
+      font-weight: var(--ds-typography-font-weight-bold);
+      letter-spacing: var(--ds-typography-letter-spacing-tight);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+    }
+    .sidebar__brand-mark {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--ds-color-secondary-01);
+      box-shadow: 0 0 0 3px var(--ds-color-secondary-03);
+    }
+    .sidebar__section { padding: var(--ds-spacing-14) var(--ds-spacing-12) var(--ds-spacing-6); }
+    .sidebar__section-title {
+      padding: 0 var(--ds-spacing-8); margin-bottom: var(--ds-spacing-6);
+      font-size: var(--ds-typography-font-size-12);
+      font-weight: var(--ds-typography-font-weight-medium);
+      color: var(--ds-color-text-02);
+    }
+    .sidebar__list { display: flex; flex-direction: column; gap: var(--ds-spacing-2); }
+    .sidebar__item {
+      display: flex; align-items: center; gap: var(--ds-spacing-10);
+      padding: var(--ds-spacing-8) var(--ds-spacing-10);
+      border-radius: var(--ds-border-radius-8);
+      font-size: var(--ds-typography-font-size-14);
+      line-height: var(--ds-typography-line-height-140);
+      color: var(--ds-color-text-02);
+      cursor: pointer;
+      transition: background-color 0.15s, color 0.15s;
+    }
+    .sidebar__item:hover { background: var(--ds-color-bg-01); color: var(--ds-color-text-03-high); }
+    .sidebar__item--active {
+      background: var(--ds-color-bg-04-primary);
+      color: var(--ds-color-secondary-01);
+      font-weight: var(--ds-typography-font-weight-semibold);
+    }
+    .sidebar__item--active:hover { background: var(--ds-color-bg-04-primary); color: var(--ds-color-secondary-01); }
+    .sidebar__item svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .sidebar__item-count {
+      margin-left: auto;
+      font-family: var(--ds-typography-font-family-number);
+      font-size: var(--ds-typography-font-size-12);
+      font-weight: var(--ds-typography-font-weight-medium);
+      color: var(--ds-color-text-02);
+    }
+    .sidebar__item--active .sidebar__item-count { color: var(--ds-color-secondary-01); }
+    .sidebar__item-count--alert {
+      background: var(--ds-color-state-error-strong);
+      color: var(--ds-color-bg-00);
+      padding: 1px var(--ds-spacing-6);
+      border-radius: 999px;
+    }
+    .sidebar__divider { flex: 1; }
+    .sidebar__footer { padding: var(--ds-spacing-12); border-top: var(--ds-border-width-1) solid var(--ds-color-line-02); }
+    .sidebar__user {
+      display: flex; align-items: center; gap: var(--ds-spacing-10);
+      padding: var(--ds-spacing-8) var(--ds-spacing-10);
+      border-radius: var(--ds-border-radius-8);
+      cursor: pointer;
+    }
+    .sidebar__user:hover { background: var(--ds-color-bg-01); }
+    .sidebar__avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--ds-color-secondary-03);
+      color: var(--ds-color-text-06-secondary);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: var(--ds-typography-font-size-13);
+      font-weight: var(--ds-typography-font-weight-bold);
+      flex-shrink: 0;
+    }
+    .sidebar__user-name {
+      font-size: var(--ds-typography-font-size-13);
+      font-weight: var(--ds-typography-font-weight-semibold);
+      color: var(--ds-color-text-03-high);
+    }
+    .sidebar__user-role { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* === Main === */
+    .main { padding: var(--ds-spacing-32) var(--ds-spacing-40); min-width: 0; max-width: 1280px; }
+
+    .main__header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: var(--ds-spacing-16);
+      margin-bottom: var(--ds-spacing-24);
+    }
+    .greeting {
+      font-size: var(--ds-typography-font-size-28);
+      font-weight: var(--ds-typography-font-weight-bold);
+      line-height: var(--ds-typography-line-height-136);
+      letter-spacing: var(--ds-typography-letter-spacing-tight);
+    }
+    .greeting-sub {
+      margin-top: var(--ds-spacing-4);
+      font-size: var(--ds-typography-font-size-14);
+      color: var(--ds-color-text-02);
+    }
+    .greeting-sub b {
+      color: var(--ds-color-secondary-01);
+      font-weight: var(--ds-typography-font-weight-semibold);
+    }
+    .header-actions { display: flex; gap: var(--ds-spacing-10); align-items: center; flex-shrink: 0; }
+    .icon-btn {
+      position: relative; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--ds-color-text-02);
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    .icon-btn:hover { background: var(--ds-color-bg-01); border-color: var(--ds-color-line-03); color: var(--ds-color-text-03-high); }
+    .icon-btn svg { width: 18px; height: 18px; }
+    .icon-btn__badge { position: absolute; top: -4px; right: -4px; }
+
+    /* === Stat grid === */
+    .stat-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: var(--ds-spacing-16);
+      margin-bottom: var(--ds-spacing-24);
+    }
+    .stat {
+      padding: var(--ds-spacing-20);
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+      box-shadow: var(--ds-shadow-scale-black-01);
+    }
+    .stat__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--ds-spacing-14); }
+    .stat__icon {
+      width: 36px; height: 36px;
+      border-radius: var(--ds-border-radius-input);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .stat__icon svg { width: 18px; height: 18px; }
+    .stat__icon--blue   { background: var(--ds-color-soft-blue);   color: var(--ds-color-secondary-01); }
+    .stat__icon--green  { background: var(--ds-color-soft-green);  color: var(--ds-color-state-success-text-dark); }
+    .stat__icon--yellow { background: var(--ds-color-soft-yellow); color: var(--ds-color-state-warning-text-dark); }
+    .stat__icon--purple { background: var(--ds-color-soft-purple); color: var(--ds-color-text-06-secondary); }
+    .stat__label { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02); margin-bottom: var(--ds-spacing-4); }
+    .stat__value {
+      font-family: var(--ds-typography-font-family-number);
+      font-size: var(--ds-typography-font-size-32);
+      font-weight: var(--ds-typography-font-weight-bold);
+      line-height: var(--ds-typography-line-height-128);
+      letter-spacing: var(--ds-typography-letter-spacing-tighter);
+    }
+    .stat__value-unit { font-size: var(--ds-typography-font-size-20); margin-left: 2px; }
+    .stat__delta { margin-top: var(--ds-spacing-4); font-size: var(--ds-typography-font-size-12); display: inline-flex; align-items: center; gap: var(--ds-spacing-2); }
+    .stat__delta--up   { color: var(--ds-color-state-success-text-dark); }
+    .stat__delta--down { color: var(--ds-color-state-error-strong); }
+
+    /* === Two-column === */
+    .cols { display: grid; grid-template-columns: 2fr 1fr; gap: var(--ds-spacing-20); }
+    .section { margin-bottom: var(--ds-spacing-24); }
+    .section__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-spacing-12); margin-bottom: var(--ds-spacing-12); }
+    .section__title {
+      font-size: var(--ds-typography-font-size-18);
+      font-weight: var(--ds-typography-font-weight-bold);
+      letter-spacing: var(--ds-typography-letter-spacing-snug);
+    }
+    .section__more { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-secondary-01); cursor: pointer; }
+    .section__more:hover { text-decoration: underline; }
+
+    /* === Today list === */
+    .today-list {
+      display: flex; flex-direction: column;
+      background: var(--ds-color-bg-00);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      border-radius: var(--ds-border-radius-card);
+      overflow: hidden;
+    }
+    .today-row {
+      display: flex; align-items: center; gap: var(--ds-spacing-16);
+      padding: var(--ds-spacing-14) var(--ds-spacing-20);
+      border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .today-row:last-child { border-bottom: none; }
+    .today-row:hover { background: var(--ds-color-bg-01); }
+    .today-row__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--ds-spacing-4); }
+    .today-row__title {
+      font-size: var(--ds-typography-font-size-14);
+      font-weight: var(--ds-typography-font-weight-semibold);
+      line-height: var(--ds-typography-line-height-140);
+      color: var(--ds-color-text-03-high);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .today-row__meta {
+      display: flex; flex-wrap: wrap; gap: var(--ds-spacing-6); align-items: center;
+      font-size: var(--ds-typography-font-size-12);
+      color: var(--ds-color-text-02);
+    }
+    .today-row__reason {
+      font-size: var(--ds-typography-font-size-12);
+      color: var(--ds-color-state-error-strong);
+      display: inline-flex; align-items: center; gap: var(--ds-spacing-4);
+    }
+    .today-row__right { display: flex; flex-direction: column; align-items: flex-end; gap: var(--ds-spacing-4); flex-shrink: 0; font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* === Confidence gauge === */
+    .gauge { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+    .gauge--sm { width: 36px; height: 36px; }
+    .gauge__svg { transform: rotate(-90deg); }
+    .gauge__track { fill: none; stroke: var(--ds-color-line-02); }
+    .gauge__bar   { fill: none; stroke-linecap: round; transition: stroke-dashoffset 0.3s; }
+    .gauge__bar--success { stroke: var(--ds-color-state-success-accent); }
+    .gauge__bar--blue    { stroke: var(--ds-color-secondary-01); }
+    .gauge__bar--warning { stroke: var(--ds-color-state-warning-base); }
+    .gauge__bar--error   { stroke: var(--ds-color-state-error-strong); }
+    .gauge__label {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--ds-typography-font-family-number);
+      font-size: var(--ds-typography-font-size-13);
+      font-weight: var(--ds-typography-font-weight-bold);
+      color: var(--ds-color-text-03-high);
+      letter-spacing: var(--ds-typography-letter-spacing-tighter);
+    }
+    .gauge--sm .gauge__label { font-size: var(--ds-typography-font-size-12); }
+
+    /* === Author chip === */
+    .author {
+      display: inline-flex; align-items: center; gap: var(--ds-spacing-4);
+      padding: 2px var(--ds-spacing-8);
+      border-radius: 999px;
+      font-size: var(--ds-typography-font-size-12);
+      font-weight: var(--ds-typography-font-weight-medium);
+    }
+    .author--agent { background: var(--ds-color-soft-blue); color: var(--ds-color-secondary-07); }
+    .author--human { background: var(--ds-color-soft-gray-pale); color: var(--ds-color-text-03-high); }
+    .author svg { width: 12px; height: 12px; }
+
+    /* === Workload === */
+    .workload-card { padding: var(--ds-spacing-20); background: var(--ds-color-bg-00); border: var(--ds-border-width-1) solid var(--ds-color-line-02); border-radius: var(--ds-border-radius-card); }
+    .workload { display: flex; flex-direction: column; gap: var(--ds-spacing-14); }
+    .workload__row { display: flex; flex-direction: column; gap: var(--ds-spacing-6); }
+    .workload__head { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--ds-typography-font-size-13); }
+    .workload__name { color: var(--ds-color-text-03-high); font-weight: var(--ds-typography-font-weight-semibold); }
+    .workload__count { font-family: var(--ds-typography-font-family-number); color: var(--ds-color-text-02); }
+    .workload__bar-track { height: 6px; background: var(--ds-color-line-02); border-radius: 999px; overflow: hidden; }
+    .workload__bar { height: 100%; border-radius: 999px; background: var(--ds-color-secondary-01); }
+    .workload__bar--green { background: var(--ds-color-state-success-accent); }
+    .workload__bar--yellow { background: var(--ds-color-state-warning-base); }
+    .workload__eta { font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* === Feed === */
+    .feed-card { padding: var(--ds-spacing-20); background: var(--ds-color-bg-00); border: var(--ds-border-width-1) solid var(--ds-color-line-02); border-radius: var(--ds-border-radius-card); }
+    .feed { display: flex; flex-direction: column; gap: var(--ds-spacing-14); }
+    .feed__item { display: flex; gap: var(--ds-spacing-10); align-items: flex-start; }
+    .feed__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ds-color-state-success-accent); margin-top: 7px; flex-shrink: 0; }
+    .feed__body { flex: 1; min-width: 0; }
+    .feed__text { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-03-high); line-height: var(--ds-typography-line-height-148); }
+    .feed__text b { font-weight: var(--ds-typography-font-weight-semibold); }
+    .feed__time { display: block; margin-top: 2px; font-size: var(--ds-typography-font-size-12); color: var(--ds-color-text-02); }
+
+    /* === Principle banner === */
+    .principle {
+      display: flex; align-items: center; gap: var(--ds-spacing-12);
+      padding: var(--ds-spacing-16) var(--ds-spacing-20);
+      background: var(--ds-color-bg-04-primary);
+      border: var(--ds-border-width-1) solid var(--ds-color-line-03);
+      border-radius: var(--ds-border-radius-card);
+      margin-bottom: var(--ds-spacing-24);
+    }
+    .principle__icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      border-radius: var(--ds-border-radius-input);
+      background: var(--ds-color-bg-00);
+      color: var(--ds-color-secondary-01);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .principle__icon svg { width: 18px; height: 18px; }
+    .principle__title {
+      font-size: var(--ds-typography-font-size-14);
+      font-weight: var(--ds-typography-font-weight-semibold);
+      color: var(--ds-color-secondary-07);
+    }
+    .principle__desc { font-size: var(--ds-typography-font-size-13); color: var(--ds-color-text-02); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ====== Sidebar ====== -->
+    <aside class="sidebar" aria-label="워크스페이스">
+      <div class="sidebar__brand">
+        <span class="sidebar__brand-mark" aria-hidden="true"></span>
+        Cortex
+      </div>
+
+      <nav class="sidebar__section" aria-label="메인">
+        <div class="sidebar__section-title">워크스페이스</div>
+        <ul class="sidebar__list">
+          <li class="sidebar__item sidebar__item--active" aria-current="page" onclick="location.href='index.html'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>
+            <span>대시보드</span>
+          </li>
+          <li class="sidebar__item" onclick="location.href='inbox.html'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            <span>인박스</span>
+            <span class="sidebar__item-count sidebar__item-count--alert">8</span>
+          </li>
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+            <span>프로젝트</span>
+            <span class="sidebar__item-count">12</span>
+          </li>
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1m15.36-7.36-4.24 4.24m-4.24 4.24-4.24 4.24m12.72 0-4.24-4.24M7.76 7.76 3.52 3.52"/></svg>
+            <span>에이전트</span>
+            <span class="sidebar__item-count">7</span>
+          </li>
+          <li class="sidebar__item" onclick="location.href='cluster.html'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M9 8l3 8m3-8l-3 8"/></svg>
+            <span>클러스터</span>
+            <span class="sidebar__item-count">2</span>
+          </li>
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="20" y1="20" x2="20" y2="14"/></svg>
+            <span>보고서</span>
+          </li>
+        </ul>
+      </nav>
+
+      <nav class="sidebar__section" aria-label="즐겨찾기">
+        <div class="sidebar__section-title">즐겨찾기</div>
+        <ul class="sidebar__list">
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span>cortex-web</span>
+          </li>
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span>payments-api</span>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="sidebar__divider"></div>
+
+      <nav class="sidebar__section">
+        <ul class="sidebar__list">
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33"/></svg>
+            <span>설정</span>
+          </li>
+          <li class="sidebar__item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>도움말</span>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="sidebar__footer">
+        <div class="sidebar__user">
+          <span class="sidebar__avatar" aria-hidden="true">JH</span>
+          <div>
+            <div class="sidebar__user-name">정현</div>
+            <div class="sidebar__user-role">엔지니어링 리드</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ====== Main ====== -->
+    <main class="main">
+      <header class="main__header">
+        <div>
+          <h1 class="greeting">안녕하세요, 정현님</h1>
+          <p class="greeting-sub">오늘 검토할 PR이 <b>8건</b> 있습니다. 평균보다 적은 양이에요.</p>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" aria-label="알림">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="ds-badge ds-badge--pill icon-btn__badge">3</span>
+          </button>
+          <button class="ds-btn ds-btn--md ds-btn--outlined-basic">
+            <span class="ds-btn__icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+            </span>
+            <span class="ds-btn__label">에이전트 시작</span>
+          </button>
+          <button class="ds-btn ds-btn--md ds-btn--filled-blue">
+            <span class="ds-btn__icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <span class="ds-btn__label">새 이슈</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Product principle banner -->
+      <div class="principle" role="note">
+        <div class="principle__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <div>
+          <div class="principle__title">이번 주 47건이 자동 머지되었어요</div>
+          <div class="principle__desc">에이전트가 자신 있는 작업은 자동으로 처리됩니다. 인박스에는 검토가 필요한 것만 올라옵니다.</div>
+        </div>
+      </div>
+
+      <!-- Stat 4-up -->
+      <section class="stat-grid" aria-label="현황">
+        <div class="stat">
+          <div class="stat__top">
+            <span class="stat__icon stat__icon--blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            </span>
+          </div>
+          <div class="stat__label">검토 대기</div>
+          <div class="stat__value">8</div>
+          <span class="stat__delta stat__delta--up">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            +3 어제 대비
+          </span>
+        </div>
+        <div class="stat">
+          <div class="stat__top">
+            <span class="stat__icon stat__icon--green" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+          </div>
+          <div class="stat__label">이번 주 자동 머지</div>
+          <div class="stat__value">47</div>
+          <span class="stat__delta stat__delta--up">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            +12 지난주 대비
+          </span>
+        </div>
+        <div class="stat">
+          <div class="stat__top">
+            <span class="stat__icon stat__icon--yellow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+          </div>
+          <div class="stat__label">에이전트 진행 중</div>
+          <div class="stat__value">12</div>
+          <span class="stat__delta">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="var(--ds-color-state-success-accent)" stroke="none"><circle cx="12" cy="12" r="6"/></svg>
+            <span style="color:var(--ds-color-text-02);">지금 실행 중</span>
+          </span>
+        </div>
+        <div class="stat">
+          <div class="stat__top">
+            <span class="stat__icon stat__icon--purple" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+            </span>
+          </div>
+          <div class="stat__label">평균 신뢰 점수</div>
+          <div class="stat__value">87<span class="stat__value-unit">점</span></div>
+          <span class="stat__delta stat__delta--up">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            +2 지난주 대비
+          </span>
+        </div>
+      </section>
+
+      <!-- Two-column -->
+      <div class="cols">
+        <!-- LEFT -->
+        <div>
+          <section class="section">
+            <div class="section__head">
+              <h2 class="section__title">지금 처리할 것</h2>
+              <a href="inbox.html" class="section__more">인박스 전체 보기 →</a>
+            </div>
+            <div class="today-list">
+              <!-- Row 1 -->
+              <div class="today-row" onclick="location.href='pr.html'">
+                <div class="gauge gauge--sm">
+                  <svg class="gauge__svg" width="36" height="36" viewBox="0 0 36 36">
+                    <circle class="gauge__track" cx="18" cy="18" r="15" stroke-width="3"/>
+                    <circle class="gauge__bar gauge__bar--error" cx="18" cy="18" r="15" stroke-width="3" stroke-dasharray="94.25" stroke-dashoffset="50.9"/>
+                  </svg>
+                  <span class="gauge__label">46</span>
+                </div>
+                <div class="today-row__body">
+                  <div class="today-row__title">결제 모듈 — 환불 정책 변경</div>
+                  <div class="today-row__meta">
+                    <span class="author author--agent">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="15" cy="10" r="1.5" fill="currentColor"/><path d="M9 15h6"/></svg>
+                      Devin
+                    </span>
+                    <span class="ds-tag ds-tag--md ds-tag--red">결제 모듈</span>
+                    <span class="ds-tag ds-tag--md ds-tag--yellow">테스트 부족</span>
+                  </div>
+                  <div class="today-row__reason">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    결제 영역 변경 + 테스트 커버리지 58%로 기준 미달
+                  </div>
+                </div>
+                <div class="today-row__right">
+                  <span>+286 −47</span>
+                  <span>12분 전</span>
+                </div>
+              </div>
+              <!-- Row 2 -->
+              <div class="today-row" onclick="location.href='pr.html'">
+                <div class="gauge gauge--sm">
+                  <svg class="gauge__svg" width="36" height="36" viewBox="0 0 36 36">
+                    <circle class="gauge__track" cx="18" cy="18" r="15" stroke-width="3"/>
+                    <circle class="gauge__bar gauge__bar--warning" cx="18" cy="18" r="15" stroke-width="3" stroke-dasharray="94.25" stroke-dashoffset="34.83"/>
+                  </svg>
+                  <span class="gauge__label">63</span>
+                </div>
+                <div class="today-row__body">
+                  <div class="today-row__title">데이터베이스 — users 테이블 인덱스 추가</div>
+                  <div class="today-row__meta">
+                    <span class="author author--agent">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="15" cy="10" r="1.5" fill="currentColor"/><path d="M9 15h6"/></svg>
+                      Codex
+                    </span>
+                    <span class="ds-tag ds-tag--md ds-tag--red">마이그레이션</span>
+                  </div>
+                  <div class="today-row__reason">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    프로덕션 마이그레이션 — 사람 승인 필수
+                  </div>
+                </div>
+                <div class="today-row__right">
+                  <span>+34 −0</span>
+                  <span>38분 전</span>
+                </div>
+              </div>
+              <!-- Row 3 -->
+              <div class="today-row" onclick="location.href='pr.html'">
+                <div class="gauge gauge--sm">
+                  <svg class="gauge__svg" width="36" height="36" viewBox="0 0 36 36">
+                    <circle class="gauge__track" cx="18" cy="18" r="15" stroke-width="3"/>
+                    <circle class="gauge__bar gauge__bar--blue" cx="18" cy="18" r="15" stroke-width="3" stroke-dasharray="94.25" stroke-dashoffset="22.62"/>
+                  </svg>
+                  <span class="gauge__label">76</span>
+                </div>
+                <div class="today-row__body">
+                  <div class="today-row__title">알림 — Slack webhook 연동 추가</div>
+                  <div class="today-row__meta">
+                    <span class="author author--agent">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="15" cy="10" r="1.5" fill="currentColor"/><path d="M9 15h6"/></svg>
+                      Devin
+                    </span>
+                    <span class="ds-tag ds-tag--md ds-tag--purple">외부 API</span>
+                  </div>
+                  <div class="today-row__reason" style="color:var(--ds-color-text-02);">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    신규 외부 호출 — 보안 검토 권장
+                  </div>
+                </div>
+                <div class="today-row__right">
+                  <span>+128 −12</span>
+                  <span>1시간 전</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section__head">
+              <h2 class="section__title">최근 자동 머지</h2>
+              <a href="#" class="section__more">전체 활동 →</a>
+            </div>
+            <div class="feed-card">
+              <div class="feed">
+                <div class="feed__item">
+                  <span class="feed__dot" aria-hidden="true"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>Devin</b>이 <b>i18n 라벨 12개 추가</b>를 자동 머지했어요 · 신뢰 점수 94</div>
+                    <span class="feed__time">3분 전 · cortex-web</span>
+                  </div>
+                </div>
+                <div class="feed__item">
+                  <span class="feed__dot" aria-hidden="true"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>Codex</b>가 <b>유닛 테스트 보강</b>을 자동 머지했어요 · 신뢰 점수 91</div>
+                    <span class="feed__time">14분 전 · payments-api</span>
+                  </div>
+                </div>
+                <div class="feed__item">
+                  <span class="feed__dot" aria-hidden="true"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>Devin</b>이 <b>타입 정의 정리</b>를 자동 머지했어요 · 신뢰 점수 96</div>
+                    <span class="feed__time">42분 전 · cortex-web</span>
+                  </div>
+                </div>
+                <div class="feed__item">
+                  <span class="feed__dot" aria-hidden="true"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>내부 에이전트</b>가 <b>의존성 패치 업데이트</b>를 자동 머지했어요 · 신뢰 점수 89</div>
+                    <span class="feed__time">1시간 전 · 5개 레포</span>
+                  </div>
+                </div>
+                <div class="feed__item">
+                  <span class="feed__dot" aria-hidden="true"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>Codex</b>가 <b>README 오타 수정</b>을 자동 머지했어요 · 신뢰 점수 99</div>
+                    <span class="feed__time">2시간 전 · cortex-web</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- RIGHT -->
+        <aside>
+          <section class="section">
+            <div class="section__head">
+              <h2 class="section__title">에이전트 워크로드</h2>
+              <a href="#" class="section__more">전체 보기 →</a>
+            </div>
+            <div class="workload-card">
+              <div class="workload">
+                <div class="workload__row">
+                  <div class="workload__head">
+                    <span class="workload__name">Devin</span>
+                    <span class="workload__count">5 / 8</span>
+                  </div>
+                  <div class="workload__bar-track"><div class="workload__bar" style="width:63%;"></div></div>
+                  <span class="workload__eta">평균 ETA 28분 · 4분 후 첫 작업 완료</span>
+                </div>
+                <div class="workload__row">
+                  <div class="workload__head">
+                    <span class="workload__name">Codex</span>
+                    <span class="workload__count">4 / 6</span>
+                  </div>
+                  <div class="workload__bar-track"><div class="workload__bar workload__bar--green" style="width:67%;"></div></div>
+                  <span class="workload__eta">평균 ETA 12분 · 2분 후 첫 작업 완료</span>
+                </div>
+                <div class="workload__row">
+                  <div class="workload__head">
+                    <span class="workload__name">내부 에이전트</span>
+                    <span class="workload__count">3 / 4</span>
+                  </div>
+                  <div class="workload__bar-track"><div class="workload__bar workload__bar--yellow" style="width:75%;"></div></div>
+                  <span class="workload__eta">평균 ETA 46분 · 큐 대기 1건</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section__head">
+              <h2 class="section__title">묶인 클러스터</h2>
+              <a href="cluster.html" class="section__more">클러스터 보기 →</a>
+            </div>
+            <div class="feed-card">
+              <div class="feed">
+                <div class="feed__item" style="cursor:pointer;" onclick="location.href='cluster.html'">
+                  <span class="feed__dot" aria-hidden="true" style="background:var(--ds-color-secondary-01);"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>i18n 라벨 패턴</b> · 5건이 묶였어요</div>
+                    <span class="feed__time">평균 신뢰 91 · 한 번의 결정으로 처리 가능</span>
+                  </div>
+                </div>
+                <div class="feed__item">
+                  <span class="feed__dot" aria-hidden="true" style="background:var(--ds-color-secondary-01);"></span>
+                  <div class="feed__body">
+                    <div class="feed__text"><b>의존성 마이너 업데이트</b> · 3건이 묶였어요</div>
+                    <span class="feed__time">평균 신뢰 88 · lock 파일 변경 포함</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <div style="height:48px;"></div>
+    </main>
+  </div>
+</body>
+</html>
