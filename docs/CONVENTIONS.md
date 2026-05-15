@@ -139,9 +139,10 @@ src/lib/triage.test.ts   ← 같은 폴더에 인접 배치
 
 ## 13. Git
 
-- 메인 브랜치: `main`.
-- 기능 브랜치: `feat/<짧은-이름>`, `fix/<짧은-이름>`.
-- `--force-push` 금지. 머지는 squash.
+- 메인 브랜치: `master`. 직접 푸시 금지.
+- 작업 브랜치: `feat/<짧은-이름>`, `fix/<짧은-이름>`, `chore/<짧은-이름>`, `docs/<짧은-이름>`, `refactor/<짧은-이름>`.
+- 모든 변경은 master로 PR. 머지는 **squash** (커밋 1개로 압축).
+- `--force-push` 금지 (자기 작업 브랜치 정리는 예외).
 
 ## 14. 시간·날짜
 
