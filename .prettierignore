@@ -5,6 +5,8 @@ public/design-system
 prototype
 *.lock
 package-lock.json
+data
+src/db/migrations
 
 # 기존 문서는 손대지 않음 (코드만 포맷팅)
 *.md
