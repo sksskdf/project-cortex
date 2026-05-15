@@ -1,3 +1,8 @@
+.page {
+  padding: var(--ds-spacing-32) var(--ds-spacing-40);
+  max-width: 1280px;
+}
+
 .header {
   display: flex;
   align-items: center;

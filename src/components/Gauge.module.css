@@ -1,0 +1,63 @@
+.gauge {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.gaugeSm {
+  width: 36px;
+  height: 36px;
+}
+
+.gaugeMd {
+  width: 44px;
+  height: 44px;
+}
+
+.svg {
+  transform: rotate(-90deg);
+}
+
+.track {
+  fill: none;
+  stroke: var(--ds-color-line-02);
+}
+
+.bar {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.barSuccess {
+  stroke: var(--ds-color-state-success-accent);
+}
+
+.barBlue {
+  stroke: var(--ds-color-secondary-01);
+}
+
+.barWarning {
+  stroke: var(--ds-color-state-warning-base);
+}
+
+.barError {
+  stroke: var(--ds-color-state-error-strong);
+}
+
+.label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ds-typography-font-family-number);
+  font-weight: var(--ds-typography-font-weight-bold);
+  color: var(--ds-color-text-03-high);
+}
+
+.labelSm {
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.labelMd {
+  font-size: var(--ds-typography-font-size-14);
+}
