@@ -1,0 +1,363 @@
+/**
+ * Urock Design System — colors_and_type.css
+ *
+ * Source-of-truth CSS variables for the entire design system.
+ * Derived from /source/tokens/*.json (W3C DTCG format) — matches build/css/tokens.css
+ * from the Style Dictionary build in the original repo.
+ *
+ * NAMING — two tiers:
+ *   1. Primitive scales: --ds-color-primary-NN, --ds-color-secondary-NN, --ds-color-soft-*
+ *   2. Semantic roles:   --ds-color-{bg|line|text|state}-NN
+ *
+ * USAGE — always prefer SEMANTIC tokens. Primitives only when no semantic fits.
+ *   ❌  color: #628cf5;
+ *   ✅  color: var(--ds-color-secondary-01);   primitive (brand blue)
+ *   ✅  color: var(--ds-color-text-04-primary); semantic (better)
+ *
+ * Single light theme — dark mode handled via translucent overlays.
+ */
+
+/* Pretendard — Korean variable web font (self-hosted).
+   File: /fonts/PretendardVariable.woff2. Single variable font covers weights 100–900. */
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/PretendardVariable.woff2') format('woff2-variations'),
+       url('fonts/PretendardVariable.woff2') format('woff2');
+}
+
+/* Spoqa Han Sans Neo — numerals-only family (self-hosted).
+   Only Medium + Bold are needed per the token spec (number style sheet has no Regular). */
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('fonts/SpoqaHanSansNeo-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('fonts/SpoqaHanSansNeo-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* DS-Digital — 7-segment style display font.
+   Use only via .ds-num--digital utility, for forensics-app readouts (case IDs,
+   timestamps in monitoring views, counters). Treat as a niche display family,
+   not a body face. */
+@font-face {
+  font-family: 'DS-Digital';
+  src: url('fonts/ds-digital.woff') format('woff');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root {
+  /* ========== COLOR — Primary (Gray-blue scale) ========== */
+  --ds-color-primary-00: #ffffff;
+  --ds-color-primary-01: #f9fbff;
+  --ds-color-primary-02: #dddddd;
+  --ds-color-primary-03: #959799;
+  --ds-color-primary-05: #64686b;
+  --ds-color-primary-06: #464a4e;
+  --ds-color-primary-07: #181d22;
+  --ds-color-primary-08: #161a1f;
+  --ds-color-primary-09: #111518;
+  --ds-color-primary-10: #0d1013;
+  --ds-color-primary-11: #0a0c0e;
+  --ds-color-primary-12: #1c2846;
+
+  /* ========== COLOR — Secondary (Brand blue scale) ========== */
+  --ds-color-secondary-01: #628cf5;
+  --ds-color-secondary-02: #93b0f8;
+  --ds-color-secondary-03: #b7cafa;
+  --ds-color-secondary-04: #96b2f8;
+  --ds-color-secondary-05: #81a3f7;
+  --ds-color-secondary-06: #597fdf;
+  --ds-color-secondary-07: #4663ae;
+  --ds-color-secondary-08: #364d87;
+  --ds-color-secondary-09: #293b67;
+  --ds-color-secondary-10: #1c2846;
+
+  /* ========== COLOR — Soft tints ========== */
+  --ds-color-soft-red: #FFEAEA;
+  --ds-color-soft-red-light: rgba(255, 234, 234, 0.4);
+  --ds-color-soft-yellow: #FFF4CE;
+  --ds-color-soft-yellow-light: rgba(255, 244, 206, 0.4);
+  --ds-color-soft-green: #DFFAFB;
+  --ds-color-soft-green-light: rgba(223, 250, 251, 0.4);
+  --ds-color-soft-blue: #E6EDFF;
+  --ds-color-soft-purple: #E9E3FA;
+  --ds-color-soft-gray-light: #E6E6E6;
+  --ds-color-soft-gray-dark: #C9C9C9;
+  --ds-color-soft-gray-pale: #F3F4F6;
+
+  /* ========== COLOR — State ========== */
+  --ds-color-state-success-base: #32d8e3;
+  --ds-color-state-success-accent: #01D7DB;
+  --ds-color-state-success-bg-soft: #aef2f6;
+  --ds-color-state-success-text-dark: #04939b;
+  --ds-color-state-error-base: #ff8484;
+  --ds-color-state-error-accent: #FF8486;
+  --ds-color-state-error-strong: #ee4c54;
+  --ds-color-state-error-bg-soft: #ffb9b9;
+  --ds-color-state-warning-base: #ffc60a;
+  --ds-color-state-warning-text-dark: #B16D00;
+
+  /* ========== COLOR — Semantic BG ========== */
+  --ds-color-bg-00: #ffffff;
+  --ds-color-bg-01: #f9f9f9;
+  --ds-color-bg-01-disable: rgba(255, 255, 255, 0.02);
+  --ds-color-bg-02: #e6e6e6;
+  --ds-color-bg-02-row: rgba(255, 255, 255, 0.1);
+  --ds-color-bg-03: #f7f9fe;
+  --ds-color-bg-03-high: rgba(255, 255, 255, 0.05);
+  --ds-color-bg-04-primary: #e6edff;
+  --ds-color-bg-04-dark: rgba(3, 4, 28, 0.34);
+  --ds-color-bg-05-focus: #f9f9f9;
+  --ds-color-bg-05-dark: rgba(255, 255, 255, 0.05);
+  --ds-color-bg-06-card: #F9FAFB;
+  --ds-color-bg-06-dark: rgba(3, 4, 28, 0.34);
+
+  /* ========== COLOR — Semantic Line ========== */
+  --ds-color-line-00: #201D30;
+  --ds-color-line-01: #FFFFFF;
+  --ds-color-line-02: #e9ebf8;
+  --ds-color-line-02-row: rgba(180, 199, 246, 0.15);
+  --ds-color-line-03: #93B0F8;
+  --ds-color-line-04: #494b4d;
+  --ds-color-line-05: #050506;
+
+  /* ========== COLOR — Semantic Text ========== */
+  --ds-color-text-00: #F5F5F5;
+  --ds-color-text-00-row: rgba(237, 237, 237, 0.2);
+  --ds-color-text-01: #ededed;
+  --ds-color-text-01-row: rgba(237, 237, 237, 0.6);
+  --ds-color-text-02: #767676;
+  --ds-color-text-02-alt: #BABABF;
+  --ds-color-text-03-high: #1a1a1a;
+  --ds-color-text-03-high-alt: #FCFCFC;
+  --ds-color-text-04-primary: #4978eb;
+  --ds-color-text-04-primary-alt: #628FFF;
+  --ds-color-text-05-dark: #91b1ff;
+  --ds-color-text-06-secondary: #342F9B;
+  --ds-color-text-06-secondary-alt: #3B45FF;
+  --ds-color-text-07-tertiary: #8246AF;
+  --ds-color-text-success: var(--ds-color-state-success-accent);
+  --ds-color-text-error: var(--ds-color-state-error-accent);
+  --ds-color-text-warning: var(--ds-color-state-warning-text-dark);
+
+  /* ========== COLOR — Shadow bases ========== */
+  --ds-color-shadow-black: #0F0F0F;
+  --ds-color-shadow-navy: #161421;
+  --ds-color-shadow-blue: #B1C5F8;
+  --ds-color-shadow-green: #01D7DB;
+  --ds-color-shadow-red: #F8B1B1;
+
+  /* ========== TYPOGRAPHY — primitives ========== */
+  --ds-typography-font-family-text: 'Pretendard', system-ui, sans-serif;
+  --ds-typography-font-family-number: 'Spoqa Han Sans Neo', 'Pretendard', system-ui, sans-serif;
+  --ds-typography-font-family-digital: 'DS-Digital', 'Spoqa Han Sans Neo', monospace;
+
+  --ds-typography-font-weight-regular: 400;
+  --ds-typography-font-weight-medium: 500;
+  --ds-typography-font-weight-semibold: 600;
+  --ds-typography-font-weight-bold: 700;
+
+  --ds-typography-font-size-12: 12px;
+  --ds-typography-font-size-13: 13px;
+  --ds-typography-font-size-14: 14px;
+  --ds-typography-font-size-16: 16px;
+  --ds-typography-font-size-18: 18px;
+  --ds-typography-font-size-20: 20px;
+  --ds-typography-font-size-24: 24px;
+  --ds-typography-font-size-28: 28px;
+  --ds-typography-font-size-32: 32px;
+  --ds-typography-font-size-36: 36px;
+  --ds-typography-font-size-40: 40px;
+  --ds-typography-font-size-48: 48px;
+  --ds-typography-font-size-72: 72px;
+  --ds-typography-font-size-120: 120px;
+
+  --ds-typography-line-height-110: 1.1;
+  --ds-typography-line-height-120: 1.2;
+  --ds-typography-line-height-128: 1.28;
+  --ds-typography-line-height-136: 1.36;
+  --ds-typography-line-height-140: 1.4;
+  --ds-typography-line-height-148: 1.48;
+
+  --ds-typography-letter-spacing-tightest: -3px;
+  --ds-typography-letter-spacing-tighter: -2px;
+  --ds-typography-letter-spacing-tight: -1.3px;
+  --ds-typography-letter-spacing-snug: -1px;
+  --ds-typography-letter-spacing-neutral: -0.5px;
+  --ds-typography-letter-spacing-loose: -0.3px;
+  --ds-typography-letter-spacing-normal: 0;
+
+  /* ========== SPACING — non-uniform scale (matches Figma) ========== */
+  --ds-spacing-1: 1px;
+  --ds-spacing-2: 2px;
+  --ds-spacing-3: 3px;
+  --ds-spacing-4: 4px;
+  --ds-spacing-5: 5px;
+  --ds-spacing-6: 6px;
+  --ds-spacing-8: 8px;
+  --ds-spacing-10: 10px;
+  --ds-spacing-12: 12px;
+  --ds-spacing-14: 14px;
+  --ds-spacing-16: 16px;
+  --ds-spacing-18: 18px;
+  --ds-spacing-20: 20px;
+  --ds-spacing-24: 24px;
+  --ds-spacing-28: 28px;
+  --ds-spacing-32: 32px;
+  --ds-spacing-36: 36px;
+  --ds-spacing-40: 40px;
+  --ds-spacing-44: 44px;
+  --ds-spacing-48: 48px;
+  --ds-spacing-56: 56px;
+  --ds-spacing-60: 60px;
+  --ds-spacing-64: 64px;
+  --ds-spacing-72: 72px;
+  --ds-spacing-80: 80px;
+  --ds-spacing-96: 96px;
+  --ds-spacing-120: 120px;
+  --ds-spacing-160: 160px;
+  --ds-spacing-200: 200px;
+  --ds-spacing-240: 240px;
+
+  /* ========== BORDER ========== */
+  --ds-border-width-0_5: 0.5px;
+  --ds-border-width-0_72: 0.72px;
+  --ds-border-width-1: 1px;
+  --ds-border-width-1_5: 1.5px;
+  --ds-border-width-2: 2px;
+  --ds-border-width-2_5: 2.5px;
+  --ds-border-width-4: 4px;
+  --ds-border-width-8: 8px;
+
+  --ds-border-radius-4: 4px;
+  --ds-border-radius-8: 8px;
+  --ds-border-radius-10: 10px;
+  --ds-border-radius-12: 12px;
+  --ds-border-radius-16: 16px;
+  --ds-border-radius-20: 20px;
+  --ds-border-radius-24: 24px;
+  --ds-border-radius-48: 48px;
+  --ds-border-radius-60: 60px;
+
+  --ds-border-radius-button-small: 8px;
+  --ds-border-radius-button-medium: 10px;
+  --ds-border-radius-button-large: 12px;
+  --ds-border-radius-input: 12px;
+  --ds-border-radius-label: 12px;
+  --ds-border-radius-modal: 16px;
+  --ds-border-radius-card: 20px;
+
+  /* ========== SHADOW — scale ========== */
+  --ds-shadow-scale-black-01: 0px 1px 1px 0px rgba(0, 0, 0, 0.03);
+  --ds-shadow-scale-black-02:
+    0px 4px 3px 0px rgba(0, 0, 0, 0.01),
+    0px 2px 2px 0px rgba(0, 0, 0, 0.01),
+    0px 0px 1px 0px rgba(0, 0, 0, 0.02);
+  --ds-shadow-scale-black-03:
+    0px 10px 6px 0px rgba(0, 0, 0, 0.01),
+    0px 4px 4px 0px rgba(0, 0, 0, 0.02),
+    0px 1px 2px 0px rgba(0, 0, 0, 0.02);
+  --ds-shadow-scale-black-04:
+    0px 24px 32px 0px rgba(15, 15, 15, 0.03),
+    0px 7px 10px 0px rgba(15, 15, 15, 0.02),
+    0px 3px 5px 0px rgba(15, 15, 15, 0.01),
+    0px 2px 2px 0px rgba(15, 15, 15, 0.01);
+  --ds-shadow-scale-black-05:
+    0px 60px 80px 0px rgba(15, 15, 15, 0.04),
+    0px 24px 32px 0px rgba(15, 15, 15, 0.03),
+    0px 12px 16px 0px rgba(15, 15, 15, 0.03),
+    0px 7px 10px 0px rgba(15, 15, 15, 0.02),
+    0px 3px 5px 0px rgba(15, 15, 15, 0.01),
+    0px 2px 2px 0px rgba(15, 15, 15, 0.01);
+
+  --ds-shadow-scale-blue-01:
+    0px 10px 10px 0px rgba(98, 140, 245, 0.01),
+    0px 4px 4px 0px rgba(98, 140, 245, 0.02),
+    0px 1px 2px 0px rgba(98, 140, 245, 0.02);
+  --ds-shadow-scale-blue-02:
+    -1px 2px 2px 0px rgba(98, 140, 245, 0.03),
+    -1px 4px 10px 0px rgba(98, 140, 245, 0.06);
+
+  /* ========== SHADOW — semantic aliases ========== */
+  --ds-shadow-component-btn-outlined-blue: var(--ds-shadow-scale-blue-02);
+  --ds-shadow-component-btn-outlined-black:
+    0px 2px 6px 0px rgba(24, 29, 34, 0.03),
+    0px 2.571px 12px 0px rgba(24, 29, 34, 0.05);
+  --ds-shadow-component-btn-filled-blue:
+    -1px 5px 14px 0px rgba(98, 140, 245, 0.17);
+  --ds-shadow-component-check-box-blue:
+    0px 3px 8px 0px rgba(98, 140, 245, 0.13);
+  --ds-shadow-component-check-box-black:
+    0px 3px 8px 0px rgba(24, 29, 34, 0.08);
+  --ds-shadow-component-card-card:
+    0px -3px 14px 0px rgba(0, 0, 0, 0.04);
+
+  --ds-shadow-focus-focus-black: var(--ds-shadow-scale-black-05);
+  --ds-shadow-focus-focus-blue:
+    0px 20px 40px 0px rgba(177, 197, 248, 0.26),
+    0px 12px 20px 0px rgba(177, 197, 248, 0.30),
+    0px 6px 12px 0px rgba(177, 197, 248, 0.36),
+    0px 4px 6px 0px rgba(177, 197, 248, 0.44),
+    0px 1px 3px 0px rgba(177, 197, 248, 0.60);
+  --ds-shadow-focus-focus-green:
+    0px 12px 20px 0px rgba(1, 215, 219, 0.15),
+    0px 6px 12px 0px rgba(1, 215, 219, 0.15),
+    0px 4px 6px 0px rgba(1, 215, 219, 0.08),
+    0px 1px 3px 0px rgba(1, 215, 219, 0.60);
+  --ds-shadow-focus-focus-red:
+    0px 20px 32px 0px rgba(248, 177, 177, 0.20),
+    0px 12px 16px 0px rgba(248, 177, 177, 0.20),
+    0px 6px 12px 0px rgba(248, 177, 177, 0.32);
+  --ds-shadow-frame-frame-light: var(--ds-shadow-scale-black-05);
+
+  /* ========== MOTION (informal — for component transitions) ========== */
+  --ds-motion-duration-fast: 150ms;
+  --ds-motion-duration-base: 200ms;
+  --ds-motion-duration-slow: 320ms;
+  --ds-motion-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:where(html) {
+  font-family: var(--ds-typography-font-family-text);
+  color: var(--ds-color-text-03-high);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========== TYPE STYLE shortcuts ==========
+   Attach these utility classes to text nodes when you want the system default for
+   a given semantic role. Components can also use --ds-typography-* primitives directly. */
+.ds-type--display    { font-size: var(--ds-typography-font-size-72); font-weight: 700; line-height: 1.2; letter-spacing: -3px; }
+.ds-type--h1         { font-size: var(--ds-typography-font-size-48); font-weight: 700; line-height: 1.2; letter-spacing: -2px; }
+.ds-type--h2         { font-size: var(--ds-typography-font-size-32); font-weight: 700; line-height: 1.28; letter-spacing: -2px; }
+.ds-type--h3         { font-size: var(--ds-typography-font-size-24); font-weight: 700; line-height: 1.4; letter-spacing: -1.3px; }
+.ds-type--h4         { font-size: var(--ds-typography-font-size-20); font-weight: 600; line-height: 1.36; letter-spacing: -1px; }
+.ds-type--title      { font-size: var(--ds-typography-font-size-18); font-weight: 600; line-height: 1.36; letter-spacing: -0.5px; }
+.ds-type--body       { font-size: var(--ds-typography-font-size-16); font-weight: 400; line-height: 1.48; letter-spacing: -0.5px; }
+.ds-type--body-medium{ font-size: var(--ds-typography-font-size-16); font-weight: 500; line-height: 1.48; letter-spacing: -0.5px; }
+.ds-type--label      { font-size: var(--ds-typography-font-size-14); font-weight: 500; line-height: 1.4; letter-spacing: -0.5px; }
+.ds-type--small      { font-size: var(--ds-typography-font-size-13); font-weight: 400; line-height: 1.36; letter-spacing: -0.5px; }
+.ds-type--caption    { font-size: var(--ds-typography-font-size-12); font-weight: 400; line-height: 1.36; letter-spacing: -0.5px; color: var(--ds-color-text-02); }
+
+.ds-num--display { font-family: var(--ds-typography-font-family-number); font-size: 120px; font-weight: 700; line-height: 1.1; letter-spacing: -2px; }
+.ds-num--xl      { font-family: var(--ds-typography-font-family-number); font-size: 48px;  font-weight: 700; line-height: 1.2; letter-spacing: -0.5px; }
+.ds-num--lg      { font-family: var(--ds-typography-font-family-number); font-size: 32px;  font-weight: 700; line-height: 1.2; letter-spacing: -0.3px; }
+.ds-num--md      { font-family: var(--ds-typography-font-family-number); font-size: 20px;  font-weight: 500; line-height: 1.2; letter-spacing: 0; }
+.ds-num--sm      { font-family: var(--ds-typography-font-family-number); font-size: 14px;  font-weight: 500; line-height: 1.48; letter-spacing: 0; }
+
+/* DS-Digital — 7-segment display utility. Use sparingly for forensics readouts
+   (case IDs in monitoring, live counters, timestamps inside hardware-styled
+   surfaces). Not for body copy. */
+.ds-num--digital     { font-family: var(--ds-typography-font-family-digital); font-weight: 700; letter-spacing: 1px; }
+.ds-num--digital-lg  { font-family: var(--ds-typography-font-family-digital); font-weight: 700; font-size: 56px; letter-spacing: 2px; line-height: 1; }
+.ds-num--digital-md  { font-family: var(--ds-typography-font-family-digital); font-weight: 700; font-size: 32px; letter-spacing: 1.5px; line-height: 1; }
+.ds-num--digital-sm  { font-family: var(--ds-typography-font-family-digital); font-weight: 700; font-size: 18px; letter-spacing: 1px; line-height: 1.2; }

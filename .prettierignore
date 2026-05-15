@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+public/design-system
+prototype
+*.lock
+package-lock.json
+
+# 기존 문서는 손대지 않음 (코드만 포맷팅)
+*.md
+
