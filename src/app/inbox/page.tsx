@@ -2,13 +2,13 @@ import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { PRRow } from '@/components/PRRow';
 import {
-  inboxCategories,
-  inboxClusterBanner,
-  inboxProjects,
-  inboxQueue,
+  getInboxCategories,
+  getInboxClusterBanner,
+  getInboxProjects,
+  listInboxQueue,
   type InboxCategoryId,
   type InboxProject,
-} from '@/mocks/inbox';
+} from '@/lib/inbox';
 import styles from './page.module.css';
 
 const categoryLabel: Record<InboxCategoryId, string> = {
@@ -177,7 +177,14 @@ function searchIcon() {
   );
 }
 
-export default function InboxPage() {
+export default async function InboxPage() {
+  const [inboxQueue, inboxCategories, inboxProjects, inboxClusterBanner] = await Promise.all([
+    listInboxQueue(),
+    getInboxCategories(),
+    getInboxProjects(),
+    getInboxClusterBanner(),
+  ]);
+
   return (
     <div className={styles.layout}>
       <nav className={styles.rail} aria-label={t.inbox.rail.ariaLabel}>
@@ -262,18 +269,20 @@ export default function InboxPage() {
           </div>
         </div>
 
-        <Link href={`/cluster/${inboxClusterBanner.id}`} className={styles.clusterBanner}>
-          <div className={styles.clusterBannerIcon} aria-hidden="true">
-            {clusterIcon()}
-          </div>
-          <div className={styles.clusterBannerBody}>
-            <div className={styles.clusterBannerTitle}>{inboxClusterBanner.title}</div>
-            <div className={styles.clusterBannerSub}>{inboxClusterBanner.description}</div>
-          </div>
-          <span className="ds-btn ds-btn--md ds-btn--filled-blue">
-            <span className="ds-btn__label">{t.inbox.clusterBanner.open}</span>
-          </span>
-        </Link>
+        {inboxClusterBanner && (
+          <Link href={`/cluster/${inboxClusterBanner.id}`} className={styles.clusterBanner}>
+            <div className={styles.clusterBannerIcon} aria-hidden="true">
+              {clusterIcon()}
+            </div>
+            <div className={styles.clusterBannerBody}>
+              <div className={styles.clusterBannerTitle}>{inboxClusterBanner.title}</div>
+              <div className={styles.clusterBannerSub}>{inboxClusterBanner.description}</div>
+            </div>
+            <span className="ds-btn ds-btn--md ds-btn--filled-blue">
+              <span className="ds-btn__label">{t.inbox.clusterBanner.open}</span>
+            </span>
+          </Link>
+        )}
 
         <div className={styles.queue}>
           {inboxQueue.map((pr) => (

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
-import { currentUser, favoriteProjects, sidebarCounts } from '@/mocks/dashboard';
+import type { CurrentUser, SidebarCounts } from '@/lib/types';
 import styles from './Sidebar.module.css';
 
 type NavItem = {
@@ -164,7 +164,15 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({
+  counts,
+  user,
+  favoriteProjects,
+}: {
+  counts: SidebarCounts;
+  user: CurrentUser;
+  favoriteProjects: ReadonlyArray<string>;
+}) {
   const pathname = usePathname();
 
   const mainItems: ReadonlyArray<NavItem> = [
@@ -173,16 +181,16 @@ export function Sidebar() {
       href: '/inbox',
       label: t.nav.inbox,
       icon: inboxIcon,
-      count: sidebarCounts.inbox,
+      count: counts.inbox,
       countAlert: true,
     },
-    { href: '/projects', label: t.nav.projects, icon: projectsIcon, count: sidebarCounts.projects },
-    { href: '/agents', label: t.nav.agents, icon: agentsIcon, count: sidebarCounts.agents },
+    { href: '/projects', label: t.nav.projects, icon: projectsIcon, count: counts.projects },
+    { href: '/agents', label: t.nav.agents, icon: agentsIcon, count: counts.agents },
     {
       href: '/clusters',
       label: t.nav.clusters,
       icon: clustersIcon,
-      count: sidebarCounts.clusters,
+      count: counts.clusters,
     },
     { href: '/reports', label: t.nav.reports, icon: reportsIcon },
   ];
@@ -235,11 +243,11 @@ export function Sidebar() {
       <div className={styles.footer}>
         <div className={styles.user}>
           <span className={styles.avatar} aria-hidden="true">
-            {currentUser.initials}
+            {user.initials}
           </span>
           <div>
-            <div className={styles.userName}>{currentUser.name}</div>
-            <div className={styles.userRole}>{currentUser.role}</div>
+            <div className={styles.userName}>{user.name}</div>
+            <div className={styles.userRole}>{user.role}</div>
           </div>
         </div>
       </div>

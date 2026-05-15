@@ -1,10 +1,13 @@
+import { currentUser, favoriteProjects } from '@/lib/config';
+import { getSidebarCounts } from '@/lib/inbox';
 import { Sidebar } from './Sidebar';
 import styles from './AppShell.module.css';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export async function AppShell({ children }: { children: React.ReactNode }) {
+  const counts = await getSidebarCounts();
   return (
     <div className={styles.app}>
-      <Sidebar />
+      <Sidebar counts={counts} user={currentUser} favoriteProjects={favoriteProjects} />
       <main className={styles.main}>{children}</main>
     </div>
   );
