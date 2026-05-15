@@ -1,5 +1,8 @@
 import type { FileBlock, FileStatus } from '@/lib/types';
 
+// 실제 git diff 콘텐츠는 Phase 3 GitHub 통합에서 fetch. LLM 요약 세그먼트는
+// Phase 4에서 Anthropic API로 생성. 현 단계는 PR 1개 고정 fixture.
+
 export type AiCheckTone = 'ok' | 'warn' | 'alert';
 
 export type AiCheck = {
@@ -8,7 +11,7 @@ export type AiCheck = {
   tone: AiCheckTone;
 };
 
-export type AiSummary = {
+export type AiSummaryFixture = {
   analyzedAgo: string;
   summarySegments: ReadonlyArray<{ text: string; emphasis?: boolean }>;
   checks: ReadonlyArray<AiCheck>;
@@ -28,24 +31,18 @@ export type TreeGroup = {
   collapsedExtraCount?: number;
 };
 
-export type PRDetailHunkSummary = {
-  totalHunks: number;
-  autoApprovableHunks: number;
-  filesChanged: number;
-  additions: number;
-  deletions: number;
-};
-
-export type PRDetail = {
-  prId: string;
-  aiSummary: AiSummary;
-  hunkSummary: PRDetailHunkSummary;
+export type PRDetailFixture = {
+  aiSummary: AiSummaryFixture;
+  hunkSummary: {
+    totalHunks: number;
+    autoApprovableHunks: number;
+  };
   tree: ReadonlyArray<TreeGroup>;
   files: ReadonlyArray<FileBlock>;
 };
 
-export const prDetail: PRDetail = {
-  prId: 'pr-101',
+// 모든 PR이 같은 fixture diff를 받음 — Phase 3 GitHub 통합 전 시각 보존용.
+export const fixturePRDetail: PRDetailFixture = {
   aiSummary: {
     analyzedAgo: '2분 전',
     summarySegments: [
@@ -66,9 +63,6 @@ export const prDetail: PRDetail = {
   hunkSummary: {
     totalHunks: 17,
     autoApprovableHunks: 14,
-    filesChanged: 14,
-    additions: 286,
-    deletions: 47,
   },
   tree: [
     {
@@ -100,14 +94,14 @@ export const prDetail: PRDetail = {
       hunks: [
         {
           kind: 'collapsed',
-          id: 'hunk-101-1',
+          id: 'hunk-fixture-1',
           summary: '자동 승인 가능 · {highlight}',
           summaryHighlight: 'import 정리',
           lineCount: 5,
         },
         {
           kind: 'expanded',
-          id: 'hunk-101-2',
+          id: 'hunk-fixture-2',
           reason: {
             text: '환불 임계값을 50,000원에서 100,000원으로 상향 — 비즈니스 정책 변경입니다. 승인된 변경인지 확인이 필요합니다.',
             tone: 'alert',
@@ -139,7 +133,7 @@ export const prDetail: PRDetail = {
         },
         {
           kind: 'expanded',
-          id: 'hunk-101-3',
+          id: 'hunk-fixture-3',
           reason: {
             text: '동시 환불 처리 시 race condition 가능성 — 트랜잭션 격리 수준이 명시되어 있지 않습니다.',
             tone: 'alert',

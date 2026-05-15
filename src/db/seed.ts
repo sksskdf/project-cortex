@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { db } from './client';
 import { clusters, preReviews, prs, projects, triageDecisions } from './schema';
 
@@ -12,12 +13,15 @@ const ago = {
 };
 
 function reset() {
-  // FK 의존 역순으로 삭제
+  // FK 의존 역순으로 삭제 + 안정된 ID 부여를 위해 AUTOINCREMENT 카운터 초기화.
   db.delete(triageDecisions).run();
   db.delete(preReviews).run();
   db.delete(prs).run();
   db.delete(clusters).run();
   db.delete(projects).run();
+  db.run(
+    sql`DELETE FROM sqlite_sequence WHERE name IN ('projects', 'issues', 'agent_runs', 'clusters', 'prs', 'pre_reviews', 'triage_decisions')`,
+  );
 }
 
 function seedProjects() {
@@ -355,12 +359,128 @@ function seedInboxQueue(repoIds: RepoMap, i18nClusterId: number) {
   }
 }
 
+function seedRecentAutoMerges(repoIds: RepoMap) {
+  const rows = [
+    {
+      slug: 'cortex-web',
+      number: 830,
+      title: 'i18n 라벨 12개 추가',
+      authorId: 'Devin',
+      headSha: 'sha-fa-1',
+      linesAdded: 38,
+      linesRemoved: 6,
+      filesChanged: 4,
+      mergedAt: ago.min(3),
+      confidence: 94,
+    },
+    {
+      slug: 'payments-api',
+      number: 1135,
+      title: '유닛 테스트 보강',
+      authorId: 'Codex',
+      headSha: 'sha-fa-2',
+      linesAdded: 124,
+      linesRemoved: 18,
+      filesChanged: 7,
+      mergedAt: ago.min(14),
+      confidence: 91,
+    },
+    {
+      slug: 'cortex-web',
+      number: 829,
+      title: '타입 정의 정리',
+      authorId: 'Devin',
+      headSha: 'sha-fa-3',
+      linesAdded: 56,
+      linesRemoved: 42,
+      filesChanged: 11,
+      mergedAt: ago.min(42),
+      confidence: 96,
+    },
+    {
+      slug: 'data-pipeline',
+      number: 310,
+      title: '의존성 패치 업데이트',
+      authorId: '내부 에이전트',
+      headSha: 'sha-fa-4',
+      linesAdded: 14,
+      linesRemoved: 14,
+      filesChanged: 5,
+      mergedAt: ago.hour(1),
+      confidence: 89,
+    },
+    {
+      slug: 'cortex-web',
+      number: 828,
+      title: 'README 오타 수정',
+      authorId: 'Codex',
+      headSha: 'sha-fa-5',
+      linesAdded: 4,
+      linesRemoved: 4,
+      filesChanged: 1,
+      mergedAt: ago.hour(2),
+      confidence: 99,
+    },
+  ];
+
+  for (const r of rows) {
+    const repoId = repoIds.get(r.slug);
+    if (repoId === undefined) throw new Error(`unknown repo slug: ${r.slug}`);
+
+    const inserted = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: r.number,
+        title: r.title,
+        authorKind: 'agent',
+        authorId: r.authorId,
+        headSha: r.headSha,
+        linesAdded: r.linesAdded,
+        linesRemoved: r.linesRemoved,
+        filesChanged: r.filesChanged,
+        status: 'merged',
+        clusterId: null,
+        createdAt: r.mergedAt,
+        updatedAt: r.mergedAt,
+      })
+      .returning({ id: prs.id })
+      .get();
+
+    db.insert(preReviews)
+      .values({
+        prId: inserted.id,
+        headSha: r.headSha,
+        confidence: r.confidence,
+        confidenceTier: 'high',
+        flags: [],
+        summary: '자동 머지 통과',
+        testsPassed: true,
+        coverage: 0.9,
+        analyzedAt: r.mergedAt,
+      })
+      .run();
+
+    db.insert(triageDecisions)
+      .values({
+        prId: inserted.id,
+        decision: 'auto-merge',
+        reason: '자동 머지 통과',
+        clusterId: null,
+        decidedBy: 'system',
+        decidedAt: r.mergedAt,
+      })
+      .run();
+  }
+}
+
 function main() {
   reset();
   const insertedProjects = seedProjects();
   const repoIds = new Map(insertedProjects.map((p) => [p.slug, p.id]));
   const cluster = seedI18nCluster();
   seedInboxQueue(repoIds, cluster.id);
+  seedRecentAutoMerges(repoIds);
   console.log('seed completed');
 }
 

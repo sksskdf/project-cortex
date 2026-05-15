@@ -3,9 +3,9 @@ import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import { AuthorChip } from '@/components/AuthorChip';
 import { DiffHunk } from '@/components/DiffHunk';
-import { inboxQueue } from '@/mocks/inbox';
-import { prDetail, type AiCheck, type TreeFile, type TreeGroup } from '@/mocks/pr-detail';
-import type { FileStatus, GaugeTier, PR, TagTone } from '@/lib/types';
+import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
+import { getPRDetail } from '@/lib/pr';
+import type { FileStatus, GaugeTier, TagTone } from '@/lib/types';
 import styles from './page.module.css';
 
 const tagToneClass: Record<TagTone, string> = {
@@ -185,11 +185,12 @@ const aiCheckLabel: Record<AiCheck['key'], string> = {
 
 export default async function PRDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const pr: PR | undefined = inboxQueue.find((p) => p.id === id);
-  if (!pr) {
+  const view = await getPRDetail(id);
+  if (!view) {
     notFound();
   }
-  const detail = prDetail;
+  const { pr, fixture, hunkSummary } = view;
+  const detail = { ...fixture, hunkSummary };
 
   return (
     <div className={styles.layout}>
@@ -240,26 +241,26 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
 
         <div className={styles.head}>
           <div className={styles.titleWrap}>
-            <h1 className={styles.title}>{pr!.title}</h1>
+            <h1 className={styles.title}>{pr.title}</h1>
             <div className={styles.sub}>
-              {pr!.repo && <span className={styles.subMono}>{pr!.repo}</span>}
-              {pr!.repo && pr!.number !== undefined && (
+              {pr.repo && <span className={styles.subMono}>{pr.repo}</span>}
+              {pr.repo && pr.number !== undefined && (
                 <span className={styles.subDot} aria-hidden="true" />
               )}
-              {pr!.number !== undefined && <span className={styles.subMono}>#{pr!.number}</span>}
+              {pr.number !== undefined && <span className={styles.subMono}>#{pr.number}</span>}
               <span className={styles.subDot} aria-hidden="true" />
-              <AuthorChip author={pr!.author} suffix={t.pr.authorSuffix} />
+              <AuthorChip author={pr.author} suffix={t.pr.authorSuffix} />
               <span className={styles.subDot} aria-hidden="true" />
-              <span>{pr!.ageText}</span>
-              {pr!.tags.length > 0 && <span className={styles.subDot} aria-hidden="true" />}
-              {pr!.tags.map((tag) => (
+              <span>{pr.ageText}</span>
+              {pr.tags.length > 0 && <span className={styles.subDot} aria-hidden="true" />}
+              {pr.tags.map((tag) => (
                 <span key={tag.label} className={`ds-tag ds-tag--md ${tagToneClass[tag.tone]}`}>
                   {tag.label}
                 </span>
               ))}
             </div>
           </div>
-          <PRGauge value={pr!.gauge.value} tier={pr!.gauge.tier} />
+          <PRGauge value={pr.gauge.value} tier={pr.gauge.tier} />
         </div>
 
         <section className={styles.aiCard} aria-label={t.pr.aiSummary.ariaLabel}>
