@@ -60,4 +60,38 @@ export const ko = {
       bundle: (title: string, count: number) => `${title} · ${count}건이 묶였어요`,
     },
   },
+  inbox: {
+    title: '인박스',
+    subtitle: '우선순위 순으로 자동 정렬됩니다. 가장 위에서부터 처리하세요.',
+    notifications: '알림',
+    filter: '필터',
+    sort: {
+      priority: '우선순위',
+      confidence: '신뢰 점수',
+      latest: '최신순',
+      author: '작성자',
+      ariaLabel: '정렬',
+    },
+    search: {
+      placeholder: '제목, 작성자, 레포로 검색',
+      ariaLabel: '검색',
+    },
+    rail: {
+      ariaLabel: '카테고리',
+      categoryTitle: '분류',
+      projectTitle: '프로젝트',
+      all: '전체',
+      flagged: '위험 표시됨',
+      largeChange: '큰 변경',
+      migration: '마이그레이션',
+      cluster: '클러스터',
+      mentioned: '나에게 멘션',
+    },
+    clusterBanner: {
+      open: '클러스터 열기',
+    },
+    meta: {
+      fileCount: (count: number) => `파일 ${count}`,
+    },
+  },
 } as const;

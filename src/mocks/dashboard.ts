@@ -1,4 +1,14 @@
-import type { AgentKind, CurrentUser, SidebarCounts, StatDelta } from '@/lib/types';
+import type {
+  AgentKind,
+  CurrentUser,
+  GaugeTier,
+  ReasonTone,
+  SidebarCounts,
+  StatDelta,
+  TagTone,
+} from '@/lib/types';
+
+export type { GaugeTier, TagTone };
 
 export const currentUser: CurrentUser = {
   name: '정현',
@@ -40,16 +50,12 @@ export const dashboardStats: DashboardStats = {
   },
 };
 
-export type GaugeTier = 'error' | 'warning' | 'blue' | 'success';
-export type TagTone = 'red' | 'yellow' | 'purple' | 'green' | 'gray';
-export type TodoRowReasonTone = 'alert' | 'info';
-
 export type TodoRow = {
   id: string;
   title: string;
   agent: { name: string; kind: AgentKind };
   tags: ReadonlyArray<{ label: string; tone: TagTone }>;
-  reason: { text: string; tone: TodoRowReasonTone };
+  reason: { text: string; tone: ReasonTone };
   additions: number;
   deletions: number;
   ageText: string;

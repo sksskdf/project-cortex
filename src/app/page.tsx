@@ -24,6 +24,7 @@ const tagToneClass: Record<TagTone, string> = {
   purple: 'ds-tag--purple',
   green: 'ds-tag--green',
   gray: 'ds-tag--gray',
+  'sky-blue': 'ds-tag--sky-blue',
 };
 
 const gaugeBarClass: Record<GaugeTier, string> = {
@@ -359,7 +360,7 @@ function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkload> }) {
 
 export default function DashboardPage() {
   return (
-    <>
+    <div className={styles.page}>
       <header className={styles.header}>
         <div>
           <h1 className={styles.greeting}>{t.dashboard.greeting(currentUser.name)}</h1>
@@ -535,6 +536,6 @@ export default function DashboardPage() {
           </section>
         </aside>
       </div>
-    </>
+    </div>
   );
 }
