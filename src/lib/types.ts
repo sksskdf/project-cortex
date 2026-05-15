@@ -4,7 +4,7 @@ export type ConfidenceTier = 'high' | 'medium' | 'low' | 'critical';
 
 export type GaugeTier = 'error' | 'warning' | 'blue' | 'success';
 
-export type TagTone = 'red' | 'yellow' | 'purple' | 'green' | 'gray' | 'sky-blue';
+export type TagTone = 'red' | 'yellow' | 'purple' | 'green' | 'gray' | 'sky-blue' | 'cyan';
 
 export type ReasonTone = 'alert' | 'warn' | 'info';
 

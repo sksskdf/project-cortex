@@ -1,0 +1,316 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { ko as t } from '@/copy/ko';
+import { clusterDetail, type ClusterDiffRow, type ClusterPR } from '@/mocks/cluster';
+import type { CodeLineKind, TagTone } from '@/lib/types';
+import styles from './page.module.css';
+
+const tagToneClass: Record<TagTone, string> = {
+  red: 'ds-tag--red',
+  yellow: 'ds-tag--yellow',
+  purple: 'ds-tag--purple',
+  green: 'ds-tag--green',
+  gray: 'ds-tag--gray',
+  'sky-blue': 'ds-tag--sky-blue',
+  cyan: 'ds-tag--cyan',
+};
+
+const lineKindClass: Record<CodeLineKind, string> = {
+  ctx: styles.lineCtx,
+  add: styles.lineAdd,
+  del: styles.lineDel,
+  'hunk-head': styles.lineCtx,
+};
+
+function signFor(kind: CodeLineKind): string {
+  if (kind === 'add') return '+';
+  if (kind === 'del') return '−';
+  return ' ';
+}
+
+function chevronLeftIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function clusterIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx={6} cy={6} r={3} />
+      <circle cx={18} cy={6} r={3} />
+      <circle cx={12} cy={18} r={3} />
+      <path d="M9 8l3 8m3-8l-3 8" />
+    </svg>
+  );
+}
+
+function checkIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function infoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx={12} cy={12} r={10} />
+      <line x1={12} y1={16} x2={12} y2={12} />
+      <line x1={12} y1={8} x2={12.01} y2={8} />
+    </svg>
+  );
+}
+
+function ClusterPRItem({ pr }: { pr: ClusterPR }) {
+  return (
+    <Link
+      href={`/pr/${pr.id}`}
+      className={`${styles.prItem} ${pr.active ? styles.prItemActive : ''}`}
+    >
+      <div className={styles.prItemTop}>
+        <span className={styles.prItemCheck} aria-hidden="true">
+          {checkIcon()}
+        </span>
+        <span className={styles.prItemId}>#{pr.number}</span>
+        <span
+          className={`${styles.prItemSimilarity} ${
+            pr.similarity === 'different' ? styles.prItemSimilarityDiff : ''
+          }`}
+        >
+          {pr.similarity === 'identical'
+            ? t.cluster.prList.similarity.identical
+            : t.cluster.prList.similarity.different}
+        </span>
+      </div>
+      <div className={styles.prItemTitle}>{pr.title}</div>
+      <div className={styles.prItemMeta}>
+        <span
+          className={`${styles.prItemGaugeNum} ${
+            pr.scoreTier === 'success'
+              ? styles.prItemGaugeNumSuccess
+              : pr.scoreTier === 'blue'
+                ? styles.prItemGaugeNumBlue
+                : ''
+          }`}
+        >
+          {pr.score}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>{pr.repo}</span>
+      </div>
+    </Link>
+  );
+}
+
+function DiffRowItem({ row }: { row: ClusterDiffRow }) {
+  return (
+    <div className={styles.diffRow}>
+      <span className={styles.diffRowId}>{t.cluster.diff.idList(row.numbers)}</span>
+      <div className={styles.diffRowBody}>
+        <div className={styles.diffRowTitle}>{row.title}</div>
+        <div className={styles.diffRowDetail}>
+          {row.detailSegments.map((seg, i) =>
+            seg.code ? (
+              <code key={i}>{seg.text}</code>
+            ) : seg.emphasis ? (
+              <b key={i}>{seg.text}</b>
+            ) : (
+              <span key={i}>{seg.text}</span>
+            ),
+          )}
+        </div>
+      </div>
+      <span className={`ds-tag ds-tag--md ${tagToneClass[row.flag.tone]} ${styles.diffRowFlag}`}>
+        {row.flag.label}
+      </span>
+    </div>
+  );
+}
+
+export default async function ClusterDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (id !== clusterDetail.id) {
+    notFound();
+  }
+  const cluster = clusterDetail;
+  const identicalCount = cluster.prs.filter((p) => p.similarity === 'identical').length;
+
+  return (
+    <div className={styles.layout}>
+      <aside className={styles.prList} aria-label={t.cluster.prList.ariaLabel}>
+        <div className={styles.prListTitle}>{t.cluster.prList.title(cluster.prs.length)}</div>
+        {cluster.prs.map((pr) => (
+          <ClusterPRItem key={pr.id} pr={pr} />
+        ))}
+      </aside>
+
+      <main className={styles.main}>
+        <Link href="/inbox" className={styles.back}>
+          {chevronLeftIcon()}
+          {t.cluster.backToInbox}
+        </Link>
+
+        <header className={styles.header}>
+          <div className={styles.headerTop}>
+            <span className={styles.chip}>
+              {clusterIcon()}
+              {t.cluster.chip}
+            </span>
+            <span className={styles.headerSub}>{t.cluster.detectedAgo(cluster.detectedAgo)}</span>
+          </div>
+          <h1 className={styles.title}>{cluster.title}</h1>
+          <p className={styles.description}>
+            {cluster.descriptionSegments.map((seg, i) =>
+              seg.code ? (
+                <code key={i} className={styles.descriptionCode}>
+                  {seg.text}
+                </code>
+              ) : (
+                <span key={i}>{seg.text}</span>
+              ),
+            )}
+          </p>
+        </header>
+
+        <section className={styles.infoCard}>
+          <header className={styles.infoCardHead}>
+            <span className={styles.infoCardTitle}>{t.cluster.info.title}</span>
+            <span className={styles.infoCardSub}>
+              {t.cluster.info.subtitle(cluster.prs.length, cluster.author, cluster.repo)}
+            </span>
+          </header>
+          <div className={styles.infoStats}>
+            <div className={styles.infoStat}>
+              <div className={styles.infoStatLabel}>{t.cluster.info.avgScore}</div>
+              <div className={`${styles.infoStatValue} ${styles.infoStatValueSuccess}`}>
+                {cluster.summary.avgScore}
+              </div>
+            </div>
+            <div className={styles.infoStat}>
+              <div className={styles.infoStatLabel}>{t.cluster.info.totalAdditions}</div>
+              <div className={styles.infoStatValue}>+{cluster.summary.totalAdditions}</div>
+            </div>
+            <div className={styles.infoStat}>
+              <div className={styles.infoStatLabel}>{t.cluster.info.filesChanged}</div>
+              <div className={styles.infoStatValue}>{cluster.summary.filesChanged}</div>
+            </div>
+            <div className={styles.infoStat}>
+              <div className={styles.infoStatLabel}>{t.cluster.info.tests}</div>
+              <div
+                className={`${styles.infoStatValue} ${styles.infoStatValueSuccess} ${styles.infoStatText}`}
+              >
+                {t.cluster.info.testsAllPass}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.patternCard}>
+          <header className={styles.patternCardHead}>
+            <span className={styles.patternCardTitle}>
+              {t.cluster.pattern.title(cluster.prs.length)}
+            </span>
+            <span className={styles.patternCardSub}>
+              {t.cluster.pattern.example(cluster.pattern.sourceLabel)}
+            </span>
+          </header>
+          <div className={styles.code}>
+            {cluster.pattern.lines.map((line, i) => (
+              <div key={i} className={`${styles.line} ${lineKindClass[line.kind]}`}>
+                <span className={styles.lineNum}>{line.lineNumber ?? ''}</span>
+                <span className={styles.lineSign}>{signFor(line.kind)}</span>
+                <span className={styles.lineText}>{line.text}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.diffCard}>
+          <h2 className={styles.diffCardTitle}>{t.cluster.diff.title}</h2>
+          {cluster.diffs.map((row) => (
+            <DiffRowItem key={row.id} row={row} />
+          ))}
+        </section>
+      </main>
+
+      <aside className={styles.action} aria-label={t.cluster.action.ariaLabel}>
+        <div className={styles.actionTitle}>{t.cluster.action.title}</div>
+
+        <div className={styles.summaryStat}>
+          <div className={styles.summaryStatNum}>{cluster.prs.length}</div>
+          <div className={styles.summaryStatLabel}>{t.cluster.action.countLabel}</div>
+          <div className={styles.summaryStatSub}>{t.cluster.action.timeNote}</div>
+        </div>
+
+        <div className={styles.actionActions}>
+          <button
+            type="button"
+            className="ds-btn ds-btn--lg ds-btn--filled-blue ds-btn--full-width"
+          >
+            <span className="ds-btn__label">{t.cluster.action.mergeAll(cluster.prs.length)}</span>
+          </button>
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
+          >
+            <span className="ds-btn__label">
+              {t.cluster.action.splitMerge(identicalCount, cluster.individualReviewNumber)}
+            </span>
+          </button>
+          <div className={styles.actionDivider} aria-hidden="true" />
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
+          >
+            <span className="ds-btn__label">{t.cluster.action.switchIndividual}</span>
+          </button>
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--filled-gray ds-btn--full-width"
+          >
+            <span className="ds-btn__label">{t.cluster.action.dissolve}</span>
+          </button>
+        </div>
+
+        <div className={styles.actionNote}>
+          {infoIcon()}
+          <div>
+            <b>{cluster.decisionNote.highlight}</b> {cluster.decisionNote.rest}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
