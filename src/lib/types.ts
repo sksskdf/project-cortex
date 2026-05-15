@@ -70,3 +70,37 @@ export type CurrentUser = {
   role: string;
   initials: string;
 };
+
+export type FileStatus = 'ok' | 'warn' | 'alert';
+
+export type CodeLineKind = 'ctx' | 'add' | 'del' | 'hunk-head';
+
+export type CodeLine = {
+  lineNumber: number | null;
+  text: string;
+  kind: CodeLineKind;
+};
+
+export type Hunk =
+  | {
+      kind: 'collapsed';
+      id: string;
+      summary: string;
+      summaryHighlight: string;
+      lineCount: number;
+    }
+  | {
+      kind: 'expanded';
+      id: string;
+      reason: PRReason;
+      lines: ReadonlyArray<CodeLine>;
+      aiComment?: string;
+    };
+
+export type FileBlock = {
+  path: string;
+  status: FileStatus;
+  additions: number;
+  deletions: number;
+  hunks: ReadonlyArray<Hunk>;
+};

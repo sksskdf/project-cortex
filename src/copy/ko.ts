@@ -94,4 +94,52 @@ export const ko = {
       fileCount: (count: number) => `파일 ${count}`,
     },
   },
+  pr: {
+    backToInbox: '인박스로 돌아가기',
+    authorSuffix: '이 생성',
+    confidenceLabel: '신뢰 점수',
+    aiSummary: {
+      title: 'Cortex 사전 리뷰',
+      subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',
+      ariaLabel: 'AI 사전 리뷰',
+    },
+    aiCheck: {
+      tests: '테스트 실행',
+      coverage: '커버리지',
+      risk: '위험 영역',
+    },
+    tree: {
+      ariaLabel: '파일 트리',
+      summary: {
+        filesChanged: '변경 파일',
+        linesAdded: '변경 라인',
+        linesDeleted: '삭제 라인',
+        autoApprovable: '자동 승인 가능',
+        needsReview: '검토 필요',
+        hunkCount: (n: number) => `${n} hunk`,
+      },
+      group: {
+        needsReview: '검토 필요 파일',
+        autoApprovable: '자동 승인 가능',
+        more: (n: number) => `외 ${n}개 파일`,
+      },
+    },
+    collapsedHunk: {
+      lines: (count: number) => `${count}줄 변경`,
+      expand: '펼치기 →',
+      autoApprovable: '자동 승인 가능 · ',
+    },
+    hunk: {
+      reasonLabel: '이유:',
+      aiCommentLabel: 'Cortex 코멘트',
+    },
+    fileDiff: (additions: number, deletions: number) => `+${additions} −${deletions}`,
+    actionBar: {
+      summary: (autoApprovable: number, total: number) =>
+        `총 ${total} hunk 중 ${autoApprovable}개는 자동 승인 가능합니다.`,
+      requestChanges: '변경 요청',
+      autoApprove: '자동 승인 가능 항목만 머지',
+      mergeAll: '전체 머지',
+    },
+  },
 } as const;
