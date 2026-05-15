@@ -31,7 +31,8 @@ project-cortex/
 ├── drizzle.config.ts
 ├── public/
 │   └── design-system/            ← prototype/design-system/ 그대로 옮김
-│       ├── colors_and_type.css
+│       ├── colors_and_type.css   ← 라이트 토큰 (원본)
+│       ├── dark.css              ← 다크 오버레이 ([data-theme="dark"]로 활성)
 │       ├── lib/lib.css
 │       └── fonts/
 └── src/

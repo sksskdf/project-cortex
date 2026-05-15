@@ -1,0 +1,109 @@
+/**
+ * Urock Design System — dark.css
+ *
+ * Dark theme overlay for Project Cortex.
+ *
+ * Strategy: Override semantic tokens declared in colors_and_type.css :root.
+ * Components keep using the same `var(--ds-*)` names — only values change.
+ *
+ * Activation: <html data-theme="dark">  (or any ancestor with this attribute)
+ *
+ * Design notes:
+ * - Page background trends to navy tint (matches brand blue hue)
+ * - Brand blue (secondary-01) is bumped ONE step lighter for AA contrast on dark
+ * - Soft tints become dark hue washes (same meaning, low chroma)
+ * - State colors (success/error/warning) keep their hue, lighten text variants
+ * - The signature focus ring uses secondary-07 (darker) to fit on dark surfaces
+ */
+
+[data-theme="dark"] {
+  /* ============ BG — page/card surfaces ============ */
+  --ds-color-bg-00: #14172a;            /* card / panel surface */
+  --ds-color-bg-01: #0d0f1d;            /* page background */
+  --ds-color-bg-02: #1c2033;            /* elevated card / hovered surface */
+  --ds-color-bg-03: #14172a;
+  --ds-color-bg-04-primary: #1a2348;    /* primary tinted bg (active sidebar item) */
+  --ds-color-bg-04-dark: rgba(0, 0, 0, 0.6);  /* modal backdrop — darker on dark */
+  --ds-color-bg-05-focus: #1c2033;
+  --ds-color-bg-06-card: #14172a;
+
+  /* ============ TEXT ============ */
+  --ds-color-text-03-high: #eef0fb;     /* primary body (near-white) */
+  --ds-color-text-02: #9aa0c2;          /* secondary (cool gray) */
+  --ds-color-text-01: #6c728f;          /* tertiary / low emphasis */
+  --ds-color-text-00: #4a4e63;          /* disabled */
+  --ds-color-text-04-primary: #93b0f8;  /* links / primary actions on plain bg */
+  --ds-color-text-05-dark: #b7cafa;
+  --ds-color-text-06-secondary: #b7cafa;
+  --ds-color-text-07-tertiary: #b09ce4; /* purple, lightened */
+
+  /* ============ LINES / BORDERS ============ */
+  --ds-color-line-02: #252a45;          /* default card borders */
+  --ds-color-line-02-row: rgba(180, 199, 246, 0.08);
+  --ds-color-line-03: #4663ae;          /* emphasized / hover borders */
+  --ds-color-line-04: #1c2033;          /* dividers */
+
+  /* ============ BRAND BLUE (secondary) — one step lighter ============ */
+  --ds-color-secondary-01: #93b0f8;     /* primary action / brand */
+  --ds-color-secondary-02: #b7cafa;
+  --ds-color-secondary-03: #4663ae;     /* focus ring base — darker on dark */
+  --ds-color-secondary-04: #b7cafa;
+  --ds-color-secondary-05: #a8c0f9;
+  --ds-color-secondary-06: #b7cafa;     /* hover */
+  --ds-color-secondary-07: #b7cafa;     /* on-tint text (visible on soft-blue dark) */
+  --ds-color-secondary-08: #93b0f8;
+
+  /* ============ PRIMARY (gray-blue) ============ */
+  --ds-color-primary-00: #0a0c1a;
+  --ds-color-primary-01: #0d0f1d;
+  --ds-color-primary-02: #252a45;       /* disabled bg */
+  --ds-color-primary-03: #6c728f;
+  --ds-color-primary-05: #9aa0c2;
+  --ds-color-primary-06: #b8bdd6;       /* disabled text */
+  --ds-color-primary-07: #eef0fb;
+
+  /* ============ SOFT TINTS — dark hue washes ============ */
+  --ds-color-soft-blue: #1a2348;        /* blue wash on dark */
+  --ds-color-soft-green: #0b3a3d;       /* cyan wash */
+  --ds-color-soft-yellow: #3a2f0d;      /* warm wash */
+  --ds-color-soft-red: #3e1f23;         /* red wash */
+  --ds-color-soft-purple: #2a2440;      /* purple wash */
+  --ds-color-soft-gray-pale: #1c2033;
+  --ds-color-soft-gray-light: #252a45;
+  --ds-color-soft-gray-dark: #6c728f;
+
+  /* ============ STATE — preserve hue, brighten text on dark ============ */
+  --ds-color-state-success-base: #32d8e3;
+  --ds-color-state-success-accent: #01D7DB;
+  --ds-color-state-success-text-dark: #5eedf2;    /* readable on dark */
+
+  --ds-color-state-error-base: #ff8484;
+  --ds-color-state-error-accent: #ff8486;
+  --ds-color-state-error-strong: #ff6b73;         /* slightly lighter for dark */
+  --ds-color-state-error-bg-soft: #4a1f23;
+
+  --ds-color-state-warning-base: #ffc60a;
+  --ds-color-state-warning-text-dark: #ffd84f;    /* readable on dark */
+
+  /* ============ SHADOWS — recompute on dark (deeper) ============ */
+  --ds-shadow-scale-black-01: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ds-shadow-scale-black-02: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --ds-shadow-scale-black-03: 0 4px 12px rgba(0, 0, 0, 0.55);
+  --ds-shadow-scale-black-04: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --ds-shadow-scale-black-05: 0 16px 40px rgba(0, 0, 0, 0.7);
+  --ds-shadow-component-btn-filled-blue: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ds-shadow-component-btn-outlined-blue: 0 0 0 0 transparent;
+  --ds-shadow-component-btn-outlined-black: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* When dark mode is active, the global page bg uses bg-01 — the body element
+   may inherit lighter values from html. Make sure the cascade is clean: */
+[data-theme="dark"] body {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+}
+
+/* Force scrollbars to dark on supporting browsers. */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
