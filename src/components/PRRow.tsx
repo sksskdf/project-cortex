@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import type { PR, PRAuthor, ReasonTone, TagTone } from '@/lib/types';
+import type { PR, ReasonTone, TagTone } from '@/lib/types';
 import { ko as t } from '@/copy/ko';
+import { AuthorChip } from './AuthorChip';
 import { Gauge } from './Gauge';
 import styles from './PRRow.module.css';
 
@@ -18,40 +19,6 @@ const reasonToneClass: Record<ReasonTone, string> = {
   warn: styles.reasonWarn,
   info: styles.reasonInfo,
 };
-
-function agentFaceIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x={4} y={4} width={16} height={16} rx={2} />
-      <circle cx={9} cy={10} r={1.5} fill="currentColor" />
-      <circle cx={15} cy={10} r={1.5} fill="currentColor" />
-      <path d="M9 15h6" />
-    </svg>
-  );
-}
-
-function humanFaceIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx={12} cy={7} r={4} />
-    </svg>
-  );
-}
 
 function alertIcon() {
   return (
@@ -84,16 +51,6 @@ function infoIcon() {
       <line x1={12} y1={16} x2={12} y2={12} />
       <line x1={12} y1={8} x2={12.01} y2={8} />
     </svg>
-  );
-}
-
-function AuthorChip({ author }: { author: PRAuthor }) {
-  const isAgent = author.kind === 'agent';
-  return (
-    <span className={`${styles.author} ${isAgent ? styles.authorAgent : styles.authorHuman}`}>
-      {isAgent ? agentFaceIcon() : humanFaceIcon()}
-      {author.name}
-    </span>
   );
 }
 

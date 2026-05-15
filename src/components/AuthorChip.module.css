@@ -1,0 +1,23 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-4);
+  padding: 2px var(--ds-spacing-6);
+  border-radius: 999px;
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.agent {
+  background: var(--ds-color-soft-blue);
+  color: var(--ds-color-secondary-07);
+}
+
+.human {
+  background: var(--ds-color-soft-gray-pale);
+  color: var(--ds-color-text-03-high);
+}
+
+.chip svg {
+  width: 12px;
+  height: 12px;
+}
