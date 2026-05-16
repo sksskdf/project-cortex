@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
-import { clusterDetail, type ClusterDiffRow, type ClusterPR } from '@/mocks/cluster';
+import type { ClusterDiffRowFixture } from '@/fixtures/cluster';
+import { getClusterDetail, type ClusterPRItem } from '@/lib/cluster';
 import type { CodeLineKind, TagTone } from '@/lib/types';
 import styles from './page.module.css';
 
@@ -93,7 +94,7 @@ function infoIcon() {
   );
 }
 
-function ClusterPRItem({ pr }: { pr: ClusterPR }) {
+function ClusterPRItemCard({ pr }: { pr: ClusterPRItem }) {
   return (
     <Link
       href={`/pr/${pr.id}`}
@@ -134,10 +135,10 @@ function ClusterPRItem({ pr }: { pr: ClusterPR }) {
   );
 }
 
-function DiffRowItem({ row }: { row: ClusterDiffRow }) {
+function DiffRowItem({ row }: { row: ClusterDiffRowFixture }) {
   return (
     <div className={styles.diffRow}>
-      <span className={styles.diffRowId}>{t.cluster.diff.idList(row.numbers)}</span>
+      <span className={styles.diffRowId}>{t.cluster.diff.idList(row.prNumbers)}</span>
       <div className={styles.diffRowBody}>
         <div className={styles.diffRowTitle}>{row.title}</div>
         <div className={styles.diffRowDetail}>
@@ -161,10 +162,10 @@ function DiffRowItem({ row }: { row: ClusterDiffRow }) {
 
 export default async function ClusterDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (id !== clusterDetail.id) {
+  const cluster = await getClusterDetail(id);
+  if (!cluster) {
     notFound();
   }
-  const cluster = clusterDetail;
   const identicalCount = cluster.prs.filter((p) => p.similarity === 'identical').length;
 
   return (
@@ -172,7 +173,7 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
       <aside className={styles.prList} aria-label={t.cluster.prList.ariaLabel}>
         <div className={styles.prListTitle}>{t.cluster.prList.title(cluster.prs.length)}</div>
         {cluster.prs.map((pr) => (
-          <ClusterPRItem key={pr.id} pr={pr} />
+          <ClusterPRItemCard key={pr.id} pr={pr} />
         ))}
       </aside>
 
