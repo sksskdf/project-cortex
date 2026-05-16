@@ -13,12 +13,16 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "@octokit/webhooks-types": "^7.6.0",
     "better-sqlite3": "^11.5.0",
     "drizzle-orm": "^0.36.0",
     "next": "^15.0.0",
@@ -30,11 +34,13 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "drizzle-kit": "^0.28.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.0.0",
     "prettier": "^3.3.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }
