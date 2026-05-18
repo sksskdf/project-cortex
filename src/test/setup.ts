@@ -1,17 +1,20 @@
 // vitest 셋업 — 모든 테스트 파일이 공유하는 환경 변수 설정.
 // 테스트는 별도 DB 파일을 사용해 dev 데이터 보존.
-import { existsSync, unlinkSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
 
 const TEST_DB = 'data/test.sqlite';
 
-if (existsSync(TEST_DB)) {
-  unlinkSync(TEST_DB);
+// 다중 worker가 동시 unlinkSync 호출 시 race — ENOENT는 무시.
+function safeUnlink(path: string) {
+  try {
+    unlinkSync(path);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
 }
-if (existsSync(`${TEST_DB}-wal`)) {
-  unlinkSync(`${TEST_DB}-wal`);
-}
-if (existsSync(`${TEST_DB}-shm`)) {
-  unlinkSync(`${TEST_DB}-shm`);
-}
+
+safeUnlink(TEST_DB);
+safeUnlink(`${TEST_DB}-wal`);
+safeUnlink(`${TEST_DB}-shm`);
 
 process.env.CORTEX_DB_PATH = TEST_DB;
