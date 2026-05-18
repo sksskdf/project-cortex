@@ -1,6 +1,9 @@
 // 트라이아지 결정 — DOMAIN.md §4 자동 머지 정책의 한 곳 구현.
-// 외부 의존 0 — pure function.
+// decideTriage는 pure. runTriage는 DB read/write.
 
+import { and, desc, eq } from 'drizzle-orm';
+import { db } from '@/db/client';
+import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import type { TriageDecisionRow } from '@/db/schema';
 
 export type TriageDecision = TriageDecisionRow['decision'];
@@ -77,6 +80,80 @@ export function decideTriage(input: TriageInput): TriageResult {
     decision: 'auto-merge',
     reason: '모든 자동 머지 조건 충족.',
   };
+}
+
+export type RunTriageResult =
+  | { kind: 'decided'; decision: TriageDecision; reason: string }
+  | {
+      kind: 'skipped';
+      reason: 'no-pr' | 'no-pre-review' | 'pr-closed' | 'pr-merged' | 'in-cluster';
+    };
+
+// PR 1건에 대해 triage_decisions 행을 생성/갱신하고 PR.status를 결정에 맞춰 업데이트.
+// 호출 시점: webhook upsert 직후(sync.ts에서) 또는 Phase 4 PreReview 생성 직후.
+// 멱등 — 같은 PR에 대해 여러 번 호출해도 안전 (최신 preReview 기준).
+export async function runTriage(prId: number): Promise<RunTriageResult> {
+  const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
+  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  if (pr.status === 'merged') return { kind: 'skipped', reason: 'pr-merged' };
+  if (pr.status === 'closed') return { kind: 'skipped', reason: 'pr-closed' };
+  if (pr.clusterId !== null) return { kind: 'skipped', reason: 'in-cluster' };
+
+  const preReview = db
+    .select()
+    .from(preReviews)
+    .where(and(eq(preReviews.prId, prId), eq(preReviews.headSha, pr.headSha)))
+    .orderBy(desc(preReviews.analyzedAt))
+    .get();
+
+  if (!preReview) return { kind: 'skipped', reason: 'no-pre-review' };
+
+  const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
+  if (!project) return { kind: 'skipped', reason: 'no-pr' };
+
+  const result = decideTriage({
+    authorKind: pr.authorKind,
+    confidence: preReview.confidence,
+    flags: preReview.flags,
+    testsPassed: preReview.testsPassed,
+    autoMergeEnabled: project.autoMergeEnabled,
+  });
+
+  const existing = db
+    .select({ id: triageDecisions.id })
+    .from(triageDecisions)
+    .where(eq(triageDecisions.prId, prId))
+    .get();
+
+  if (existing) {
+    db.update(triageDecisions)
+      .set({
+        decision: result.decision,
+        reason: result.reason,
+        decidedBy: 'system',
+        decidedAt: new Date(),
+      })
+      .where(eq(triageDecisions.id, existing.id))
+      .run();
+  } else {
+    db.insert(triageDecisions)
+      .values({
+        prId,
+        decision: result.decision,
+        reason: result.reason,
+        decidedBy: 'system',
+      })
+      .run();
+  }
+
+  // PR.status를 결정 결과에 맞춰 갱신.
+  // auto-merge 결정은 'auto-mergeable' (auto-merge.ts가 실제 머지 호출). human-review는 'review-needed'.
+  const newStatus = result.decision === 'auto-merge' ? 'auto-mergeable' : 'review-needed';
+  if (pr.status !== newStatus) {
+    db.update(prs).set({ status: newStatus, updatedAt: new Date() }).where(eq(prs.id, prId)).run();
+  }
+
+  return { kind: 'decided', decision: result.decision, reason: result.reason };
 }
 
 function blockerReason(flag: string): string {

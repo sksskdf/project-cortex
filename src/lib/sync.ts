@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
+import { runTriage } from './triage';
 
 // 외부 GitHub webhook 페이로드를 lib/github의 분류 결과로 정규화한 입력.
 // 실제 webhook → 이 shape 변환은 webhook 라우트(다음 PR)에서.
@@ -76,6 +77,8 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
       .values({ ...values, status: computeStatus(payload.action, payload.pr.merged) })
       .returning({ id: prs.id })
       .get();
+    // PreReview가 이미 있으면(예: 재처리) 트라이아지도 즉시. 없으면 runTriage가 skip.
+    await runTriage(inserted.id);
     return { kind: 'inserted', prId: inserted.id };
   }
 
@@ -97,6 +100,10 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     })
     .where(eq(prs.id, existing.id))
     .run();
+
+  // synchronize/edited 후 새 headSha에 대한 PreReview가 있으면 다시 트라이아지.
+  // closed/merged면 runTriage가 status로 skip — 안전.
+  await runTriage(existing.id);
 
   return { kind: 'updated', prId: existing.id };
 }

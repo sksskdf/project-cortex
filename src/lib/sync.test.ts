@@ -39,8 +39,8 @@ beforeEach(() => {
   db.delete(projects).run();
   db.insert(projects)
     .values([
-      { slug: 'cortex-web', name: 'Cortex Web' },
-      { slug: 'payments-api', name: 'Payments API' },
+      { slug: 'cortex-web', name: 'Cortex Web', autoMergeEnabled: true },
+      { slug: 'payments-api', name: 'Payments API', autoMergeEnabled: true },
     ])
     .run();
 });
@@ -158,5 +158,43 @@ describe('handlePullRequestWebhook', () => {
 
     const all = db.select().from(prs).where(eq(prs.number, 999)).all();
     expect(all).toHaveLength(2);
+  });
+});
+
+describe('handlePullRequestWebhook + runTriage integration', () => {
+  it('writes triage_decision automatically when PreReview exists at sync time', async () => {
+    // 1. Insert PR via webhook
+    const opened = await handlePullRequestWebhook(basePayload());
+    expect(opened.kind).toBe('inserted');
+    const prId = (opened as { kind: 'inserted'; prId: number }).prId;
+
+    // 2. 자동 머지 통과 조건의 PreReview 부착 (Phase 4가 만들 데이터 시뮬레이션)
+    db.insert(preReviews)
+      .values({
+        prId,
+        headSha: 'sha-init',
+        confidence: 95,
+        confidenceTier: 'high',
+        flags: [],
+        testsPassed: true,
+      })
+      .run();
+
+    // 3. synchronize 이벤트 (같은 SHA 유지) — runTriage가 PreReview를 읽고 결정
+    await handlePullRequestWebhook({ ...basePayload(), action: 'synchronize' });
+
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td?.decision).toBe('auto-merge');
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('auto-mergeable');
+  });
+
+  it('no triage_decision when PreReview missing (Phase 4 미실행 상태)', async () => {
+    const opened = await handlePullRequestWebhook(basePayload());
+    const prId = (opened as { kind: 'inserted'; prId: number }).prId;
+
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td).toBeUndefined();
+    // PR.status는 webhook이 정한 'open' 유지
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('open');
   });
 });
