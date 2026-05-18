@@ -71,6 +71,7 @@
 ## 3. 스택 (한 줄)
 
 - **Next.js (App Router) + TypeScript + SQLite(Drizzle) + Urock 디자인 시스템 CSS 그대로.**
+- GitHub 연동은 `@octokit/rest`를 `src/lib/github.ts` 어댑터로 감싸서 사용하고, 테스트는 Vitest(`npm run test`)를 기본으로 사용합니다.
 - Tailwind 안 씁니다. 디자인 시스템 토큰을 CSS Variable로 직접 사용합니다.
 - 폼 검증은 `zod`, 서버 호출은 React **Server Actions** 우선 (API route는 webhook 같은 경우만).
 
