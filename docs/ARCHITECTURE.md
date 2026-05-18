@@ -76,10 +76,10 @@ project-cortex/
     │   └── cluster.ts
     ├── copy/
     │   └── ko.ts                 ← 모든 한국어 카피의 단일 출처
-    └── mocks/                    ← 디자인 데모용 데이터 (점진적으로 실 데이터로 대체)
-        ├── inbox.ts
-        ├── pr.ts
-        └── cluster.ts
+    └── fixtures/                 ← 외부 시스템 대체 데이터 (Phase 3·4·6·7에서 자동 생성으로 대체)
+        ├── dashboard.ts          ← 운영 메트릭 (Phase 7 대체)
+        ├── pr-detail.ts          ← git diff·LLM 요약 (Phase 3·4 대체)
+        └── cluster.ts            ← 클러스터링 분석 (Phase 6 대체)
 ```
 
 ## 모듈 경계 (지키면 토큰 절감)
