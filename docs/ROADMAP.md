@@ -273,15 +273,81 @@ data/cortex.sqlite                     ← 첫 실데이터 적재 시작
 
 ---
 
+## Phase 9 — Desktop 서비스 패키징 (2–3일)
+
+> 일상 도구로 굳히기. OS 부팅 시 자동 실행 + 서비스 목록에서 제어 가능.
+
+**산출물**
+- Windows 서비스 등록 스크립트 (NSSM 기반)
+- macOS launchd `.plist` + 설치 스크립트
+- Linux systemd unit (선택)
+- OS별 표준 데이터·로그 경로
+- 첫 실행 시 자동 마이그레이션 (PR #13 이후 client.ts가 처리) + 시드 옵션 안내
+- 업데이트 절차 문서 (git pull + 서비스 재시작)
+
+**핵심 파일**
+```
+service/
+├── win/
+│   ├── install.ps1           ← nssm install Cortex node ...
+│   ├── uninstall.ps1
+│   └── README.md
+├── mac/
+│   ├── com.cortex.plist      ← launchd 등록 (RunAtLoad=true, KeepAlive=true)
+│   ├── install.sh            ← ~/Library/LaunchAgents/에 복사 + launchctl load
+│   ├── uninstall.sh
+│   └── README.md
+└── linux/
+    └── cortex.service        ← systemd unit (선택)
+src/lib/paths.ts              ← OS별 데이터·로그·런타임 경로 헬퍼
+```
+
+**표준 경로**
+
+| OS | 데이터 | 로그 |
+|---|---|---|
+| Windows | `%APPDATA%\Cortex\cortex.sqlite` | `%APPDATA%\Cortex\logs\` |
+| macOS | `~/Library/Application Support/Cortex/cortex.sqlite` | `~/Library/Logs/Cortex/` |
+| Linux | `~/.local/share/cortex/cortex.sqlite` | `~/.local/state/cortex/logs/` |
+
+`CORTEX_DB_PATH` 환경변수가 있으면 우선. 없으면 OS 기본값.
+
+**DoD**
+- Windows: `services.msc`에 "Cortex" 표시, 시작/중지/재시작 동작. 재부팅 후 자동 실행.
+- macOS: `launchctl list | grep cortex` 보임, `sudo launchctl unload` 등으로 제어. 로그인 시 자동 실행.
+- 한 명령으로 설치·제거 가능 (예: `pwsh ./service/win/install.ps1`).
+- 로그 파일 회전(rotation) 적용 — Pino daily rotate 또는 OS 로그 시스템 활용.
+- 단일 인스톨러로 노드·의존성·DB 위치 셋업 완료.
+- 업데이트 절차 문서화.
+
+**선택지 비교**
+
+| 방식 | 장점 | 단점 |
+|---|---|---|
+| **NSSM (Windows)** | 가장 단순, 검증됨 | 별도 다운로드 필요 |
+| **node-windows** | npm 한 줄, 코드 통합 | UAC 권한 필요 |
+| **단일 실행 파일 (pkg/nexe/sea)** | 사용자 친화 | 빌드 복잡, 크기 증가 |
+| **launchd (Mac)** | OS 표준 | macOS 전용 |
+
+기본 접근: **NSSM + launchd**. Linux는 systemd unit 템플릿 제공(선택).
+
+**비-목표 (이 Phase에서도)**
+- 자동 업데이트 (manual `git pull`로 충분)
+- GUI 트레이 아이콘 (브라우저 탭이 UI)
+- 멀티 인스턴스 / 멀티 사용자 (단일 사용자 가정 유지)
+- 코드 서명·노타라이제이션 (개인 사용 전제)
+
+---
+
 ## 의존성 그래프
 
 ```
-Phase 0 ──→ Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6 ──→ Phase 7 ──→ Phase 8
+Phase 0 ──→ Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6 ──→ Phase 7 ──→ Phase 8 ──→ Phase 9
                           │           (병렬 가능: Phase 3, 4)
                           └──── Phase 1 끝나면 사람에게 데모 가능 (mock 기반)
 ```
 
-Phase 3·4는 도메인이 다르니 병렬로 진행 가능. Phase 5는 Phase 3·4가 모두 끝나야 함. Phase 8은 **Phase 7까지의 모든 것이 안정**된 후 진입.
+Phase 3·4는 도메인이 다르니 병렬로 진행 가능. Phase 5는 Phase 3·4가 모두 끝나야 함. Phase 8은 **Phase 7까지의 모든 것이 안정**된 후 진입. Phase 9는 Phase 8에서 첫 실사용을 확인한 뒤 일상 도구로 굳히는 단계.
 
 ---
 
