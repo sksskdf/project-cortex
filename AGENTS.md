@@ -41,7 +41,7 @@
 - **색·간격·radius는 토큰만.** `var(--ds-color-secondary-01)` 등을 직접 씁니다. 새 색을 만들지 마세요. (정확한 토큰명은 `prototype/design-system/colors_and_type.css`에 있습니다 — grep 한 번이면 찾습니다.)
 - **레이아웃은 `<AppShell>` 사용.** Sidebar 마크업을 다시 작성하면 안 됩니다 — 한 번 정의된 레이아웃을 import해 씁니다.
 - **공유 시각 요소(`<Gauge>`, `<AuthorChip>`, `<PRRow>` 등)는 `src/components/`에서 가져옵니다.** 비슷한 게 없으면 만들고, **있으면 props로 확장**합니다.
-- **mock 데이터는 `src/mocks/`에서 import.** 컴포넌트 안에 데이터 박지 마세요. 화면 수정과 데이터 수정이 분리되면 토큰이 절약됩니다.
+- **외부 시스템 대체 데이터(git diff·LLM 출력·운영 메트릭 등)는 `src/fixtures/`에서 import.** 컴포넌트 안에 데이터 박지 마세요. 화면 수정과 데이터 수정이 분리되면 토큰이 절약됩니다.
 
 ### 1.3 응답 작성 중
 
@@ -85,7 +85,7 @@
 
 1. **카피 먼저** — `src/copy/ko.ts`에 키를 추가합니다.
 2. **타입 먼저** — 도메인 객체 변경이 있으면 `src/lib/types.ts`에 먼저 반영합니다.
-3. **mock 먼저** — `src/mocks/`에 데이터 만들고, UI는 그걸 받습니다.
+3. **데이터 먼저** — DB 시드(`src/db/seed.ts`)나 외부 시스템 대체 fixture(`src/fixtures/`)에 데이터를 만들고, UI는 `src/lib/*` 함수로 받습니다.
 4. **AppShell 안에서 작업** — 새 라우트는 `src/app/*/page.tsx`로 추가합니다.
 5. **공유 컴포넌트 재사용 우선** — 없으면 만들고, 만들면 다른 화면에서도 쓸 수 있게 props로 분리합니다.
 6. **테스트는 가벼운 것만** — `*.test.ts` 한 파일에 5–10개 케이스, 비즈니스 로직만. UI 스냅샷은 안 합니다.

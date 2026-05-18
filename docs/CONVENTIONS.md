@@ -89,15 +89,16 @@ import type { PR } from '@/lib/types';
   ```
 - 영어 카피 / 다국어 지원은 비-목표. 영어 키만 사용하고 값은 한국어.
 
-## 7. Mock 데이터
+## 7. Fixture · Seed 데이터
 
-- `src/mocks/` 안에 두고 named export.
-- 컴포넌트 파일 안에 inline mock 금지.
-- mock은 실제 타입(`@/lib/types`)을 만족해야 함:
+- DB로 표현 가능한 도메인 데이터는 `src/db/seed.ts`에 시드. 페이지는 `src/lib/*`로 받음.
+- 외부 시스템이 채울 데이터(git diff, LLM 출력, 운영 메트릭 등)는 `src/fixtures/`에 둠. 각 파일 상단에 "어떤 Phase에서 자동 생성될 예정"인지 한 줄 주석.
+- 컴포넌트 파일 안에 inline 데이터 금지.
+- 데이터는 실제 타입(`@/lib/types`)을 만족해야 함:
   ```ts
-  // src/mocks/inbox.ts
-  import type { PR } from '@/lib/types';
-  export const inboxItems: PR[] = [ ... ];
+  // src/fixtures/dashboard.ts
+  import type { StatDelta } from '@/lib/types';
+  export const statDeltas: { autoMerged: StatDelta } = { ... };
   ```
 
 ## 8. 에러 / 로깅
