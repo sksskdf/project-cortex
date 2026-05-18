@@ -105,25 +105,39 @@ drizzle.config.ts
 > 외부 git의 PR을 받는다.
 
 **산출물**
-- GitHub App 등록 (또는 Personal Token 우선)
-- Webhook 수신 엔드포인트
-- Octokit 어댑터 (`lib/github.ts`)
+- **GitHub App 등록 (개인 계정 발급, 개인+회사 둘 다 install)** — 회사 조직이 third-party App 설치를 허용한다는 전제. PAT는 폴백.
+- **다중 credential 스키마** — `credentials` 테이블(App installation 또는 PAT) + `projects.credential_id` FK. 프로젝트별로 어느 계정으로 호출할지 지정.
+- Webhook 수신 엔드포인트 (HMAC 서명 검증)
+- Octokit 어댑터 (`lib/github.ts`) — credential별 `getOctokitFor(projectId)` 팩토리
 - PR 생성·업데이트 동기화
 - 머지 API 호출
 
 **핵심 파일**
 ```
 src/app/api/webhooks/github/route.ts
-src/lib/github.ts                     ← getPRDetails, mergePR
+src/lib/github.ts                     ← getOctokitFor, getPRDetails, mergePR
 src/lib/sync.ts                       ← webhook payload → DB upsert
-.env.local                            ← GITHUB_TOKEN, GITHUB_WEBHOOK_SECRET
+src/lib/credentials.ts                ← 암호화·복호화, installation 토큰 갱신
+src/db/schema.ts                      ← credentials + projects.credential_id 추가
+src/app/settings/credentials/page.tsx ← credential 등록·삭제 UI
+.env.local                            ← GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY,
+                                        GITHUB_WEBHOOK_SECRET, CORTEX_SECRET
+                                        (CORTEX_SECRET으로 DB 내 token 암호화)
 ```
 
 **DoD**
+- 개인 계정 install + 회사 조직 install이 별도 row로 등록됨
+- 각 프로젝트가 자기 credential로 GitHub API 호출 (잘못된 토큰 사용 0건)
 - 테스트 레포에 PR을 만들면 5초 이내 Cortex DB에 표시됨
 - 인박스에서 머지 버튼이 GitHub PR을 실제로 머지
-- webhook 서명 검증
+- webhook 서명 검증 + installation 토큰 자동 갱신 (1시간 만료 대응)
 - 동기화 실패 시 에러 로깅 (사용자 노출 X)
+
+**구현 순서 (PR 단위)**
+- 3.1: Octokit 어댑터 + vitest (단일 토큰 가정) ✅ PR #11
+- 3.2: lib/sync upsert + 단위 테스트 ✅ PR #14
+- 3.3: webhook 라우트 + HMAC 서명 검증 (단일 토큰 유지)
+- 3.4: credentials 스키마 + `getOctokitFor` + 설정 UI
 
 ---
 
@@ -364,6 +378,8 @@ Phase 3·4는 도메인이 다르니 병렬로 진행 가능. Phase 5는 Phase 3
 | 2026-05-15 | **다크 모드 디폴트** | 사용자 지시 — 라이트는 향후 옵션. `design-system/dark.css` 오버레이로 토큰만 재정의 |
 | 2026-05-15 | **단일 사용자 모드 유지** | 첫 사용자가 사용자 본인. 멀티 테넌시·권한·빌링은 비-목표 |
 | 2026-05-15 | **Adopt 방식 통합** | `C:\dev\projects` 6개를 모노레포로 흡수하지 않고 Cortex가 PR/이슈만 위에서 관리. 각 레포의 git 히스토리·도구 체인 보존 |
+| 2026-05-18 | **다중 GitHub App installation** | 단일 사용자가 개인 + 회사 두 계정의 repo를 한 Cortex 인스턴스로 다룸. App 하나(개인 계정 발급)를 두 곳에 install. 회사 정책상 App 불가 repo는 PAT 폴백. `credentials` 테이블로 토큰 분리, `projects.credential_id`로 매핑 |
+| 2026-05-18 | **Desktop 서비스 패키징(Phase 9)** | 단일 사용자 시나리오. 클라우드 호스팅(Vercel 등)은 SQLite 영속화·long-running 작업 한계로 부적합. 로컬 머신에 NSSM(Win) / launchd(Mac)로 서비스 등록 |
 
 ---
 
