@@ -34,7 +34,7 @@ export type GitHubPRDetails = {
 // 에이전트 계정 식별 — Phase 4에서 정교화. 현재는 휴리스틱.
 const KNOWN_AGENT_LOGINS = new Set(['devin-ai-integration', 'devin', 'codex-bot']);
 
-function classifyAuthor(login: string, type: string | undefined): 'agent' | 'human' {
+export function classifyAuthor(login: string, type: string | undefined): 'agent' | 'human' {
   if (type?.toLowerCase() === 'bot') return 'agent';
   if (KNOWN_AGENT_LOGINS.has(login.toLowerCase())) return 'agent';
   return 'human';
