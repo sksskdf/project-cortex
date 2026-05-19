@@ -1,0 +1,1 @@
+ALTER TABLE `pre_reviews` ADD `changed_paths` text DEFAULT '[]' NOT NULL;

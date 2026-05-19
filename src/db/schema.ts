@@ -109,6 +109,11 @@ export const preReviews = sqliteTable(
       enum: ['critical', 'low', 'medium', 'high'],
     }).notNull(),
     flags: text('flags', { mode: 'json' }).$type<string[]>().notNull(),
+    // 클러스터링 유사도 계산용 — analyzePR 이 diff 에서 추출해 저장.
+    changedPaths: text('changed_paths', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
     hunkAnnotations: text('hunk_annotations', { mode: 'json' }).$type<PreReviewHunkAnnotation[]>(),
     summary: text('summary'),
     comments: text('comments', { mode: 'json' }).$type<PreReviewComment[]>(),
