@@ -27,7 +27,12 @@ export type GithubPullRequestEventPartial = {
     updated_at: string;
   };
   repository: {
+    // GitHub 은 두 가지를 보냄:
+    // - name: 'project-cortex' (레포 짧은 이름)
+    // - full_name: 'sksskdf/project-cortex' (owner/repo)
+    // lib/pre-review·auto-merge 가 slug.split('/') 로 owner 를 뽑으므로 full_name 사용.
     name: string;
+    full_name: string;
   };
 };
 
@@ -40,7 +45,7 @@ export function mapPullRequestEvent(event: GithubPullRequestEventPartial): Webho
 
   return {
     action: event.action as WebhookPRAction,
-    repoSlug: event.repository.name,
+    repoSlug: event.repository.full_name,
     pr: {
       number: event.pull_request.number,
       title: event.pull_request.title,
