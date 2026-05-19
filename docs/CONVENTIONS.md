@@ -1,6 +1,7 @@
 # Conventions — Project Cortex
 
 > 코드를 짤 때 따르는 자잘한 룰. 헷갈릴 때만 들어와 보세요.
+> (테스트 PR — 머지 안 함)
 
 ---
 
