@@ -63,6 +63,19 @@ export async function getPRDetails(ref: RepoRef, number: number): Promise<GitHub
   };
 }
 
+// Unified diff 텍스트(`a/... b/...` 형식) — Anthropic 분석 입력.
+// Octokit이 media type을 받으면 data를 string으로 반환 (typing은 unknown).
+export async function getPRDiff(ref: RepoRef, number: number): Promise<string> {
+  const res = await getOctokit().pulls.get({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+    mediaType: { format: 'diff' },
+  });
+  // mediaType.format='diff' 일 때 data는 raw diff string.
+  return res.data as unknown as string;
+}
+
 export async function mergePR(
   ref: RepoRef,
   number: number,
