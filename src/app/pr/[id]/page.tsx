@@ -127,7 +127,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
   if (!view) {
     notFound();
   }
-  const { pr, fixture, hunkSummary } = view;
+  const { pr, fixture, hunkSummary, source } = view;
   const detail = { ...fixture, hunkSummary };
 
   return (
@@ -200,6 +200,12 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <PRGauge value={pr.gauge.value} tier={pr.gauge.tier} />
         </div>
+
+        {source === 'fixture' && (
+          <div className={styles.fixtureBanner} role="note">
+            {t.pr.fixtureBanner}
+          </div>
+        )}
 
         <section className={styles.aiCard} aria-label={t.pr.aiSummary.ariaLabel}>
           <div className={styles.aiCardHead}>
