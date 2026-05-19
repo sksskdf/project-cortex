@@ -9,9 +9,17 @@ import { setAnthropic } from './anthropic';
 import { setOctokit } from './github';
 import { handlePullRequestWebhook, type WebhookPRPayload } from './sync';
 
-function mockOctokitDiff(diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'): Octokit {
+// 디폴트는 머지가 성공한 것처럼 응답 — auto-merge 흐름이 끝까지 가는 테스트가 많아서.
+// 머지 실패를 검증하고 싶으면 본문에서 setOctokit 으로 덮어쓴다.
+function mockOctokitDiff(
+  diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;',
+  mergeResponse: { merged: boolean; sha: string } = { merged: true, sha: 'merged-sha' },
+): Octokit {
   return {
-    pulls: { get: vi.fn().mockResolvedValue({ data: diff }), merge: vi.fn() },
+    pulls: {
+      get: vi.fn().mockResolvedValue({ data: diff }),
+      merge: vi.fn().mockResolvedValue({ data: mergeResponse }),
+    },
   } as unknown as Octokit;
 }
 
@@ -224,7 +232,7 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
   });
 
-  it('preReview.testsPassed=true 백필 후 synchronize 면 자동 머지 통과', async () => {
+  it('preReview.testsPassed=true 백필 후 synchronize 면 자동 머지까지 실행됨', async () => {
     setAnthropic(
       mockAnthropic({
         confidence: 95,
@@ -240,12 +248,37 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     // CI 결과 동기화 시뮬레이션 — Phase 5+ 에서 자동화될 작업.
     db.update(preReviews).set({ testsPassed: true }).where(eq(preReviews.prId, prId)).run();
 
-    // 같은 SHA 로 synchronize → analyzePR 캐시 hit → runTriage 가 갱신된 preReview 사용.
+    // 같은 SHA 로 synchronize → analyzePR 캐시 hit → runTriage → safeAutoMerge.
     await handlePullRequestWebhook({ ...basePayload(), action: 'synchronize' });
 
     const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
     expect(td?.decision).toBe('auto-merge');
-    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('auto-mergeable');
+    // safeAutoMerge 가 mergePR 호출 → status='merged' 로 종결.
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('merged');
+  });
+
+  it('자동 머지 실패 시 review-needed 로 폴백 + triage 사유 갱신', async () => {
+    // 머지 API 가 merged=false 반환하는 슬롯으로 교체.
+    setOctokit(mockOctokitDiff(undefined, { merged: false, sha: '' }));
+    setAnthropic(
+      mockAnthropic({
+        confidence: 95,
+        flags: [],
+        summary: 'safe',
+        comments: [],
+        hunkAnnotations: [],
+      }).client,
+    );
+    const opened = await handlePullRequestWebhook(basePayload());
+    const prId = (opened as { kind: 'inserted'; prId: number }).prId;
+    db.update(preReviews).set({ testsPassed: true }).where(eq(preReviews.prId, prId)).run();
+
+    await handlePullRequestWebhook({ ...basePayload(), action: 'synchronize' });
+
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td?.decision).toBe('human-review');
+    expect(td?.reason).toContain('GitHub 머지 거부');
   });
 
   it('opened → Anthropic failure 는 sync 자체를 막지 않음 (runTriage 가 skip)', async () => {

@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
+import { attemptAutoMerge } from './auto-merge';
 import { analyzePR } from './pre-review';
 import { runTriage } from './triage';
 
@@ -58,6 +59,16 @@ async function safeAnalyze(prId: number): Promise<void> {
   }
 }
 
+// runTriage 결과가 auto-merge 면 즉시 머지 시도. 실패해도 sync 응답은 정상,
+// PR.status 가 review-needed 로 폴백되므로 인박스에 등장.
+async function safeAutoMerge(prId: number): Promise<void> {
+  try {
+    await attemptAutoMerge(prId);
+  } catch (err) {
+    console.error(`attemptAutoMerge unexpected error for PR ${prId}:`, err);
+  }
+}
+
 export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promise<SyncResult> {
   const project = db
     .select({ id: projects.id })
@@ -99,7 +110,10 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     if (shouldAnalyze(payload.action)) {
       await safeAnalyze(inserted.id);
     }
-    await runTriage(inserted.id);
+    const triage = await runTriage(inserted.id);
+    if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
+      await safeAutoMerge(inserted.id);
+    }
     return { kind: 'inserted', prId: inserted.id };
   }
 
@@ -128,7 +142,10 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     await safeAnalyze(existing.id);
   }
   // closed/merged면 runTriage가 status로 skip — 안전.
-  await runTriage(existing.id);
+  const triage = await runTriage(existing.id);
+  if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
+    await safeAutoMerge(existing.id);
+  }
 
   return { kind: 'updated', prId: existing.id };
 }
