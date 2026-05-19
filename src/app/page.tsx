@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
+import { AgentFaceIcon, AlertIcon, BellIcon, CheckIcon, InfoIcon } from '@/components/icons';
 import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
 import { currentUser } from '@/lib/config';
 import {
@@ -38,22 +39,6 @@ const workloadBarClass: Record<WorkloadBarTone, string> = {
 
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 15;
 
-function bellIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  );
-}
-
 function plusIcon(width = 16, height = 16, strokeWidth = 2.5) {
   return (
     <svg
@@ -86,21 +71,6 @@ function startIcon() {
     >
       <circle cx={12} cy={12} r={3} />
       <path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
-    </svg>
-  );
-}
-
-function checkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 6 9 17l-5-5" />
     </svg>
   );
 }
@@ -200,62 +170,6 @@ function runningDotIcon() {
   );
 }
 
-function alertIcon() {
-  return (
-    <svg
-      width={12}
-      height={12}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={8} x2={12} y2={12} />
-      <line x1={12} y1={16} x2={12.01} y2={16} />
-    </svg>
-  );
-}
-
-function infoIcon() {
-  return (
-    <svg
-      width={12}
-      height={12}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={16} x2={12} y2={12} />
-      <line x1={12} y1={8} x2={12.01} y2={8} />
-    </svg>
-  );
-}
-
-function agentFaceIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x={4} y={4} width={16} height={16} rx={2} />
-      <circle cx={9} cy={10} r={1.5} fill="currentColor" />
-      <circle cx={15} cy={10} r={1.5} fill="currentColor" />
-      <path d="M9 15h6" />
-    </svg>
-  );
-}
-
 function Gauge({ value, tier }: { value: number; tier: GaugeTier }) {
   const offset = GAUGE_CIRCUMFERENCE - (value / 100) * GAUGE_CIRCUMFERENCE;
   return (
@@ -305,7 +219,7 @@ function TodoRowCard({ row }: { row: PR }) {
           <span
             className={`${styles.author} ${row.author.kind === 'agent' ? styles.authorAgent : styles.authorHuman}`}
           >
-            {agentFaceIcon()}
+            <AgentFaceIcon />
             {row.author.name}
           </span>
           {row.tags.map((tag) => (
@@ -315,7 +229,7 @@ function TodoRowCard({ row }: { row: PR }) {
           ))}
         </div>
         <div className={`${styles.todoReason} ${isAlert ? '' : styles.todoReasonInfo}`}>
-          {isAlert ? alertIcon() : infoIcon()}
+          {isAlert ? <AlertIcon size={12} /> : <InfoIcon size={12} />}
           {row.reason.text}
         </div>
       </div>
@@ -372,7 +286,7 @@ export default async function DashboardPage() {
         </div>
         <div className={styles.headerActions}>
           <button type="button" className={styles.iconBtn} aria-label={t.dashboard.notifications}>
-            {bellIcon()}
+            <BellIcon />
             <span className={`ds-badge ds-badge--pill ${styles.iconBtnBadge}`}>3</span>
           </button>
           <button type="button" className="ds-btn ds-btn--md ds-btn--outlined-basic">
@@ -392,7 +306,7 @@ export default async function DashboardPage() {
 
       <div className={styles.principle} role="note">
         <div className={styles.principleIcon} aria-hidden="true">
-          {checkIcon()}
+          <CheckIcon strokeWidth={2} />
         </div>
         <div>
           <div className={styles.principleTitle}>
@@ -417,7 +331,7 @@ export default async function DashboardPage() {
         <div className={styles.stat}>
           <div className={styles.statTop}>
             <span className={`${styles.statIcon} ${styles.statIconGreen}`} aria-hidden="true">
-              {checkIcon()}
+              <CheckIcon strokeWidth={2} />
             </span>
           </div>
           <div className={styles.statLabel}>{t.dashboard.stat.autoMergedThisWeek}</div>
@@ -473,9 +387,8 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.recentAutoMerge}</h2>
-              <Link href="/activity" className={styles.sectionMore}>
-                {t.dashboard.section.recentMore}
-              </Link>
+              {/* /activity 라우트는 Phase 7 (보고서) 진입 시 활성화. */}
+              <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
             </div>
             <div className={styles.feedCard}>
               <div className={styles.feed}>
@@ -501,9 +414,8 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.workload}</h2>
-              <Link href="/agents" className={styles.sectionMore}>
-                {t.dashboard.section.workloadMore}
-              </Link>
+              {/* /agents 라우트는 Phase 8 진입 시 활성화. */}
+              <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
             </div>
             <WorkloadCard rows={agentWorkloads} />
           </section>
@@ -511,9 +423,8 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.clusters}</h2>
-              <Link href="/clusters" className={styles.sectionMore}>
-                {t.dashboard.section.clustersMore}
-              </Link>
+              {/* /clusters 라우트는 Phase 6 진입 시 활성화. */}
+              <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
             </div>
             <div className={styles.feedCard}>
               <div className={styles.feed}>

@@ -12,6 +12,9 @@ type NavItem = {
   icon: React.ReactNode;
   count?: number;
   countAlert?: boolean;
+  // 라우트가 아직 없을 때 — 클릭 비활성, "준비 중" 표시.
+  // 해당 Phase 가 들어오면 false 로 바꾼다.
+  comingSoon?: boolean;
 };
 
 const dashboardIcon = (
@@ -149,16 +152,36 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+  const className = `${styles.item} ${active ? styles.itemActive : ''} ${item.comingSoon ? styles.itemDisabled : ''}`;
+  const body = (
+    <>
+      {item.icon}
+      <span className={styles.itemLabel}>{item.label}</span>
+      {item.comingSoon ? (
+        <span className={styles.itemSoon}>{t.nav.comingSoon}</span>
+      ) : item.count !== undefined ? (
+        <span className={`${styles.itemCount} ${item.countAlert ? styles.itemCountAlert : ''}`}>
+          {item.count}
+        </span>
+      ) : null}
+    </>
+  );
+
+  if (item.comingSoon) {
+    // 라우트가 없으니 a/Link 가 아닌 span — 404 회피.
+    return (
+      <li>
+        <span className={className} aria-disabled="true">
+          {body}
+        </span>
+      </li>
+    );
+  }
+
   return (
     <li>
-      <Link href={item.href} className={`${styles.item} ${active ? styles.itemActive : ''}`}>
-        {item.icon}
-        <span className={styles.itemLabel}>{item.label}</span>
-        {item.count !== undefined && (
-          <span className={`${styles.itemCount} ${item.countAlert ? styles.itemCountAlert : ''}`}>
-            {item.count}
-          </span>
-        )}
+      <Link href={item.href} className={className}>
+        {body}
       </Link>
     </li>
   );
@@ -175,6 +198,9 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
+  // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
+  // /projects · /agents · /clusters · /reports → Phase 6·8
+  // /settings · /help → 별도 작업
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
     {
@@ -184,20 +210,33 @@ export function Sidebar({
       count: counts.inbox,
       countAlert: true,
     },
-    { href: '/projects', label: t.nav.projects, icon: projectsIcon, count: counts.projects },
-    { href: '/agents', label: t.nav.agents, icon: agentsIcon, count: counts.agents },
+    {
+      href: '/projects',
+      label: t.nav.projects,
+      icon: projectsIcon,
+      count: counts.projects,
+      comingSoon: true,
+    },
+    {
+      href: '/agents',
+      label: t.nav.agents,
+      icon: agentsIcon,
+      count: counts.agents,
+      comingSoon: true,
+    },
     {
       href: '/clusters',
       label: t.nav.clusters,
       icon: clustersIcon,
       count: counts.clusters,
+      comingSoon: true,
     },
-    { href: '/reports', label: t.nav.reports, icon: reportsIcon },
+    { href: '/reports', label: t.nav.reports, icon: reportsIcon, comingSoon: true },
   ];
 
   const utilityItems: ReadonlyArray<NavItem> = [
-    { href: '/settings', label: t.nav.settings, icon: settingsIcon },
-    { href: '/help', label: t.nav.help, icon: helpIcon },
+    { href: '/settings', label: t.nav.settings, icon: settingsIcon, comingSoon: true },
+    { href: '/help', label: t.nav.help, icon: helpIcon, comingSoon: true },
   ];
 
   return (
@@ -221,10 +260,11 @@ export function Sidebar({
         <ul className={styles.list}>
           {favoriteProjects.map((name) => (
             <li key={name}>
-              <Link href={`/projects/${name}`} className={styles.item}>
+              {/* /projects/[name] 라우트 Phase 8 진입 시 활성화. */}
+              <span className={`${styles.item} ${styles.itemDisabled}`} aria-disabled="true">
                 {chevronIcon}
                 <span className={styles.itemLabel}>{name}</span>
-              </Link>
+              </span>
             </li>
           ))}
         </ul>

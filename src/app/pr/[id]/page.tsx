@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import { AuthorChip } from '@/components/AuthorChip';
 import { DiffHunk } from '@/components/DiffHunk';
+import { CheckIcon, ChevronLeftIcon, HelpIcon, WarnIcon } from '@/components/icons';
 import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
 import { getPRDetail } from '@/lib/pr';
 import type { FileStatus, GaugeTier, TagTone } from '@/lib/types';
@@ -53,71 +54,8 @@ const gaugeNumClass: Record<GaugeTier, string> = {
 const GAUGE_RADIUS = 40;
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
 
-function chevronLeftIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="15 18 9 12 15 6" />
-    </svg>
-  );
-}
-
-function helpIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-      <line x1={12} y1={17} x2={12.01} y2={17} />
-    </svg>
-  );
-}
-
-function checkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={3}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function warnIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={3}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1={12} y1={8} x2={12} y2={12} />
-      <line x1={12} y1={16} x2={12.01} y2={16} />
-    </svg>
-  );
-}
-
 function statusIcon(status: FileStatus) {
-  return status === 'ok' ? checkIcon() : warnIcon();
+  return status === 'ok' ? <CheckIcon /> : <WarnIcon />;
 }
 
 function PRGauge({ value, tier }: { value: number; tier: GaugeTier }) {
@@ -235,7 +173,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
 
       <main className={styles.diffArea}>
         <Link href="/inbox" className={styles.back}>
-          {chevronLeftIcon()}
+          <ChevronLeftIcon />
           {t.pr.backToInbox}
         </Link>
 
@@ -266,7 +204,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
         <section className={styles.aiCard} aria-label={t.pr.aiSummary.ariaLabel}>
           <div className={styles.aiCardHead}>
             <span className={styles.aiCardIcon} aria-hidden="true">
-              {helpIcon()}
+              <HelpIcon />
             </span>
             <div>
               <div className={styles.aiCardTitle}>{t.pr.aiSummary.title}</div>
@@ -290,7 +228,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
             {detail.aiSummary.checks.map((check) => (
               <div key={check.key} className={styles.aiCheck}>
                 <span className={`${styles.aiCheckIcon} ${aiCheckIconClass[check.tone]}`}>
-                  {check.tone === 'ok' ? checkIcon() : warnIcon()}
+                  {check.tone === 'ok' ? <CheckIcon /> : <WarnIcon />}
                 </span>
                 <div>
                   <div className={styles.aiCheckLabel}>{aiCheckLabel[check.key]}</div>

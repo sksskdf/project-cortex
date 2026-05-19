@@ -16,6 +16,7 @@ export const ko = {
     reports: '보고서',
     settings: '설정',
     help: '도움말',
+    comingSoon: '준비 중',
   },
   dashboard: {
     greeting: (name: string) => `안녕하세요, ${name}님`,

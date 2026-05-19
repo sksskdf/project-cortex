@@ -1,5 +1,6 @@
 import type { CodeLineKind, Hunk } from '@/lib/types';
 import { ko as t } from '@/copy/ko';
+import { AlertIcon, CheckIcon, HelpIcon, InfoIcon } from './icons';
 import styles from './DiffHunk.module.css';
 
 const lineKindClass: Record<CodeLineKind, string> = {
@@ -8,72 +9,6 @@ const lineKindClass: Record<CodeLineKind, string> = {
   del: styles.lineDel,
   'hunk-head': styles.lineHead,
 };
-
-function checkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={3}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function alertIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={8} x2={12} y2={12} />
-      <line x1={12} y1={16} x2={12.01} y2={16} />
-    </svg>
-  );
-}
-
-function infoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={16} x2={12} y2={12} />
-      <line x1={12} y1={8} x2={12.01} y2={8} />
-    </svg>
-  );
-}
-
-function helpIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-      <line x1={12} y1={17} x2={12.01} y2={17} />
-    </svg>
-  );
-}
 
 function signFor(kind: CodeLineKind): string {
   if (kind === 'add') return '+';
@@ -89,7 +24,7 @@ export function DiffHunk({ hunk }: { hunk: Hunk }) {
     return (
       <div className={styles.collapsed}>
         <span className={styles.collapsedCheck} aria-hidden="true">
-          {checkIcon()}
+          <CheckIcon />
         </span>
         <span className={styles.collapsedLabel}>
           {pre}
@@ -108,12 +43,7 @@ export function DiffHunk({ hunk }: { hunk: Hunk }) {
       : hunk.reason.tone === 'info'
         ? `${styles.reason} ${styles.reasonInfo}`
         : styles.reason;
-  const reasonIcon =
-    hunk.reason.tone === 'alert'
-      ? alertIcon()
-      : hunk.reason.tone === 'info'
-        ? infoIcon()
-        : alertIcon();
+  const reasonIcon = hunk.reason.tone === 'info' ? <InfoIcon /> : <AlertIcon />;
 
   return (
     <div className={styles.hunk}>
@@ -135,7 +65,7 @@ export function DiffHunk({ hunk }: { hunk: Hunk }) {
       {hunk.aiComment && (
         <div className={styles.aiComment}>
           <div className={styles.aiCommentHead}>
-            {helpIcon()}
+            <HelpIcon />
             {t.pr.hunk.aiCommentLabel}
           </div>
           <div className={styles.aiCommentBody}>
