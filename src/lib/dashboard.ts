@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { clusterNotes, agentsRunningCount, statDeltas } from '@/fixtures/dashboard';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { orderInbox } from '@/lib/queue';
 import type { PR, ReasonTone, StatDelta } from '@/lib/types';
 
 export type DashboardStats = {
@@ -73,11 +74,9 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
     .leftJoin(preReviews, eq(preReviews.prId, prs.id))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
-    .orderBy(desc(prs.createdAt))
-    .limit(limit)
     .all();
 
-  return rows.map((row) => {
+  const items: PR[] = rows.map((row) => {
     const confidence = row.preReview?.confidence ?? 0;
     const flags = row.preReview?.flags ?? [];
     const tone: ReasonTone = row.triage ? reasonTone(confidence, flags) : 'info';
@@ -101,6 +100,9 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
       gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
     };
   });
+
+  // 우선순위 정렬 후 상위 limit개 — 인박스와 같은 룰 유지.
+  return orderInbox(items).slice(0, limit);
 }
 
 export async function getRecentAutoMerges(limit = 5): Promise<ActivityFeedItem[]> {

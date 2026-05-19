@@ -2,6 +2,7 @@ import { and, count, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { orderInbox } from '@/lib/queue';
 import type { PR, ReasonTone, SidebarCounts } from '@/lib/types';
 
 export type InboxCategoryId = 'all' | 'flagged' | 'large' | 'migration' | 'cluster' | 'mentioned';
@@ -72,10 +73,9 @@ export async function listInboxQueue(): Promise<PR[]> {
     .leftJoin(preReviews, eq(preReviews.prId, prs.id))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
-    .orderBy(desc(prs.createdAt))
     .all();
 
-  return rows.map((row) => {
+  const items: PR[] = rows.map((row) => {
     const confidence = row.preReview?.confidence ?? 0;
     const flags = row.preReview?.flags ?? [];
     const tone: ReasonTone = row.triage ? reasonTone(confidence, flags) : 'info';
@@ -105,6 +105,9 @@ export async function listInboxQueue(): Promise<PR[]> {
       },
     };
   });
+
+  // 우선순위 정렬: tone (alert > warn > info) > gauge 낮은 순 > age 오래된 순.
+  return [...orderInbox(items)];
 }
 
 export async function getInboxCategories(): Promise<InboxCategory[]> {
