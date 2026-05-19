@@ -11,4 +11,5 @@ function required(key: string): string {
 export const env = {
   githubToken: () => required('GITHUB_TOKEN'),
   githubWebhookSecret: () => required('GITHUB_WEBHOOK_SECRET'),
+  anthropicApiKey: () => required('ANTHROPIC_API_KEY'),
 };

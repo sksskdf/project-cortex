@@ -5,6 +5,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import type { TriageDecisionRow } from '@/db/schema';
+import { AUTO_MERGE_THRESHOLD } from './confidence';
 
 export type TriageDecision = TriageDecisionRow['decision'];
 
@@ -69,10 +70,10 @@ export function decideTriage(input: TriageInput): TriageResult {
     };
   }
 
-  if (input.confidence < 90) {
+  if (input.confidence < AUTO_MERGE_THRESHOLD) {
     return {
       decision: 'human-review',
-      reason: `신뢰 점수 ${input.confidence}점으로 자동 머지 기준(90+) 미달.`,
+      reason: `신뢰 점수 ${input.confidence}점으로 자동 머지 기준(${AUTO_MERGE_THRESHOLD}+) 미달.`,
     };
   }
 
