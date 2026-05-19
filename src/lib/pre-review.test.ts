@@ -51,7 +51,12 @@ function setupPR(opts: {
 }) {
   const project = db
     .insert(projects)
-    .values({ slug: opts.slug ?? 'acme/web', name: 'Web', autoMergeEnabled: true })
+    .values({
+      slug: opts.slug ?? 'acme/web',
+      name: 'Web',
+      autoMergeEnabled: true,
+      installationId: 12345,
+    })
     .returning({ id: projects.id })
     .get();
   const pr = db

@@ -19,6 +19,7 @@ function baseEvent(
       updated_at: '2026-05-02T00:00:00Z',
     },
     repository: { name: 'cortex-web', full_name: 'acme/cortex-web' },
+    installation: { id: 555 },
     ...overrides,
   };
 }
@@ -29,6 +30,7 @@ describe('mapPullRequestEvent', () => {
     expect(result).toEqual({
       action: 'opened',
       repoSlug: 'acme/cortex-web',
+      installationId: 555,
       pr: {
         number: 42,
         title: 'Add feature',
@@ -80,6 +82,11 @@ describe('mapPullRequestEvent', () => {
       const result = mapPullRequestEvent(baseEvent({ action }));
       expect(result?.action).toBe(action);
     }
+  });
+
+  it('returns installationId=null when webhook has no installation block (legacy PAT)', () => {
+    const result = mapPullRequestEvent(baseEvent({ installation: undefined }));
+    expect(result?.installationId).toBeNull();
   });
 
   it('uses fallback login when user is null', () => {

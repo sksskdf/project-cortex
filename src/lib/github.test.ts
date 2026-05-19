@@ -35,7 +35,7 @@ describe('getPRDetails', () => {
     });
     setOctokit(mock);
 
-    const result = await getPRDetails({ owner: 'cortex', repo: 'web' }, 42);
+    const result = await getPRDetails(1, { owner: 'cortex', repo: 'web' }, 42);
 
     expect(result).toEqual({
       number: 42,
@@ -74,7 +74,7 @@ describe('getPRDetails', () => {
       }),
     );
 
-    const result = await getPRDetails({ owner: 'x', repo: 'y' }, 1);
+    const result = await getPRDetails(1, { owner: 'x', repo: 'y' }, 1);
     expect(result.authorKind).toBe('agent');
   });
 
@@ -99,7 +99,7 @@ describe('getPRDetails', () => {
       }),
     );
 
-    const result = await getPRDetails({ owner: 'x', repo: 'y' }, 1);
+    const result = await getPRDetails(1, { owner: 'x', repo: 'y' }, 1);
     expect(result.authorKind).toBe('agent');
   });
 });
@@ -109,7 +109,7 @@ describe('mergePR', () => {
     const mergeSpy = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'merged-sha' } });
     setOctokit(makeMockOctokit({ merge: mergeSpy }));
 
-    const result = await mergePR({ owner: 'cortex', repo: 'web' }, 100);
+    const result = await mergePR(1, { owner: 'cortex', repo: 'web' }, 100);
 
     expect(mergeSpy).toHaveBeenCalledWith({
       owner: 'cortex',
@@ -125,7 +125,7 @@ describe('mergePR', () => {
     const mergeSpy = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'x' } });
     setOctokit(makeMockOctokit({ merge: mergeSpy }));
 
-    await mergePR({ owner: 'a', repo: 'b' }, 1, { method: 'rebase', commitTitle: 'Hello' });
+    await mergePR(1, { owner: 'a', repo: 'b' }, 1, { method: 'rebase', commitTitle: 'Hello' });
 
     expect(mergeSpy).toHaveBeenCalledWith({
       owner: 'a',

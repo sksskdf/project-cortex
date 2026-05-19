@@ -1,17 +1,41 @@
+import { createAppAuth } from '@octokit/auth-app';
 import { Octokit } from '@octokit/rest';
 import { env } from './env';
 
-// Octokit 인스턴스는 lazy + 메모이즈. 테스트에서 setOctokit으로 주입 가능.
-let _octokit: Octokit | null = null;
+// GitHub App 모드 — installation 별로 short-lived 토큰을 발급받아 Octokit 생성.
+// 토큰은 약 1시간 유효 → 만료 전 갱신 위해 캐시에 expiresAt 동봉.
+// 테스트 주입은 setOctokit(instance) — installation 무관하게 단일 mock 반환.
+
+let _testOctokit: Octokit | null = null;
 
 export function setOctokit(instance: Octokit | null) {
-  _octokit = instance;
+  _testOctokit = instance;
 }
 
-export function getOctokit(): Octokit {
-  if (_octokit) return _octokit;
-  _octokit = new Octokit({ auth: env.githubToken() });
-  return _octokit;
+type CachedOctokit = { client: Octokit; expiresAt: number };
+const _cache = new Map<number, CachedOctokit>();
+// 만료 5분 전에 갱신 — 사용 중 만료 회피.
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+export async function getOctokitForInstallation(installationId: number): Promise<Octokit> {
+  if (_testOctokit) return _testOctokit;
+
+  const cached = _cache.get(installationId);
+  if (cached && cached.expiresAt - TOKEN_REFRESH_BUFFER_MS > Date.now()) {
+    return cached.client;
+  }
+
+  const auth = createAppAuth({
+    appId: env.githubAppId(),
+    privateKey: env.githubAppPrivateKey(),
+  });
+  const { token, expiresAt } = await auth({ type: 'installation', installationId });
+  const client = new Octokit({ auth: token });
+  _cache.set(installationId, {
+    client,
+    expiresAt: new Date(expiresAt).getTime(),
+  });
+  return client;
 }
 
 export type RepoRef = { owner: string; repo: string };
@@ -40,8 +64,13 @@ export function classifyAuthor(login: string, type: string | undefined): 'agent'
   return 'human';
 }
 
-export async function getPRDetails(ref: RepoRef, number: number): Promise<GitHubPRDetails> {
-  const { data } = await getOctokit().pulls.get({
+export async function getPRDetails(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<GitHubPRDetails> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.get({
     owner: ref.owner,
     repo: ref.repo,
     pull_number: number,
@@ -64,24 +93,30 @@ export async function getPRDetails(ref: RepoRef, number: number): Promise<GitHub
 }
 
 // Unified diff 텍스트(`a/... b/...` 형식) — Anthropic 분석 입력.
-// Octokit이 media type을 받으면 data를 string으로 반환 (typing은 unknown).
-export async function getPRDiff(ref: RepoRef, number: number): Promise<string> {
-  const res = await getOctokit().pulls.get({
+// Octokit 이 media type 을 받으면 data 를 string 으로 반환 (typing 은 unknown).
+export async function getPRDiff(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<string> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const res = await octokit.pulls.get({
     owner: ref.owner,
     repo: ref.repo,
     pull_number: number,
     mediaType: { format: 'diff' },
   });
-  // mediaType.format='diff' 일 때 data는 raw diff string.
   return res.data as unknown as string;
 }
 
 export async function mergePR(
+  installationId: number,
   ref: RepoRef,
   number: number,
   options?: { commitTitle?: string; method?: 'squash' | 'merge' | 'rebase' },
 ): Promise<{ merged: boolean; sha: string }> {
-  const { data } = await getOctokit().pulls.merge({
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.merge({
     owner: ref.owner,
     repo: ref.repo,
     pull_number: number,

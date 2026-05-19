@@ -46,6 +46,7 @@ function basePayload(overrides: Partial<WebhookPRPayload['pr']> = {}): WebhookPR
   return {
     action: 'opened',
     repoSlug: 'cortex-web',
+    installationId: 12345,
     pr: {
       number: 999,
       title: 'Sync test PR',
@@ -107,15 +108,34 @@ describe('handlePullRequestWebhook', () => {
     });
   });
 
-  it('skips with unknown-repo when slug not in projects', async () => {
+  it('skips with unknown-repo when installationId is null and slug not in projects', async () => {
     const result = await handlePullRequestWebhook(basePayload({}));
-    // adjust payload's repoSlug
+    // installationId null 이면 자동 onboard 안 함 — legacy PAT 페이로드 가정.
     const result2 = await handlePullRequestWebhook({
       ...basePayload(),
       repoSlug: 'no-such-repo',
+      installationId: null,
     });
     expect(result.kind).toBe('inserted');
     expect(result2).toEqual({ kind: 'skipped', reason: 'unknown-repo' });
+  });
+
+  it('auto-onboards a new repo when installationId is present', async () => {
+    const result = await handlePullRequestWebhook({
+      ...basePayload(),
+      repoSlug: 'new-org/new-repo',
+      installationId: 99999,
+    });
+    expect(result.kind).toBe('inserted');
+    const project = db.select().from(projects).where(eq(projects.slug, 'new-org/new-repo')).get();
+    expect(project?.installationId).toBe(99999);
+  });
+
+  it('updates installationId when it changes for an existing project', async () => {
+    await handlePullRequestWebhook(basePayload());
+    await handlePullRequestWebhook({ ...basePayload(), installationId: 67890 });
+    const project = db.select().from(projects).where(eq(projects.slug, 'cortex-web')).get();
+    expect(project?.installationId).toBe(67890);
   });
 
   it('updates an existing PR on synchronize — new headSha + diff stats, status follows triage', async () => {

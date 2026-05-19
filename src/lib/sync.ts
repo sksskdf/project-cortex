@@ -12,6 +12,8 @@ export type WebhookPRAction = 'opened' | 'closed' | 'reopened' | 'synchronize' |
 export type WebhookPRPayload = {
   action: WebhookPRAction;
   repoSlug: string;
+  // GitHub App webhook 은 항상 함께 보냄. legacy PAT webhook 은 null 가능.
+  installationId: number | null;
   pr: {
     number: number;
     title: string;
@@ -70,11 +72,37 @@ async function safeAutoMerge(prId: number): Promise<void> {
 }
 
 export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promise<SyncResult> {
-  const project = db
-    .select({ id: projects.id })
+  let project = db
+    .select({ id: projects.id, installationId: projects.installationId })
     .from(projects)
     .where(eq(projects.slug, payload.repoSlug))
     .get();
+
+  // 자동 onboard — App 이 새 레포에 설치되면 첫 webhook 으로 projects 행 자동 생성.
+  // installationId 가 있을 때만 (PAT/legacy 페이로드는 unknown-repo 폴백).
+  if (!project && payload.installationId !== null) {
+    const inserted = db
+      .insert(projects)
+      .values({
+        slug: payload.repoSlug,
+        name: payload.repoSlug,
+        installationId: payload.installationId,
+      })
+      .returning({ id: projects.id, installationId: projects.installationId })
+      .get();
+    project = inserted;
+  } else if (
+    project &&
+    project.installationId !== payload.installationId &&
+    payload.installationId !== null
+  ) {
+    // installation 재설치 등으로 id 바뀌면 갱신.
+    db.update(projects)
+      .set({ installationId: payload.installationId })
+      .where(eq(projects.id, project.id))
+      .run();
+    project = { id: project.id, installationId: payload.installationId };
+  }
 
   if (!project) {
     return { kind: 'skipped', reason: 'unknown-repo' };

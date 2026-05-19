@@ -9,7 +9,12 @@ function required(key: string): string {
 }
 
 export const env = {
-  githubToken: () => required('GITHUB_TOKEN'),
+  // GitHub App 인증 — Phase 3.4 부터 PAT 대신 사용.
+  // - APP_ID: App 설정 페이지 상단의 숫자.
+  // - PRIVATE_KEY: App 페이지에서 "Generate a private key" 로 받은 .pem 내용.
+  //   여러 줄 문자열이므로 .env.local 에서는 따옴표로 감싸야 함.
+  githubAppId: () => required('GITHUB_APP_ID'),
+  githubAppPrivateKey: () => required('GITHUB_APP_PRIVATE_KEY'),
   githubWebhookSecret: () => required('GITHUB_WEBHOOK_SECRET'),
   anthropicApiKey: () => required('ANTHROPIC_API_KEY'),
 };
