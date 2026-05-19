@@ -14,5 +14,5 @@ export function getAnthropic(): Anthropic {
   return _client;
 }
 
-// 현재 사용 모델 — 비용·속도 균형 (Phase 4 검토 결과는 ROADMAP Decision Log에 박제).
-export const PRE_REVIEW_MODEL = 'claude-sonnet-4-6';
+// claude-api 스킬 mandate — Opus 4.7 디폴트. 비용 검토는 ROADMAP Decision Log.
+export const PRE_REVIEW_MODEL = 'claude-opus-4-7';
