@@ -70,9 +70,10 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
 
   const [owner, repo] = project.slug.split('/');
   const diff = await getPRDiff({ owner, repo }, pr.number);
+  const changedPaths = extractPaths(diff);
 
   const heuristicFlags = precomputeFlags({
-    paths: extractPaths(diff),
+    paths: changedPaths,
     diffText: diff,
     linesAdded: pr.linesAdded,
     linesRemoved: pr.linesRemoved,
@@ -128,6 +129,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
       confidence: parsed.confidence,
       confidenceTier: confidenceTier(parsed.confidence),
       flags: combinedFlags,
+      changedPaths,
       hunkAnnotations: parsed.hunkAnnotations,
       summary: parsed.summary,
       comments: parsed.comments,
