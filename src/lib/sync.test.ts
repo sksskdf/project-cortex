@@ -1,9 +1,36 @@
+import type Anthropic from '@anthropic-ai/sdk';
+import type { Octokit } from '@octokit/rest';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { setAnthropic } from './anthropic';
+import { setOctokit } from './github';
 import { handlePullRequestWebhook, type WebhookPRPayload } from './sync';
+
+function mockOctokitDiff(diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'): Octokit {
+  return {
+    pulls: { get: vi.fn().mockResolvedValue({ data: diff }), merge: vi.fn() },
+  } as unknown as Octokit;
+}
+
+function mockAnthropic(payload: Record<string, unknown> | null = null): {
+  client: Anthropic;
+  create: Mock;
+} {
+  const response = payload ?? {
+    confidence: 80,
+    flags: [],
+    summary: 'auto-analyzed',
+    comments: [],
+    hunkAnnotations: [],
+  };
+  const create = vi.fn().mockResolvedValue({
+    content: [{ type: 'text', text: JSON.stringify(response) }],
+  });
+  return { client: { messages: { create } } as unknown as Anthropic, create };
+}
 
 const NOW = new Date('2026-05-18T00:00:00Z');
 
@@ -43,6 +70,15 @@ beforeEach(() => {
       { slug: 'payments-api', name: 'Payments API', autoMergeEnabled: true },
     ])
     .run();
+  // sync 가 analyzePR 을 자동 호출하므로 Octokit·Anthropic 둘 다 주입 필요.
+  // 개별 테스트에서 호출 횟수 검증이 필요하면 본문에서 다시 setAnthropic.
+  setOctokit(mockOctokitDiff());
+  setAnthropic(mockAnthropic().client);
+});
+
+afterEach(() => {
+  setOctokit(null);
+  setAnthropic(null);
 });
 
 describe('handlePullRequestWebhook', () => {
@@ -51,13 +87,13 @@ describe('handlePullRequestWebhook', () => {
 
     expect(result.kind).toBe('inserted');
     const row = db.select().from(prs).where(eq(prs.number, 999)).get();
+    // status 는 analyzePR + runTriage 결과에 따라 결정됨 — 별도 integration 테스트에서 검증.
     expect(row).toMatchObject({
       title: 'Sync test PR',
       headSha: 'sha-init',
       linesAdded: 10,
       linesRemoved: 2,
       filesChanged: 3,
-      status: 'open',
       authorKind: 'agent',
       authorId: 'devin',
     });
@@ -74,10 +110,8 @@ describe('handlePullRequestWebhook', () => {
     expect(result2).toEqual({ kind: 'skipped', reason: 'unknown-repo' });
   });
 
-  it('updates an existing PR on synchronize (preserves status, updates headSha + diff stats)', async () => {
+  it('updates an existing PR on synchronize — new headSha + diff stats, status follows triage', async () => {
     await handlePullRequestWebhook(basePayload());
-    // 트라이아지 시뮬레이션 — review-needed로 마크
-    db.update(prs).set({ status: 'review-needed' }).where(eq(prs.number, 999)).run();
 
     const syncResult = await handlePullRequestWebhook({
       ...basePayload({
@@ -97,7 +131,8 @@ describe('handlePullRequestWebhook', () => {
       linesAdded: 50,
       linesRemoved: 4,
       filesChanged: 6,
-      status: 'review-needed', // synchronize는 상태 보존
+      // mock Anthropic 응답이 confidence=80 — 90 미만이므로 runTriage 가 review-needed.
+      status: 'review-needed',
     });
   });
 
@@ -126,13 +161,14 @@ describe('handlePullRequestWebhook', () => {
     expect(row?.status).toBe('closed');
   });
 
-  it('transitions back to open on reopened', async () => {
+  it('transitions away from closed on reopened — triage then refines status', async () => {
     await handlePullRequestWebhook(basePayload());
     await handlePullRequestWebhook({ ...basePayload({ merged: false }), action: 'closed' });
     await handlePullRequestWebhook({ ...basePayload(), action: 'reopened' });
 
     const row = db.select().from(prs).where(eq(prs.number, 999)).get();
-    expect(row?.status).toBe('open');
+    // reopened → 'open' → analyzePR cache hit → runTriage → mock conf=80 이므로 review-needed.
+    expect(row?.status).toBe('review-needed');
   });
 
   it('treats edited as title/stat update without status change', async () => {
@@ -161,26 +197,50 @@ describe('handlePullRequestWebhook', () => {
   });
 });
 
-describe('handlePullRequestWebhook + runTriage integration', () => {
-  it('writes triage_decision automatically when PreReview exists at sync time', async () => {
-    // 1. Insert PR via webhook
+describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
+  it('opened → analyzePR 결과가 preReview 에 저장되고 runTriage 가 결정 생성', async () => {
+    setAnthropic(
+      mockAnthropic({
+        confidence: 95,
+        flags: [],
+        summary: 'safe change',
+        comments: [],
+        hunkAnnotations: [],
+      }).client,
+    );
+
     const opened = await handlePullRequestWebhook(basePayload());
     expect(opened.kind).toBe('inserted');
     const prId = (opened as { kind: 'inserted'; prId: number }).prId;
 
-    // 2. 자동 머지 통과 조건의 PreReview 부착 (Phase 4가 만들 데이터 시뮬레이션)
-    db.insert(preReviews)
-      .values({
-        prId,
-        headSha: 'sha-init',
-        confidence: 95,
-        confidenceTier: 'high',
-        flags: [],
-        testsPassed: true,
-      })
-      .run();
+    const pre = db.select().from(preReviews).where(eq(preReviews.prId, prId)).get();
+    expect(pre?.confidence).toBe(95);
+    expect(pre?.confidenceTier).toBe('high');
 
-    // 3. synchronize 이벤트 (같은 SHA 유지) — runTriage가 PreReview를 읽고 결정
+    // testsPassed 가 null (Phase 5 의 CI 통합 전) — runTriage 는 human-review 로 차단.
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td?.decision).toBe('human-review');
+    expect(td?.reason).toContain('테스트');
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
+  });
+
+  it('preReview.testsPassed=true 백필 후 synchronize 면 자동 머지 통과', async () => {
+    setAnthropic(
+      mockAnthropic({
+        confidence: 95,
+        flags: [],
+        summary: 'safe',
+        comments: [],
+        hunkAnnotations: [],
+      }).client,
+    );
+    const opened = await handlePullRequestWebhook(basePayload());
+    const prId = (opened as { kind: 'inserted'; prId: number }).prId;
+
+    // CI 결과 동기화 시뮬레이션 — Phase 5+ 에서 자동화될 작업.
+    db.update(preReviews).set({ testsPassed: true }).where(eq(preReviews.prId, prId)).run();
+
+    // 같은 SHA 로 synchronize → analyzePR 캐시 hit → runTriage 가 갱신된 preReview 사용.
     await handlePullRequestWebhook({ ...basePayload(), action: 'synchronize' });
 
     const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
@@ -188,13 +248,70 @@ describe('handlePullRequestWebhook + runTriage integration', () => {
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('auto-mergeable');
   });
 
-  it('no triage_decision when PreReview missing (Phase 4 미실행 상태)', async () => {
+  it('opened → Anthropic failure 는 sync 자체를 막지 않음 (runTriage 가 skip)', async () => {
+    setAnthropic({
+      messages: { create: vi.fn().mockRejectedValue(new Error('rate-limited')) },
+    } as unknown as Anthropic);
+
     const opened = await handlePullRequestWebhook(basePayload());
+    expect(opened.kind).toBe('inserted');
     const prId = (opened as { kind: 'inserted'; prId: number }).prId;
 
-    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
-    expect(td).toBeUndefined();
-    // PR.status는 webhook이 정한 'open' 유지
+    expect(db.select().from(preReviews).where(eq(preReviews.prId, prId)).get()).toBeUndefined();
+    expect(
+      db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get(),
+    ).toBeUndefined();
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('open');
+  });
+
+  it('synchronize 는 새 SHA 에 대해 재분석 트리거 (cache miss)', async () => {
+    const initial = mockAnthropic();
+    setOctokit(mockOctokitDiff('diff --git a/x b/x\n+ old'));
+    setAnthropic(initial.client);
+    await handlePullRequestWebhook(basePayload());
+    expect(initial.create).toHaveBeenCalledTimes(1);
+
+    const second = mockAnthropic({
+      confidence: 60,
+      flags: ['migration'],
+      summary: 'risky change',
+      comments: [],
+      hunkAnnotations: [],
+    });
+    setOctokit(mockOctokitDiff('diff --git a/y b/y\n+ new'));
+    setAnthropic(second.client);
+
+    await handlePullRequestWebhook({
+      ...basePayload({ headSha: 'sha-new' }),
+      action: 'synchronize',
+    });
+
+    expect(second.create).toHaveBeenCalledTimes(1);
+    const rows = db.select().from(preReviews).all();
+    // (prId, headSha) 유니크 인덱스로 두 행 — sha-init / sha-new.
+    expect(rows).toHaveLength(2);
+  });
+
+  it('closed 는 analyzePR 호출하지 않음', async () => {
+    await handlePullRequestWebhook(basePayload());
+
+    const closing = mockAnthropic();
+    setAnthropic(closing.client);
+    await handlePullRequestWebhook({ ...basePayload({ merged: true }), action: 'closed' });
+
+    expect(closing.create).not.toHaveBeenCalled();
+  });
+
+  it('edited 는 analyzePR 호출하지 않음 (제목 변경만)', async () => {
+    await handlePullRequestWebhook(basePayload());
+
+    const editing = mockAnthropic();
+    setAnthropic(editing.client);
+    await handlePullRequestWebhook({
+      ...basePayload({ title: 'Renamed' }),
+      action: 'edited',
+    });
+
+    expect(editing.create).not.toHaveBeenCalled();
   });
 });

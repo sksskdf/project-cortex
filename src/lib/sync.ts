@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
+import { analyzePR } from './pre-review';
 import { runTriage } from './triage';
 
 // 외부 GitHub webhook 페이로드를 lib/github의 분류 결과로 정규화한 입력.
@@ -40,6 +41,23 @@ function computeStatus(action: WebhookPRAction, merged: boolean): PRStatus {
   return 'open';
 }
 
+// 분석이 의미 있는 action 만 — closed / edited 는 diff 가 그대로거나 끝났으므로 skip.
+// (edited 는 GitHub 에서 제목·본문만 바뀐 경우. diff 변경 없음.)
+function shouldAnalyze(action: WebhookPRAction): boolean {
+  return action === 'opened' || action === 'reopened' || action === 'synchronize';
+}
+
+// Anthropic 호출 실패가 sync 자체를 막지 않게 try/catch.
+// 실패 시 preReview 가 없으므로 runTriage 가 'no-pre-review' 로 skip — 안전한 폴백.
+// Phase 7 에서 백그라운드 큐로 분리되면 sync 응답 시간 안정화.
+async function safeAnalyze(prId: number): Promise<void> {
+  try {
+    await analyzePR(prId);
+  } catch (err) {
+    console.error(`analyzePR failed for PR ${prId}:`, err);
+  }
+}
+
 export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promise<SyncResult> {
   const project = db
     .select({ id: projects.id })
@@ -77,7 +95,10 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
       .values({ ...values, status: computeStatus(payload.action, payload.pr.merged) })
       .returning({ id: prs.id })
       .get();
-    // PreReview가 이미 있으면(예: 재처리) 트라이아지도 즉시. 없으면 runTriage가 skip.
+    // 새 PR — opened/reopened 면 즉시 분석. 분석 결과(preReview)가 있어야 runTriage 가 결정.
+    if (shouldAnalyze(payload.action)) {
+      await safeAnalyze(inserted.id);
+    }
     await runTriage(inserted.id);
     return { kind: 'inserted', prId: inserted.id };
   }
@@ -101,7 +122,11 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     .where(eq(prs.id, existing.id))
     .run();
 
-  // synchronize/edited 후 새 headSha에 대한 PreReview가 있으면 다시 트라이아지.
+  // synchronize 면 새 headSha 기준으로 재분석 필요 — analyzePR 의 (prId, headSha)
+  // 캐시가 자동으로 새 행을 만든다. opened/reopened 도 마찬가지 (이미 PR 이 있을 때 재오픈).
+  if (shouldAnalyze(payload.action)) {
+    await safeAnalyze(existing.id);
+  }
   // closed/merged면 runTriage가 status로 skip — 안전.
   await runTriage(existing.id);
 
