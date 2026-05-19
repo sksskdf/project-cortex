@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
+import { CheckIcon, ChevronLeftIcon, ClusterIcon, InfoIcon } from '@/components/icons';
 import type { ClusterDiffRowFixture } from '@/fixtures/cluster';
 import { getClusterDetail, type ClusterPRItem } from '@/lib/cluster';
 import type { CodeLineKind, TagTone } from '@/lib/types';
@@ -29,71 +30,6 @@ function signFor(kind: CodeLineKind): string {
   return ' ';
 }
 
-function chevronLeftIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="15 18 9 12 15 6" />
-    </svg>
-  );
-}
-
-function clusterIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={6} cy={6} r={3} />
-      <circle cx={18} cy={6} r={3} />
-      <circle cx={12} cy={18} r={3} />
-      <path d="M9 8l3 8m3-8l-3 8" />
-    </svg>
-  );
-}
-
-function checkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={3}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function infoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={16} x2={12} y2={12} />
-      <line x1={12} y1={8} x2={12.01} y2={8} />
-    </svg>
-  );
-}
-
 function ClusterPRItemCard({ pr }: { pr: ClusterPRItem }) {
   return (
     <Link
@@ -102,7 +38,7 @@ function ClusterPRItemCard({ pr }: { pr: ClusterPRItem }) {
     >
       <div className={styles.prItemTop}>
         <span className={styles.prItemCheck} aria-hidden="true">
-          {checkIcon()}
+          <CheckIcon />
         </span>
         <span className={styles.prItemId}>#{pr.number}</span>
         <span
@@ -179,14 +115,14 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
 
       <main className={styles.main}>
         <Link href="/inbox" className={styles.back}>
-          {chevronLeftIcon()}
+          <ChevronLeftIcon />
           {t.cluster.backToInbox}
         </Link>
 
         <header className={styles.header}>
           <div className={styles.headerTop}>
             <span className={styles.chip}>
-              {clusterIcon()}
+              <ClusterIcon />
               {t.cluster.chip}
             </span>
             <span className={styles.headerSub}>{t.cluster.detectedAgo(cluster.detectedAgo)}</span>
@@ -306,7 +242,7 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div className={styles.actionNote}>
-          {infoIcon()}
+          <InfoIcon strokeWidth={2} />
           <div>
             <b>{cluster.decisionNote.highlight}</b> {cluster.decisionNote.rest}
           </div>

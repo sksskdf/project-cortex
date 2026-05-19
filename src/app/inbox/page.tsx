@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { PRRow } from '@/components/PRRow';
+import { BellIcon, ClusterIcon } from '@/components/icons';
 import {
   getInboxCategories,
   getInboxClusterBanner,
@@ -33,6 +34,7 @@ const sortTabs = [
   { id: 'author', label: t.inbox.sort.author, active: false },
 ] as const;
 
+// 인박스 카테고리 아이콘 — 카테고리 6종에만 쓰이므로 이 파일에 남김.
 function categoryIcon(id: InboxCategoryId) {
   switch (id) {
     case 'all':
@@ -94,21 +96,7 @@ function categoryIcon(id: InboxCategoryId) {
         </svg>
       );
     case 'cluster':
-      return (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx={6} cy={6} r={3} />
-          <circle cx={18} cy={6} r={3} />
-          <circle cx={12} cy={18} r={3} />
-          <path d="M9 8l3 8m3-8l-3 8" />
-        </svg>
-      );
+      return <ClusterIcon />;
     case 'mentioned':
       return (
         <svg
@@ -123,40 +111,6 @@ function categoryIcon(id: InboxCategoryId) {
         </svg>
       );
   }
-}
-
-function bellIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  );
-}
-
-function clusterIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={6} cy={6} r={3} />
-      <circle cx={18} cy={6} r={3} />
-      <circle cx={12} cy={18} r={3} />
-      <path d="M9 8l3 8m3-8l-3 8" />
-    </svg>
-  );
 }
 
 function searchIcon() {
@@ -231,7 +185,7 @@ export default async function InboxPage() {
           </div>
           <div className={styles.actions}>
             <button type="button" className={styles.iconBtn} aria-label={t.inbox.notifications}>
-              {bellIcon()}
+              <BellIcon />
               <span className={`ds-badge ds-badge--pill ${styles.iconBtnBadge}`}>3</span>
             </button>
             <button type="button" className="ds-btn ds-btn--md ds-btn--outlined-basic">
@@ -272,7 +226,7 @@ export default async function InboxPage() {
         {inboxClusterBanner && (
           <Link href={`/cluster/${inboxClusterBanner.id}`} className={styles.clusterBanner}>
             <div className={styles.clusterBannerIcon} aria-hidden="true">
-              {clusterIcon()}
+              <ClusterIcon />
             </div>
             <div className={styles.clusterBannerBody}>
               <div className={styles.clusterBannerTitle}>{inboxClusterBanner.title}</div>

@@ -3,6 +3,7 @@ import type { PR, ReasonTone, TagTone } from '@/lib/types';
 import { ko as t } from '@/copy/ko';
 import { AuthorChip } from './AuthorChip';
 import { Gauge } from './Gauge';
+import { AlertIcon, InfoIcon } from './icons';
 import styles from './PRRow.module.css';
 
 const tagToneClass: Record<TagTone, string> = {
@@ -21,42 +22,8 @@ const reasonToneClass: Record<ReasonTone, string> = {
   info: styles.reasonInfo,
 };
 
-function alertIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={8} x2={12} y2={12} />
-      <line x1={12} y1={16} x2={12.01} y2={16} />
-    </svg>
-  );
-}
-
-function infoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={10} />
-      <line x1={12} y1={16} x2={12} y2={12} />
-      <line x1={12} y1={8} x2={12.01} y2={8} />
-    </svg>
-  );
-}
-
 export function PRRow({ pr, selectable = false }: { pr: PR; selectable?: boolean }) {
-  const reasonIcon = pr.reason.tone === 'alert' ? alertIcon() : infoIcon();
+  const reasonIcon = pr.reason.tone === 'alert' ? <AlertIcon /> : <InfoIcon />;
   return (
     <Link href={`/pr/${pr.id}`} className={styles.row}>
       {selectable && <span className={styles.check} aria-hidden="true" />}

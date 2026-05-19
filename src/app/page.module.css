@@ -236,6 +236,14 @@
   text-decoration: underline;
 }
 
+/* dead-link 표시 — 라우트 없는 더보기는 텍스트로만 (Phase 6·8 진입 시 활성). */
+.sectionMoreDisabled {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+}
+
 .todoList {
   background: var(--ds-color-bg-00);
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
