@@ -288,6 +288,17 @@
   margin-bottom: var(--ds-spacing-20);
 }
 
+/* fixture 데이터 표시 중임을 알리는 노란 배너. preReview 들어오면 사라짐. */
+.fixtureBanner {
+  padding: var(--ds-spacing-10) var(--ds-spacing-14);
+  background: var(--ds-color-state-warn-soft);
+  color: var(--ds-color-state-warn-strong);
+  border: var(--ds-border-width-1) solid var(--ds-color-state-warn-strong);
+  border-radius: var(--ds-border-radius-card);
+  margin-bottom: var(--ds-spacing-14);
+  font-size: var(--ds-typography-font-size-13);
+}
+
 .aiCardHead {
   display: flex;
   align-items: center;

@@ -104,6 +104,7 @@ export const ko = {
       subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',
       ariaLabel: 'AI 사전 리뷰',
     },
+    fixtureBanner: '샘플 데이터 표시 중 — 이 PR 은 아직 분석되지 않았거나 시드 데이터입니다.',
     aiCheck: {
       tests: '테스트 실행',
       coverage: '커버리지',
