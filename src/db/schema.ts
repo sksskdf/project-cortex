@@ -9,6 +9,10 @@ export const projects = sqliteTable('projects', {
   name: text('name').notNull(),
   defaultBranch: text('default_branch').notNull().default('main'),
   autoMergeEnabled: integer('auto_merge_enabled', { mode: 'boolean' }).notNull().default(false),
+  // GitHub App installation id — App 가 이 레포에 설치될 때 GitHub 가 발급.
+  // null 이면 시드/데모 프로젝트 (실 webhook 흐름 비대상).
+  // Phase 3.4b 의 credentials 테이블이 들어오면 FK 로 분리됨.
+  installationId: integer('installation_id'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
 });
 

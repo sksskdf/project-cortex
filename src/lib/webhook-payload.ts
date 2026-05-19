@@ -34,6 +34,10 @@ export type GithubPullRequestEventPartial = {
     name: string;
     full_name: string;
   };
+  // GitHub App 이벤트에 항상 동봉. PAT/legacy webhook 은 없을 수 있어 optional.
+  installation?: {
+    id: number;
+  };
 };
 
 export function mapPullRequestEvent(event: GithubPullRequestEventPartial): WebhookPRPayload | null {
@@ -46,6 +50,7 @@ export function mapPullRequestEvent(event: GithubPullRequestEventPartial): Webho
   return {
     action: event.action as WebhookPRAction,
     repoSlug: event.repository.full_name,
+    installationId: event.installation?.id ?? null,
     pr: {
       number: event.pull_request.number,
       title: event.pull_request.title,

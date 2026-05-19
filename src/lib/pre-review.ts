@@ -43,7 +43,7 @@ const llmResultSchema = z.object({
 export type AnalyzeResult =
   | { kind: 'cached'; row: PreReviewRow }
   | { kind: 'analyzed'; row: PreReviewRow }
-  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' };
+  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' };
 
 // diff가 너무 크면 토큰 폭발 — 50KB 제한. 잘릴 때 LLM이 인지하도록 표시.
 const MAX_DIFF_CHARS = 50_000;
@@ -68,8 +68,14 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     .get();
   if (cached) return { kind: 'cached', row: cached };
 
+  // GitHub App 토큰을 발급받으려면 installation 이 등록돼 있어야 함.
+  // seed 데이터처럼 null 인 프로젝트는 분석 대상 아님.
+  if (project.installationId === null) {
+    return { kind: 'skipped', reason: 'no-installation' };
+  }
+
   const [owner, repo] = project.slug.split('/');
-  const diff = await getPRDiff({ owner, repo }, pr.number);
+  const diff = await getPRDiff(project.installationId, { owner, repo }, pr.number);
   const changedPaths = extractPaths(diff);
 
   const heuristicFlags = precomputeFlags({

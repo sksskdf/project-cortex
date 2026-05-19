@@ -11,7 +11,13 @@ export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
   | {
       kind: 'skipped';
-      reason: 'no-pr' | 'no-project' | 'wrong-status' | 'no-decision' | 'not-auto-merge';
+      reason:
+        | 'no-pr'
+        | 'no-project'
+        | 'no-installation'
+        | 'wrong-status'
+        | 'no-decision'
+        | 'not-auto-merge';
     }
   | { kind: 'failed'; reason: string };
 
@@ -31,13 +37,12 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
 
   const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
   if (!project) return { kind: 'skipped', reason: 'no-project' };
+  if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
 
-  // slug 가 'owner/repo' 형식이라 가정. 단일 토큰 형식은 owner=slug, repo=undefined →
-  // Octokit 호출이 422로 떨어지고 폴백 흐름 탐. Phase 3.4 의 credentials/owner 모델로 정리.
   const [owner, repo] = project.slug.split('/');
 
   try {
-    const result = await mergePR({ owner, repo }, pr.number, {
+    const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
       method: 'squash',
       commitTitle: pr.title,
     });

@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `installation_id` integer;
