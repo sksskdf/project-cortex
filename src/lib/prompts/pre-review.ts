@@ -17,6 +17,9 @@ export const RISK_FLAGS: ReadonlyArray<RiskFlag> = [
 
 // 출력 스키마 — Anthropic output_config.format.schema 에 그대로 박힘.
 // strict한 JSON Schema (additionalProperties: false) 로 hallucinated 필드 차단.
+// Anthropic structured outputs 의 JSON schema 는 integer 의 minimum/maximum 미지원
+// (400 invalid_request_error: "For 'integer' type, properties maximum, minimum are not supported").
+// 범위 제약은 description 에 자연어로 기재하고, 런타임 검증은 zod 가 담당 (lib/pre-review.ts).
 export const PRE_REVIEW_OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -24,9 +27,7 @@ export const PRE_REVIEW_OUTPUT_SCHEMA = {
   properties: {
     confidence: {
       type: 'integer',
-      minimum: 0,
-      maximum: 100,
-      description: '0-100. 90+ 자동 머지 후보, 70-89 가벼운 검토, 50-69 주의, <50 차단.',
+      description: '0-100 범위. 90+ 자동 머지 후보, 70-89 가벼운 검토, 50-69 주의, <50 차단.',
     },
     flags: {
       type: 'array',
@@ -46,7 +47,7 @@ export const PRE_REVIEW_OUTPUT_SCHEMA = {
         required: ['path', 'line', 'body'],
         properties: {
           path: { type: 'string' },
-          line: { type: 'integer', minimum: 1 },
+          line: { type: 'integer', description: '1 이상의 줄 번호.' },
           body: { type: 'string' },
         },
       },
