@@ -18,17 +18,17 @@ function baseEvent(
       created_at: '2026-05-01T00:00:00Z',
       updated_at: '2026-05-02T00:00:00Z',
     },
-    repository: { name: 'cortex-web' },
+    repository: { name: 'cortex-web', full_name: 'acme/cortex-web' },
     ...overrides,
   };
 }
 
 describe('mapPullRequestEvent', () => {
-  it('maps opened action to WebhookPRPayload', () => {
+  it('maps opened action to WebhookPRPayload with owner/repo slug', () => {
     const result = mapPullRequestEvent(baseEvent());
     expect(result).toEqual({
       action: 'opened',
-      repoSlug: 'cortex-web',
+      repoSlug: 'acme/cortex-web',
       pr: {
         number: 42,
         title: 'Add feature',
