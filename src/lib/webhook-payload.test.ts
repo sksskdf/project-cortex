@@ -9,6 +9,7 @@ function baseEvent(
     pull_request: {
       number: 42,
       title: 'Add feature',
+      body: null,
       head: { sha: 'abc123' },
       additions: 10,
       deletions: 2,
@@ -34,6 +35,7 @@ describe('mapPullRequestEvent', () => {
       pr: {
         number: 42,
         title: 'Add feature',
+        body: null,
         headSha: 'abc123',
         additions: 10,
         deletions: 2,

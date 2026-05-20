@@ -50,6 +50,7 @@ function basePayload(overrides: Partial<WebhookPRPayload['pr']> = {}): WebhookPR
     pr: {
       number: 999,
       title: 'Sync test PR',
+      body: null,
       headSha: 'sha-init',
       additions: 10,
       deletions: 2,
