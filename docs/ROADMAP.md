@@ -258,6 +258,10 @@ src/actions/cluster.ts                ← mergeCluster(id), dissolveCluster(id)
 - 강한 위험 플래그(`payment-domain` 등)는 클러스터링 제외
 - 사람이 클러스터 해제 시 각 PR이 개별 인박스로 복귀
 
+**진척**
+- 6.1 자카드 유사도 (#26) · 6.2 일괄 머지/해체 액션 (#36) · 6.3 derive 패턴 (#37) · sync wire-up (#43) 완료.
+- 임베딩 기반 의미 유사도 (`embeddings.ts`) 는 후속 — 자카드 만으로도 i18n 류 동일 파일 반복 패턴은 잘 잡힘.
+
 ---
 
 ## Phase 7 — 운영 (지속)
