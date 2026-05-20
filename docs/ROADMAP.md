@@ -441,6 +441,7 @@ Phase 3·4는 도메인이 다르니 병렬로 진행 가능. Phase 4.5 는 Phas
 | 2026-05-18 | **Desktop 서비스 패키징(Phase 9)** | 단일 사용자 시나리오. 클라우드 호스팅(Vercel 등)은 SQLite 영속화·long-running 작업 한계로 부적합. 로컬 머신에 NSSM(Win) / launchd(Mac)로 서비스 등록 |
 | 2026-05-20 | **Anthropic API key 결제 유지 + 토큰 절감 (Phase 4.5)** | Pro/Max plan OAuth 토큰을 백엔드에서 쓰는 건 2026-04 부터 약관 금지 + rate limit 도 부적합. API key 는 유지하되 diff 토큰 절감 + Haiku 1차 필터 + Sonnet 재분석 두 축으로 비용 최적화 |
 | 2026-05-20 | **자동 클러스터링 활성화 (Phase 6 wire-up)** | `tryClusterPR`(Phase 6.1) 가 `sync.ts` 의 webhook 흐름에 wire-up 됨 (#43). 같은 작성자 · 24h · 자카드 0.85+ · 차단 플래그 없음 3건 모이면 자동 묶임 — 인박스에선 사라지고 `/clusters` 에서 일괄 처리 |
+| 2026-05-20 | **PR description 저장** | webhook 의 `pull_request.body` 가 DB 로 안 전달돼 PR 상세에서 본문을 못 봄 (#56). `prs.body` 컬럼 추가 + sync 가 upsert 시 저장. 빈 body 도 자연스럽게 (UI 가 섹션 자체 숨김) |
 
 ---
 
