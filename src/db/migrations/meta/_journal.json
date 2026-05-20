@@ -36,6 +36,13 @@
       "when": 1779262048523,
       "tag": "0004_common_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1779263696221,
+      "tag": "0005_regular_zaladane",
+      "breakpoints": true
     }
   ]
 }

@@ -32,6 +32,13 @@ function signFor(kind: CodeLineKind): string {
 }
 
 function ClusterPRItemCard({ pr }: { pr: ClusterPRItem }) {
+  // 머지/닫힘 PR 은 인박스에서 빠지지만 클러스터엔 남아 있어 일관성 부족 — 상태 라벨로 명시.
+  const statusBadge =
+    pr.status === 'merged'
+      ? t.cluster.prList.statusLabel.merged
+      : pr.status === 'closed'
+        ? t.cluster.prList.statusLabel.closed
+        : null;
   return (
     <Link
       href={`/pr/${pr.id}`}
@@ -42,15 +49,21 @@ function ClusterPRItemCard({ pr }: { pr: ClusterPRItem }) {
           <CheckIcon />
         </span>
         <span className={styles.prItemId}>#{pr.number}</span>
-        <span
-          className={`${styles.prItemSimilarity} ${
-            pr.similarity === 'different' ? styles.prItemSimilarityDiff : ''
-          }`}
-        >
-          {pr.similarity === 'identical'
-            ? t.cluster.prList.similarity.identical
-            : t.cluster.prList.similarity.different}
-        </span>
+        {statusBadge ? (
+          <span className={`${styles.prItemSimilarity} ${styles.prItemSimilarityDiff}`}>
+            {statusBadge}
+          </span>
+        ) : (
+          <span
+            className={`${styles.prItemSimilarity} ${
+              pr.similarity === 'different' ? styles.prItemSimilarityDiff : ''
+            }`}
+          >
+            {pr.similarity === 'identical'
+              ? t.cluster.prList.similarity.identical
+              : t.cluster.prList.similarity.different}
+          </span>
+        )}
       </div>
       <div className={styles.prItemTitle}>{pr.title}</div>
       <div className={styles.prItemMeta}>

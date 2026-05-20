@@ -149,6 +149,7 @@ export const ko = {
       merging: '머지 중…',
       deleteBranch: '브랜치 삭제',
       deletingBranch: '삭제 중…',
+      branchAlreadyDeleted: '브랜치 삭제됨',
       result: {
         merged: (shortSha: string) => `머지 완료 (${shortSha}).`,
         error: (message: string) => `머지 실패: ${message}`,
@@ -218,6 +219,11 @@ export const ko = {
         identical: '동일',
         different: '약간 다름',
       },
+      // 클러스터 사이드바의 PR 카드 상태 라벨 — 인박스와 일관성 보강.
+      statusLabel: {
+        merged: '머지됨',
+        closed: '닫힘',
+      },
     },
     info: {
       title: '클러스터 요약',
@@ -255,6 +261,13 @@ export const ko = {
         allMerged: (count: number) => `${count}건이 머지되었습니다.`,
         partial: (merged: number, failed: number, skipped: number, total: number) =>
           `전체 ${total}건 중 ${merged}건 머지 · ${failed}건 실패 · ${skipped}건 건너뜀.`,
+        branches: (deleted: number, skipped: number, failed: number) => {
+          const parts: string[] = [];
+          if (deleted > 0) parts.push(`${deleted}개 삭제`);
+          if (skipped > 0) parts.push(`${skipped}개 건너뜀`);
+          if (failed > 0) parts.push(`${failed}개 실패`);
+          return parts.length > 0 ? `브랜치: ${parts.join(' · ')}.` : '';
+        },
         dissolved: (released: number) =>
           `클러스터를 해제했습니다 — PR ${released}건이 인박스로 돌아갔습니다.`,
         error: (message: string) => `처리 중 오류가 발생했습니다: ${message}`,

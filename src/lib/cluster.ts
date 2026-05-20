@@ -21,6 +21,9 @@ export type ClusterPRItem = {
   scoreTier: GaugeTier;
   similarity: 'identical' | 'different';
   active: boolean;
+  // 머지된 PR 인지 — 클러스터 사이드바 카드에 상태 라벨을 노출하기 위함.
+  // 인박스에선 머지된 PR 이 안 보이는데 클러스터에선 보여서 생기는 일관성 부족 보완.
+  status: 'open' | 'review-needed' | 'auto-mergeable' | 'merged' | 'closed';
 };
 
 export type ClusterDetailView = {
@@ -119,6 +122,7 @@ export async function getClusterDetail(viewId: string): Promise<ClusterDetailVie
       scoreTier: gaugeTierFromConfidence(confidence),
       similarity: isDifferent ? 'different' : 'identical',
       active: row.pr.number === firstPrNumber,
+      status: row.pr.status,
     };
   });
 

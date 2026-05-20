@@ -85,7 +85,13 @@ export async function deletePRBranchAction(viewId: string): Promise<PRBranchDele
 }
 
 function mapDeleteSkipReason(
-  reason: 'no-pr' | 'no-project' | 'no-installation' | 'not-merged' | 'fork-or-cross-repo',
+  reason:
+    | 'no-pr'
+    | 'no-project'
+    | 'no-installation'
+    | 'not-merged'
+    | 'fork-or-cross-repo'
+    | 'already-deleted',
 ): string {
   switch (reason) {
     case 'no-pr':
@@ -98,5 +104,7 @@ function mapDeleteSkipReason(
       return '머지되지 않은 PR 입니다.';
     case 'fork-or-cross-repo':
       return 'fork 또는 다른 레포의 브랜치라 Cortex 가 삭제할 수 없습니다.';
+    case 'already-deleted':
+      return '이미 삭제된 브랜치입니다.';
   }
 }

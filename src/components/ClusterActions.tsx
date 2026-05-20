@@ -121,8 +121,13 @@ function ClusterActionResult({ state, closed }: { state: ClusterActionState; clo
   }
 
   if (state.kind === 'merged') {
-    const { merged, failed, skipped, total } = state.result;
+    const { merged, failed, skipped, total, branches } = state.result;
     const allMerged = merged === total && total > 0;
+    const branchMessage = t.cluster.action.result.branches(
+      branches.deleted,
+      branches.skipped,
+      branches.failed,
+    );
     return (
       <div
         className={`${styles.result} ${allMerged ? styles.resultSuccess : styles.resultPartial}`}
@@ -132,6 +137,7 @@ function ClusterActionResult({ state, closed }: { state: ClusterActionState; clo
         {allMerged
           ? t.cluster.action.result.allMerged(merged)
           : t.cluster.action.result.partial(merged, failed, skipped, total)}
+        {branchMessage ? ` ${branchMessage}` : ''}
       </div>
     );
   }
