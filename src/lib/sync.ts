@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
+import { tryClusterPR } from './clustering';
 import { analyzePR } from './pre-review';
 import { runTriage } from './triage';
 
@@ -68,6 +69,16 @@ async function safeAutoMerge(prId: number): Promise<void> {
     await attemptAutoMerge(prId);
   } catch (err) {
     console.error(`attemptAutoMerge unexpected error for PR ${prId}:`, err);
+  }
+}
+
+// human-review 결정 PR 에 대해 클러스터링 시도. clusterId 가 부여되면 인박스에서
+// 사라지고 클러스터 화면에 묶임. 실패해도 sync 응답에 영향 없음.
+async function safeTryCluster(prId: number): Promise<void> {
+  try {
+    await tryClusterPR(prId);
+  } catch (err) {
+    console.error(`tryClusterPR unexpected error for PR ${prId}:`, err);
   }
 }
 
@@ -141,6 +152,9 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     const triage = await runTriage(inserted.id);
     if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
       await safeAutoMerge(inserted.id);
+    } else if (triage.kind === 'decided' && triage.decision === 'human-review') {
+      // Phase 6 — 같은 작성자 · 같은 레포 24h 내 유사도 0.85+ PR 3건 모이면 자동 클러스터.
+      await safeTryCluster(inserted.id);
     } else if (triage.kind === 'skipped' && triage.reason === 'no-pre-review') {
       // 분석 실패(LLM 오류·API key 누락·rate limit 등) → preReview 없음 → triage skip.
       // status 가 'open' 으로 남으면 인박스 쿼리(review-needed)에 안 잡혀 사용자 시야에서 사라짐.
@@ -181,6 +195,8 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
   const triage = await runTriage(existing.id);
   if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
     await safeAutoMerge(existing.id);
+  } else if (triage.kind === 'decided' && triage.decision === 'human-review') {
+    await safeTryCluster(existing.id);
   } else if (
     triage.kind === 'skipped' &&
     triage.reason === 'no-pre-review' &&
