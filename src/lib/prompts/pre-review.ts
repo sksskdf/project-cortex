@@ -124,3 +124,77 @@ export function buildPreReviewUserPrompt(input: {
     `위 PR을 분석해 JSON 스키마에 맞춰 응답하세요.`,
   ].join('\n');
 }
+
+// Phase 4.5b — Haiku 1차 분류용 schema. PRE_REVIEW_OUTPUT_SCHEMA 보다 가벼움.
+// 깊은 분석이 필요하다고 판단되면 needsDeepReview=true 로 Opus 재호출 트리거.
+export const PRE_REVIEW_TRIAGE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['needsDeepReview', 'confidence', 'flagCandidates', 'summary'],
+  properties: {
+    needsDeepReview: {
+      type: 'boolean',
+      description:
+        'true 면 Opus 로 추가 분석이 필요. 결제·인증·migration·보안 의심 / 큰 변경 / 의도 불명 인 경우.',
+    },
+    confidence: {
+      type: 'integer',
+      description: '0-100. Haiku 1차 추정. 자신감 낮으면 needsDeepReview=true 권장.',
+    },
+    flagCandidates: {
+      type: 'array',
+      items: { type: 'string', enum: RISK_FLAGS },
+      description: '1차 인상에서 의심되는 위험 플래그. 확정 아님 — Opus 가 확정.',
+    },
+    summary: {
+      type: 'string',
+      description: '한국어 1문장. 변경 내용 간략.',
+    },
+  },
+} as const;
+
+// triage system 프롬프트 — 본 분석보다 짧고 단순. 빠른 분류가 목적.
+export const PRE_REVIEW_TRIAGE_SYSTEM_PROMPT = `당신은 Project Cortex 의 빠른 1차 PR 분류기입니다.
+PR diff 를 훑어 깊은 분석이 필요한지(needsDeepReview) 판단하는 게 주 임무입니다.
+
+## needsDeepReview=true 로 표시할 경우
+- 결제·인증·migration·보안·외부 API 도메인 변경 의심
+- 500줄 초과 변경
+- 의도가 명확히 안 잡히거나 위험 신호가 보임
+- 자신감(confidence) 이 80 미만
+
+## needsDeepReview=false 로 표시할 경우
+- 단순 의존성 마이너 업데이트, 문서 수정, 오타 fix, 타입 정의 추가 등
+- 위험 영역 안 건드림 + 의도 명확 + confidence 80+
+
+## 출력 규칙
+- 반드시 제공된 JSON 스키마.
+- summary 는 한국어 1문장 (마크다운 금지).
+- 위험 플래그 enum 외 값 금지.
+`;
+
+// triage 응답 user 프롬프트 — 본 프롬프트와 같은 컨텍스트를 더 짧게.
+export function buildPreReviewTriagePrompt(input: {
+  prTitle: string;
+  repoSlug: string;
+  authorKind: 'agent' | 'human';
+  linesAdded: number;
+  linesRemoved: number;
+  filesChanged: number;
+  diff: string;
+}): string {
+  return [
+    `# PR 컨텍스트`,
+    `- 저장소: ${input.repoSlug}`,
+    `- 제목: ${input.prTitle}`,
+    `- 작성자: ${input.authorKind}`,
+    `- 규모: +${input.linesAdded} / -${input.linesRemoved} (${input.filesChanged} files)`,
+    ``,
+    `# diff`,
+    '```diff',
+    input.diff,
+    '```',
+    ``,
+    `이 PR 이 깊은 분석을 필요로 하는지 판단해 JSON 으로 응답하세요.`,
+  ].join('\n');
+}

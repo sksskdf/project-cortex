@@ -7,15 +7,19 @@ import { z } from 'zod';
 import { db } from '@/db/client';
 import { preReviews, prs, projects } from '@/db/schema';
 import type { PreReviewRow } from '@/db/schema';
-import { getAnthropic, PRE_REVIEW_MODEL } from './anthropic';
+import { getAnthropic, PRE_REVIEW_MODEL, PRE_REVIEW_TRIAGE_MODEL } from './anthropic';
 import { confidenceTier } from './confidence';
 import { budgetDiff } from './diff-budget';
 import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
+import { env } from './env';
 import { getPRDiff } from './github';
 import {
+  buildPreReviewTriagePrompt,
   buildPreReviewUserPrompt,
   PRE_REVIEW_OUTPUT_SCHEMA,
   PRE_REVIEW_SYSTEM_PROMPT,
+  PRE_REVIEW_TRIAGE_SCHEMA,
+  PRE_REVIEW_TRIAGE_SYSTEM_PROMPT,
   RISK_FLAGS,
 } from './prompts/pre-review';
 import { precomputeFlags } from './risk-flags';
@@ -41,6 +45,19 @@ const llmResultSchema = z.object({
     }),
   ),
 });
+
+// Haiku triage 응답 schema.
+const triageResultSchema = z.object({
+  needsDeepReview: z.boolean(),
+  confidence: z.number().int().min(0).max(100),
+  flagCandidates: z.array(z.enum(RISK_FLAGS as readonly [RiskFlag, ...RiskFlag[]])),
+  summary: z.string(),
+});
+
+// Haiku 결과로 Opus 호출 생략이 안전한지 판정. 셋 다 만족해야 단순 PR.
+function isSimpleByTriage(t: z.infer<typeof triageResultSchema>): boolean {
+  return t.needsDeepReview === false && t.flagCandidates.length === 0 && t.confidence >= 80;
+}
 
 export type AnalyzeResult =
   | { kind: 'cached'; row: PreReviewRow }
@@ -85,6 +102,77 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   });
 
   const client = getAnthropic();
+  const promptInput = {
+    prTitle: pr.title,
+    repoSlug: project.slug,
+    authorKind: pr.authorKind,
+    linesAdded: pr.linesAdded,
+    linesRemoved: pr.linesRemoved,
+    filesChanged: pr.filesChanged,
+    diff: budget.text,
+  };
+
+  // Phase 4.5b — Haiku 1차. 단순 PR 이면 그 응답으로 종료. throw 시 Opus 폴백.
+  if (env.triageEnabled()) {
+    let triage: z.infer<typeof triageResultSchema> | null = null;
+    try {
+      const triageMessage = await client.messages.create({
+        model: PRE_REVIEW_TRIAGE_MODEL,
+        max_tokens: 1024,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: PRE_REVIEW_TRIAGE_SCHEMA as unknown as Record<string, unknown>,
+          },
+        },
+        system: [
+          {
+            type: 'text',
+            text: PRE_REVIEW_TRIAGE_SYSTEM_PROMPT,
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+        messages: [{ role: 'user', content: buildPreReviewTriagePrompt(promptInput) }],
+      });
+      triage = triageResultSchema.parse(JSON.parse(extractText(triageMessage.content)));
+    } catch (err) {
+      console.error(`triage(Haiku) failed for PR ${prId}, falling back to Opus:`, err);
+    }
+
+    if (triage && isSimpleByTriage(triage)) {
+      // 단순 PR — Haiku 응답으로 PreReview 종료. hunk 별 결정은 일괄 'auto'.
+      const parsedFiles = parseUnifiedDiff(diff);
+      const hunkAnnotations = parsedFiles.flatMap((f) =>
+        f.hunks
+          .filter((h) => h.kind === 'expanded')
+          .map((h) => ({ hunkId: h.id, decision: 'auto' as const })),
+      );
+      const combinedFlags = Array.from(
+        new Set<RiskFlag>([...triage.flagCandidates, ...heuristicFlags]),
+      );
+      const row = db
+        .insert(preReviews)
+        .values({
+          prId,
+          headSha: pr.headSha,
+          confidence: triage.confidence,
+          confidenceTier: confidenceTier(triage.confidence),
+          flags: combinedFlags,
+          changedPaths,
+          parsedFiles,
+          hunkAnnotations,
+          summary: triage.summary,
+          comments: [],
+          testsPassed: null,
+          coverage: null,
+        })
+        .returning()
+        .get();
+      return { kind: 'analyzed', row };
+    }
+    // triage 가 'complex' 거나 호출 실패 → Opus 로 폴 스루.
+  }
+
   const message = await client.messages.create({
     model: PRE_REVIEW_MODEL,
     max_tokens: 4096,
@@ -107,15 +195,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     messages: [
       {
         role: 'user',
-        content: buildPreReviewUserPrompt({
-          prTitle: pr.title,
-          repoSlug: project.slug,
-          authorKind: pr.authorKind,
-          linesAdded: pr.linesAdded,
-          linesRemoved: pr.linesRemoved,
-          filesChanged: pr.filesChanged,
-          diff: budget.text,
-        }),
+        content: buildPreReviewUserPrompt(promptInput),
       },
     ],
   });
@@ -151,17 +231,22 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   return { kind: 'analyzed', row };
 }
 
-// Anthropic 응답에서 첫 text 블록을 꺼내 JSON 파싱 → zod 검증.
-// output_config.format=json_schema 일 때 모델은 text 블록에 JSON 본문을 넣는다.
-type ContentBlock = { type: string; text?: string };
-function parseLLMResponse(content: ReadonlyArray<ContentBlock>): z.infer<typeof llmResultSchema> {
+// JSON schema 응답에서 첫 text block 본문 추출 헬퍼 — triage / 본 분석 공통.
+function extractText(content: ReadonlyArray<ContentBlock>): string {
   const textBlock = content.find((b) => b.type === 'text' && typeof b.text === 'string');
   if (!textBlock?.text) {
     throw new Error('Anthropic 응답에 text 블록이 없습니다.');
   }
+  return textBlock.text;
+}
+
+// Anthropic 응답에서 첫 text 블록을 꺼내 JSON 파싱 → zod 검증.
+// output_config.format=json_schema 일 때 모델은 text 블록에 JSON 본문을 넣는다.
+type ContentBlock = { type: string; text?: string };
+function parseLLMResponse(content: ReadonlyArray<ContentBlock>): z.infer<typeof llmResultSchema> {
   let json: unknown;
   try {
-    json = JSON.parse(textBlock.text);
+    json = JSON.parse(extractText(content));
   } catch (err) {
     throw new Error(`Anthropic 응답 JSON 파싱 실패: ${(err as Error).message}`);
   }

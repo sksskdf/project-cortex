@@ -17,4 +17,7 @@ export const env = {
   githubAppPrivateKey: () => required('GITHUB_APP_PRIVATE_KEY'),
   githubWebhookSecret: () => required('GITHUB_WEBHOOK_SECRET'),
   anthropicApiKey: () => required('ANTHROPIC_API_KEY'),
+  // Phase 4.5b — Haiku 1차 필터 활성화 토글. '1' 일 때만 두 단계 분기.
+  // 기본 비활성 — 기존 테스트·운영 흐름 영향 없음.
+  triageEnabled: () => process.env.CORTEX_TRIAGE_ENABLED === '1',
 };
