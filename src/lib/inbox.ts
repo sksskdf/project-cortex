@@ -60,7 +60,30 @@ export async function getSidebarCounts(): Promise<SidebarCounts> {
   };
 }
 
-export async function listInboxQueue(): Promise<PR[]> {
+// 카테고리별 in-memory 필터링. all 외에는 raw 행에서 flag/tone 기준 거름.
+// cluster / mentioned 는 인박스 페이지가 별도 라우트 / disable 처리하므로 여기엔 안 잡힘.
+function passesCategory(
+  item: PR,
+  raw: { flags: ReadonlyArray<string> },
+  category: InboxCategoryId,
+): boolean {
+  switch (category) {
+    case 'all':
+      return true;
+    case 'flagged':
+      return item.reason.tone === 'alert';
+    case 'large':
+      return raw.flags.includes('large-change');
+    case 'migration':
+      return raw.flags.includes('migration');
+    case 'cluster':
+    case 'mentioned':
+      // 인박스 흐름 밖이라 빈 결과. UI 가 사용하지 않음.
+      return false;
+  }
+}
+
+export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise<PR[]> {
   const rows = db
     .select({
       pr: prs,
@@ -75,7 +98,8 @@ export async function listInboxQueue(): Promise<PR[]> {
     .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
     .all();
 
-  const items: PR[] = rows.map((row) => {
+  type Decorated = { item: PR; flags: ReadonlyArray<string> };
+  const decorated: Decorated[] = rows.map((row) => {
     const confidence = row.preReview?.confidence ?? 0;
     const flags = row.preReview?.flags ?? [];
     const tone: ReasonTone = row.triage ? reasonTone(confidence, flags) : 'info';
@@ -84,7 +108,7 @@ export async function listInboxQueue(): Promise<PR[]> {
         ? row.pr.createdAt.getTime()
         : Number(row.pr.createdAt) * 1000;
 
-    return {
+    const item: PR = {
       id: `pr-${row.pr.id}`,
       title: row.pr.title,
       repo: row.repoSlug,
@@ -104,10 +128,12 @@ export async function listInboxQueue(): Promise<PR[]> {
         tier: gaugeTierFromConfidence(confidence),
       },
     };
+    return { item, flags };
   });
 
+  const filtered = decorated.filter((d) => passesCategory(d.item, { flags: d.flags }, category));
   // 우선순위 정렬: tone (alert > warn > info) > gauge 낮은 순 > age 오래된 순.
-  return [...orderInbox(items)];
+  return [...orderInbox(filtered.map((d) => d.item))];
 }
 
 export async function getInboxCategories(): Promise<InboxCategory[]> {
