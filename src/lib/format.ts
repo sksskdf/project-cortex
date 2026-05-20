@@ -1,4 +1,4 @@
-import type { GaugeTier, PRTag, ReasonTone, TagTone } from '@/lib/types';
+import type { GaugeTier, PRTag, ReasonTone } from '@/lib/types';
 
 // 위험 플래그 → UI 태그(라벨 + 톤). DB는 canonical key, UI는 한국어 표시.
 const FLAG_TAG: Record<string, PRTag> = {
@@ -15,7 +15,7 @@ const FLAG_TAG: Record<string, PRTag> = {
   documentation: { label: '문서', tone: 'gray' },
 };
 
-export function flagToTag(flag: string): PRTag {
+function flagToTag(flag: string): PRTag {
   return FLAG_TAG[flag] ?? { label: flag, tone: 'gray' };
 }
 
@@ -50,17 +50,4 @@ export function formatRelativeAge(createdAtMs: number, nowMs: number = Date.now(
   if (diffHour < 24) return `${diffHour}시간 전`;
   const diffDay = Math.floor(diffHour / 24);
   return `${diffDay}일 전`;
-}
-
-export function tagClassName(tone: TagTone): string {
-  const map: Record<TagTone, string> = {
-    red: 'ds-tag--red',
-    yellow: 'ds-tag--yellow',
-    purple: 'ds-tag--purple',
-    green: 'ds-tag--green',
-    gray: 'ds-tag--gray',
-    'sky-blue': 'ds-tag--sky-blue',
-    cyan: 'ds-tag--cyan',
-  };
-  return `ds-tag ds-tag--md ${map[tone]}`;
 }

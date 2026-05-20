@@ -154,8 +154,3 @@ export function attachCommentsToFiles(
     };
   });
 }
-
-// CodeLine 의 lineNumber 가 number | null 이라 타입 가드 헬퍼.
-export function isNumberLine(line: CodeLine): line is CodeLine & { lineNumber: number } {
-  return typeof line.lineNumber === 'number';
-}
