@@ -7,5 +7,3 @@ export const currentUser: CurrentUser = {
   role: '엔지니어링 리드',
   initials: 'HW',
 };
-
-export const favoriteProjects: ReadonlyArray<string> = ['cortex-web', 'payments-api'];

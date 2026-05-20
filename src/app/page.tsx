@@ -293,17 +293,33 @@ export default async function DashboardPage() {
           <p className={styles.greetingSub}>{t.dashboard.greetingSub(todayReviewCount)}</p>
         </div>
         <div className={styles.headerActions}>
-          <button type="button" className={styles.iconBtn} aria-label={t.dashboard.notifications}>
+          {/* 알림 / 에이전트 시작 / 새 이슈는 백엔드 미구현 — disabled. */}
+          {/* 알림: Phase 7 운영(메트릭 + 이벤트). 에이전트 시작·새 이슈: Phase 8 onboarding. */}
+          <button
+            type="button"
+            className={styles.iconBtn}
+            aria-label={t.dashboard.notifications}
+            disabled
+          >
             <BellIcon />
-            <span className={`ds-badge ds-badge--pill ${styles.iconBtnBadge}`}>3</span>
           </button>
-          <button type="button" className="ds-btn ds-btn--md ds-btn--outlined-basic">
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--outlined-basic"
+            disabled
+            aria-disabled="true"
+          >
             <span className="ds-btn__icon" aria-hidden="true">
               {startIcon()}
             </span>
             <span className="ds-btn__label">{t.dashboard.startAgent}</span>
           </button>
-          <button type="button" className="ds-btn ds-btn--md ds-btn--filled-blue">
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--filled-blue"
+            disabled
+            aria-disabled="true"
+          >
             <span className="ds-btn__icon" aria-hidden="true">
               {plusIcon()}
             </span>
