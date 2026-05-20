@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
-import { attemptAutoMerge } from './auto-merge';
+import { attemptAutoMerge, attemptHumanMerge } from './auto-merge';
 import { setOctokit } from './github';
 
 function mockOctokit(merge?: Mock): Octokit {
@@ -156,5 +156,81 @@ describe('attemptAutoMerge', () => {
     // 2회차는 status가 'merged' 라 skip.
     expect(second).toEqual({ kind: 'skipped', reason: 'wrong-status' });
     expect(mergeMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('attemptHumanMerge', () => {
+  it('review-needed PR 도 사람 결정으로 머지 — status=merged + decidedBy=human', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'human-sha' } });
+    setOctokit(mockOctokit(mergeMock));
+    const prId = setupPR({ status: 'review-needed', decision: 'human-review' });
+
+    const result = await attemptHumanMerge(prId);
+
+    expect(result.kind).toBe('merged');
+    if (result.kind === 'merged') expect(result.sha).toBe('human-sha');
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('merged');
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td?.decision).toBe('auto-merge');
+    expect(td?.decidedBy).toBe('human');
+    expect(td?.reason).toContain('사용자');
+  });
+
+  it('triage_decision 이 없어도 사람 머지로 새로 insert', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'h2' } });
+    setOctokit(mockOctokit(mergeMock));
+    const prId = setupPR({ status: 'review-needed', decision: null });
+
+    const r = await attemptHumanMerge(prId);
+    expect(r.kind).toBe('merged');
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td?.decidedBy).toBe('human');
+  });
+
+  it('이미 merged PR 은 already-closed 로 skip', async () => {
+    setOctokit(mockOctokit());
+    const prId = setupPR({ status: 'merged', decision: null });
+    const r = await attemptHumanMerge(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'already-closed' });
+  });
+
+  it('GitHub 머지 실패 시 PR.status 유지 — review-needed 폴백 안 함', async () => {
+    const mergeMock = vi.fn().mockRejectedValue(new Error('Conflict'));
+    setOctokit(mockOctokit(mergeMock));
+    const prId = setupPR({ status: 'review-needed', decision: null });
+
+    const r = await attemptHumanMerge(prId);
+    expect(r.kind).toBe('failed');
+    // attemptAutoMerge 와 달리 status 를 review-needed 로 유지 (이미 그 상태이거나 사람 의도 보존).
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
+  });
+
+  it('installation 없는 프로젝트는 no-installation 으로 skip', async () => {
+    setOctokit(mockOctokit());
+    // setupPR 기본은 installationId=12345. 직접 프로젝트에서 빼기.
+    const project = db
+      .insert(projects)
+      .values({ slug: 'no/inst', name: 'NoInst', installationId: null })
+      .returning({ id: projects.id })
+      .get();
+    const pr = db
+      .insert(prs)
+      .values({
+        repoId: project.id,
+        number: 99,
+        title: 'No installation',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-no',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+      })
+      .returning({ id: prs.id })
+      .get();
+
+    const r = await attemptHumanMerge(pr.id);
+    expect(r).toEqual({ kind: 'skipped', reason: 'no-installation' });
   });
 });

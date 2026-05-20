@@ -1,0 +1,23 @@
+.row {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  align-items: center;
+}
+
+.result {
+  margin-left: var(--ds-spacing-12);
+  padding: var(--ds-spacing-6) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+  line-height: var(--ds-typography-line-height-148);
+}
+
+.resultSuccess {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.resultError {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}
