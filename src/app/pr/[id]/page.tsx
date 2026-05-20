@@ -4,6 +4,7 @@ import { ko as t } from '@/copy/ko';
 import { AuthorChip } from '@/components/AuthorChip';
 import { DiffHunk } from '@/components/DiffHunk';
 import { CheckIcon, ChevronLeftIcon, HelpIcon, WarnIcon } from '@/components/icons';
+import { AnalyzeRequestButton } from '@/components/AnalyzeRequestButton';
 import { PRActions } from '@/components/PRActions';
 import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
 import { getPRDetail } from '@/lib/pr';
@@ -131,7 +132,18 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
   if (!view) {
     notFound();
   }
-  const { pr, fixture, hunkSummary, source, isMerged, branchDeleted, body } = view;
+  const {
+    pr,
+    fixture,
+    hunkSummary,
+    source,
+    isMerged,
+    branchDeleted,
+    canMerge,
+    canRequestAnalysis,
+    aiEnabled,
+    body,
+  } = view;
   const detail = { ...fixture, hunkSummary };
   const bodyText = body?.trim() ?? '';
 
@@ -208,7 +220,17 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
 
         {source === 'fixture' && (
           <div className={styles.fixtureBanner} role="note">
+            {t.pr.seedBanner}
+          </div>
+        )}
+        {source === 'fetched' && (
+          <div className={styles.fixtureBanner} role="note">
             {t.pr.fixtureBanner}
+            <AnalyzeRequestButton
+              viewId={pr.id}
+              canRequestAnalysis={canRequestAnalysis}
+              aiEnabled={aiEnabled}
+            />
           </div>
         )}
 
@@ -283,10 +305,10 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
           <div className={styles.actionBarRight}>
-            {/* fixture 폴백(시드) PR 은 GitHub 머지 못 함 — source 가 'analyzed' 일 때만 활성. */}
+            {/* canMerge = installationId 있고 머지/닫힘 아님. preReview/AI 토글 무관. */}
             <PRActions
               viewId={pr.id}
-              canMerge={source === 'analyzed'}
+              canMerge={canMerge}
               isMerged={isMerged}
               branchDeleted={branchDeleted}
             />

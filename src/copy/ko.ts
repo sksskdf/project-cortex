@@ -109,7 +109,18 @@ export const ko = {
       subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',
       ariaLabel: 'AI 사전 리뷰',
     },
-    fixtureBanner: '샘플 데이터 표시 중 — 이 PR 은 아직 분석되지 않았거나 시드 데이터입니다.',
+    fixtureBanner: '이 PR 은 아직 분석되지 않았습니다.',
+    seedBanner: '시드 데이터 — GitHub installation 이 없어 샘플 화면을 표시합니다.',
+    analyze: {
+      request: 'AI 분석 요청',
+      pending: '분석 중…',
+      done: '분석 완료',
+      disabledByToggle: 'AI 분석 비활성 — 설정에서 켜기',
+      result: {
+        success: '분석이 완료되었습니다. 페이지를 새로고침하면 결과가 보입니다.',
+        error: (message: string) => `분석 실패: ${message}`,
+      },
+    },
     aiCheck: {
       tests: '테스트 실행',
       coverage: '커버리지',
