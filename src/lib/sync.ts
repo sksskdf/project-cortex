@@ -18,6 +18,8 @@ export type WebhookPRPayload = {
   pr: {
     number: number;
     title: string;
+    // GitHub PR description. webhook payload 의 pull_request.body — null 가능.
+    body: string | null;
     headSha: string;
     additions: number;
     deletions: number;
@@ -129,6 +131,7 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     repoId: project.id,
     number: payload.pr.number,
     title: payload.pr.title,
+    body: payload.pr.body,
     authorKind: payload.pr.authorKind,
     authorId: payload.pr.authorLogin,
     headSha: payload.pr.headSha,
@@ -176,6 +179,7 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
   db.update(prs)
     .set({
       title: values.title,
+      body: values.body,
       headSha: values.headSha,
       linesAdded: values.linesAdded,
       linesRemoved: values.linesRemoved,

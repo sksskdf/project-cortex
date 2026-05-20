@@ -55,6 +55,8 @@ export const prs = sqliteTable('prs', {
     .references(() => projects.id),
   number: integer('number').notNull(),
   title: text('title').notNull(),
+  // GitHub PR body (description). 빈 PR 도 있어 nullable.
+  body: text('body'),
   authorKind: text('author_kind', { enum: ['agent', 'human'] }).notNull(),
   authorId: text('author_id').notNull(),
   headSha: text('head_sha').notNull(),

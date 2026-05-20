@@ -17,6 +17,7 @@ export type GithubPullRequestEventPartial = {
   pull_request: {
     number: number;
     title: string;
+    body: string | null;
     head: { sha: string };
     additions: number;
     deletions: number;
@@ -54,6 +55,7 @@ export function mapPullRequestEvent(event: GithubPullRequestEventPartial): Webho
     pr: {
       number: event.pull_request.number,
       title: event.pull_request.title,
+      body: event.pull_request.body,
       headSha: event.pull_request.head.sha,
       additions: event.pull_request.additions,
       deletions: event.pull_request.deletions,

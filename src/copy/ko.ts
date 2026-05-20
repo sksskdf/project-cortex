@@ -99,6 +99,10 @@ export const ko = {
     backToInbox: '인박스로 돌아가기',
     authorSuffix: '이 생성',
     confidenceLabel: '신뢰 점수',
+    body: {
+      title: 'PR 설명',
+      ariaLabel: 'PR 본문',
+    },
     aiSummary: {
       title: 'Cortex 사전 리뷰',
       subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',

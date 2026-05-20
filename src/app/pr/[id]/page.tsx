@@ -131,8 +131,9 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
   if (!view) {
     notFound();
   }
-  const { pr, fixture, hunkSummary, source, isMerged } = view;
+  const { pr, fixture, hunkSummary, source, isMerged, body } = view;
   const detail = { ...fixture, hunkSummary };
+  const bodyText = body?.trim() ?? '';
 
   return (
     <div className={styles.layout}>
@@ -209,6 +210,13 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
           <div className={styles.fixtureBanner} role="note">
             {t.pr.fixtureBanner}
           </div>
+        )}
+
+        {bodyText.length > 0 && (
+          <section className={styles.bodyCard} aria-label={t.pr.body.ariaLabel}>
+            <h2 className={styles.bodyCardTitle}>{t.pr.body.title}</h2>
+            <div className={styles.bodyContent}>{bodyText}</div>
+          </section>
         )}
 
         <section className={styles.aiCard} aria-label={t.pr.aiSummary.ariaLabel}>
