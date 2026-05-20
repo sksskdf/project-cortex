@@ -9,6 +9,7 @@ import { preReviews, prs, projects } from '@/db/schema';
 import type { PreReviewRow } from '@/db/schema';
 import { getAnthropic, PRE_REVIEW_MODEL } from './anthropic';
 import { confidenceTier } from './confidence';
+import { budgetDiff } from './diff-budget';
 import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
 import { getPRDiff } from './github';
 import {
@@ -46,14 +47,6 @@ export type AnalyzeResult =
   | { kind: 'analyzed'; row: PreReviewRow }
   | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' };
 
-// diff가 너무 크면 토큰 폭발 — 50KB 제한. 잘릴 때 LLM이 인지하도록 표시.
-const MAX_DIFF_CHARS = 50_000;
-
-function clampDiff(diff: string): string {
-  if (diff.length <= MAX_DIFF_CHARS) return diff;
-  return `${diff.slice(0, MAX_DIFF_CHARS)}\n\n... (diff truncated: original ${diff.length} chars)`;
-}
-
 export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
@@ -78,6 +71,10 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   const [owner, repo] = project.slug.split('/');
   const diff = await getPRDiff(project.installationId, { owner, repo }, pr.number);
   const changedPaths = extractPaths(diff);
+
+  // Phase 4.5a — diff 토큰 예산 적용. 우선순위 정렬 + lock·generated 본문 제외 +
+  // 상한 초과 시 자르고 LLM 에 명시. clampDiff 단순 잘림을 대체.
+  const budget = budgetDiff(diff);
 
   const heuristicFlags = precomputeFlags({
     paths: changedPaths,
@@ -117,7 +114,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
           linesAdded: pr.linesAdded,
           linesRemoved: pr.linesRemoved,
           filesChanged: pr.filesChanged,
-          diff: clampDiff(diff),
+          diff: budget.text,
         }),
       },
     ],
