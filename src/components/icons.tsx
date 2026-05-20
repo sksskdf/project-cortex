@@ -118,13 +118,6 @@ export function ChevronLeftIcon(props: IconProps = {}) {
   });
 }
 
-export function ChevronRightIcon(props: IconProps = {}) {
-  return svgBase({
-    ...props,
-    children: <polyline points="9 18 15 12 9 6" />,
-  });
-}
-
 export function ClusterIcon(props: IconProps = {}) {
   return svgBase({
     ...props,
