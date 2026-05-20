@@ -210,6 +210,17 @@ function buildFiles(preReview: PreReviewRow): ReadonlyArray<FileBlock> {
   });
 }
 
+// 시드 PR 처럼 preReview 행은 있지만 diff 관련 컬럼이 모두 비어있으면
+// 트리·diff 영역이 화면에서 텅 비어 보임. analyzed 분기를 건너뛰고 fixture 로 폴백.
+function hasUsableDiffData(preReview: PreReviewRow): boolean {
+  return (
+    preReview.parsedFiles.length > 0 ||
+    (preReview.comments?.length ?? 0) > 0 ||
+    (preReview.hunkAnnotations?.length ?? 0) > 0 ||
+    preReview.changedPaths.length > 0
+  );
+}
+
 export async function getPRDetail(viewId: string): Promise<PRDetailView | null> {
   const dbId = parsePrId(viewId);
   if (dbId === null) return null;
@@ -251,8 +262,9 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
   };
 
-  // preReview 가 있으면 실 데이터로 fixture 모양을 빌드. 없으면 fixture 원본.
-  if (row.preReview) {
+  // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.
+  // 시드처럼 preReview 만 있고 분석 결과가 비어있으면 fixture 분기로 흘려보냄.
+  if (row.preReview && hasUsableDiffData(row.preReview)) {
     const { tree, totalHunks, autoApprovableHunks } = buildTree(row.preReview);
     const realFixture: PRDetailFixture = {
       aiSummary: buildAiSummary(row.preReview, row.triage),
