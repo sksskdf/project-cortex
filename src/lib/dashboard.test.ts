@@ -1,0 +1,188 @@
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { db } from '@/db/client';
+import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { getDashboardStats } from './dashboard';
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+beforeAll(() => {
+  migrate(db, { migrationsFolder: 'src/db/migrations' });
+});
+
+beforeEach(() => {
+  db.delete(triageDecisions).run();
+  db.delete(preReviews).run();
+  db.delete(prs).run();
+  db.delete(projects).run();
+});
+
+function setupProject(slug = 'acme/web'): number {
+  return db.insert(projects).values({ slug, name: slug }).returning({ id: projects.id }).get().id;
+}
+
+function setupPR(opts: {
+  repoId: number;
+  number: number;
+  status: 'review-needed' | 'merged' | 'open' | 'auto-mergeable' | 'closed';
+  createdAt: Date;
+  updatedAt?: Date;
+  confidence?: number;
+  analyzedAt?: Date;
+}) {
+  const pr = db
+    .insert(prs)
+    .values({
+      repoId: opts.repoId,
+      number: opts.number,
+      title: `PR ${opts.number}`,
+      authorKind: 'agent',
+      authorId: 'devin',
+      headSha: `sha-${opts.number}`,
+      linesAdded: 10,
+      linesRemoved: 1,
+      filesChanged: 1,
+      status: opts.status,
+      createdAt: opts.createdAt,
+      updatedAt: opts.updatedAt ?? opts.createdAt,
+    })
+    .returning({ id: prs.id })
+    .get();
+  if (opts.confidence !== undefined && opts.analyzedAt !== undefined) {
+    db.insert(preReviews)
+      .values({
+        prId: pr.id,
+        headSha: `sha-${opts.number}`,
+        confidence: opts.confidence,
+        confidenceTier: 'medium',
+        flags: [],
+        analyzedAt: opts.analyzedAt,
+      })
+      .run();
+  }
+  return pr.id;
+}
+
+describe('getDashboardStats — 실 delta 계산', () => {
+  it('빈 DB → 모든 stat 0, 모든 delta flat', async () => {
+    const s = await getDashboardStats();
+    expect(s.pendingReview.value).toBe(0);
+    expect(s.autoMergedThisWeek.value).toBe(0);
+    expect(s.avgConfidence.value).toBe(0);
+    expect(s.pendingReview.delta.direction).toBe('flat');
+    expect(s.autoMergedThisWeek.delta.direction).toBe('flat');
+    expect(s.avgConfidence.delta.direction).toBe('flat');
+  });
+
+  it('이번 주 신규가 더 많으면 pendingReview.delta=up', async () => {
+    const now = Date.now();
+    const repoId = setupProject();
+    // 이번 주 3건, 지난 주 1건.
+    setupPR({
+      repoId,
+      number: 1,
+      status: 'review-needed',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId,
+      number: 2,
+      status: 'review-needed',
+      createdAt: new Date(now - 2 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId,
+      number: 3,
+      status: 'review-needed',
+      createdAt: new Date(now - 3 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId,
+      number: 4,
+      status: 'review-needed',
+      createdAt: new Date(now - 10 * ONE_DAY_MS),
+    });
+
+    const s = await getDashboardStats();
+    expect(s.pendingReview.value).toBe(4);
+    expect(s.pendingReview.delta.direction).toBe('up');
+    expect(s.pendingReview.delta.amount).toBe(2); // 3 - 1
+    expect(s.pendingReview.delta.comparedTo).toContain('지난 주');
+  });
+
+  it('이번 주 머지가 적으면 autoMergedThisWeek.delta=down', async () => {
+    const now = Date.now();
+    const repoId = setupProject();
+    // 이번 주 1건, 지난 주 3건.
+    setupPR({
+      repoId,
+      number: 1,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    [10, 11, 12].forEach((n) =>
+      setupPR({
+        repoId,
+        number: n,
+        status: 'merged',
+        createdAt: new Date(now - 10 * ONE_DAY_MS),
+        updatedAt: new Date(now - 10 * ONE_DAY_MS),
+      }),
+    );
+
+    const s = await getDashboardStats();
+    expect(s.autoMergedThisWeek.value).toBe(1);
+    expect(s.autoMergedThisWeek.delta.direction).toBe('down');
+    expect(s.autoMergedThisWeek.delta.amount).toBe(2); // |1 - 3|
+  });
+
+  it('avgConfidence.delta — 이번 주 분석 vs 지난 주 분석 평균', async () => {
+    const now = Date.now();
+    const repoId = setupProject();
+    // 이번 주 분석 평균 90, 지난 주 평균 70.
+    setupPR({
+      repoId,
+      number: 1,
+      status: 'review-needed',
+      createdAt: new Date(now),
+      confidence: 90,
+      analyzedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId,
+      number: 2,
+      status: 'review-needed',
+      createdAt: new Date(now),
+      confidence: 70,
+      analyzedAt: new Date(now - 10 * ONE_DAY_MS),
+    });
+
+    const s = await getDashboardStats();
+    expect(s.avgConfidence.value).toBe(80); // 전체 평균.
+    expect(s.avgConfidence.delta.direction).toBe('up');
+    expect(s.avgConfidence.delta.amount).toBe(20);
+  });
+
+  it('동일 값이면 direction=flat, amount=0', async () => {
+    const now = Date.now();
+    const repoId = setupProject();
+    // 이번 주 1건, 지난 주 1건 — 동일.
+    setupPR({
+      repoId,
+      number: 1,
+      status: 'review-needed',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId,
+      number: 2,
+      status: 'review-needed',
+      createdAt: new Date(now - 10 * ONE_DAY_MS),
+    });
+
+    const s = await getDashboardStats();
+    expect(s.pendingReview.delta.direction).toBe('flat');
+    expect(s.pendingReview.delta.amount).toBe(0);
+  });
+});
