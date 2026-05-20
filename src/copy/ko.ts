@@ -185,6 +185,15 @@ export const ko = {
         `${mergeCount}개만 머지 · #${individualNumber} 개별 검토`,
       switchIndividual: '개별 검토로 전환',
       dissolve: '클러스터 해제',
+      pending: '처리 중…',
+      result: {
+        allMerged: (count: number) => `${count}건이 머지되었습니다.`,
+        partial: (merged: number, failed: number, skipped: number, total: number) =>
+          `전체 ${total}건 중 ${merged}건 머지 · ${failed}건 실패 · ${skipped}건 건너뜀.`,
+        dissolved: (released: number) =>
+          `클러스터를 해제했습니다 — PR ${released}건이 인박스로 돌아갔습니다.`,
+        error: (message: string) => `처리 중 오류가 발생했습니다: ${message}`,
+      },
     },
   },
 } as const;

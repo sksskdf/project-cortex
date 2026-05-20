@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
+import { ClusterActions } from '@/components/ClusterActions';
 import { CheckIcon, ChevronLeftIcon, ClusterIcon, InfoIcon } from '@/components/icons';
 import type { ClusterDiffRowFixture } from '@/fixtures/cluster';
 import { getClusterDetail, type ClusterPRItem } from '@/lib/cluster';
@@ -212,33 +213,12 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div className={styles.actionActions}>
-          <button
-            type="button"
-            className="ds-btn ds-btn--lg ds-btn--filled-blue ds-btn--full-width"
-          >
-            <span className="ds-btn__label">{t.cluster.action.mergeAll(cluster.prs.length)}</span>
-          </button>
-          <button
-            type="button"
-            className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
-          >
-            <span className="ds-btn__label">
-              {t.cluster.action.splitMerge(identicalCount, cluster.individualReviewNumber)}
-            </span>
-          </button>
-          <div className={styles.actionDivider} aria-hidden="true" />
-          <button
-            type="button"
-            className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
-          >
-            <span className="ds-btn__label">{t.cluster.action.switchIndividual}</span>
-          </button>
-          <button
-            type="button"
-            className="ds-btn ds-btn--md ds-btn--filled-gray ds-btn--full-width"
-          >
-            <span className="ds-btn__label">{t.cluster.action.dissolve}</span>
-          </button>
+          <ClusterActions
+            viewId={cluster.id}
+            totalCount={cluster.prs.length}
+            identicalCount={identicalCount}
+            individualReviewNumber={cluster.individualReviewNumber}
+          />
         </div>
 
         <div className={styles.actionNote}>
