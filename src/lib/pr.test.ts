@@ -95,6 +95,15 @@ describe('getPRDetail', () => {
     expect(view?.hunkSummary.totalHunks).toBe(17);
   });
 
+  // 시드 PR 케이스 — preReview 행은 있지만 changedPaths · parsedFiles · comments ·
+  // hunkAnnotations 가 모두 비어 있어 트리/diff 가 그려지지 않음. fixture 로 폴백 + 배너.
+  it('uses fixture when preReview exists but diff columns are all empty', async () => {
+    const id = setup({ withPreReview: true, changedPaths: [] });
+    const view = await getPRDetail(id);
+    expect(view?.source).toBe('fixture');
+    expect(view?.hunkSummary.totalHunks).toBe(17);
+  });
+
   it('builds aiSummary from real preReview when available', async () => {
     const id = setup({
       withPreReview: true,
