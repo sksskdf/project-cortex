@@ -87,6 +87,7 @@ export const ko = {
       migration: '마이그레이션',
       cluster: '클러스터',
       mentioned: '나에게 멘션',
+      done: '완료',
     },
     clusterBanner: {
       open: '클러스터 열기',

@@ -115,5 +115,48 @@ describe('listInboxQueue — 카테고리 필터', () => {
     expect(await listByCategory('flagged')).toEqual([]);
     expect(await listByCategory('large')).toEqual([]);
     expect(await listByCategory('migration')).toEqual([]);
+    expect(await listByCategory('done')).toEqual([]);
+  });
+
+  it('done — merged/closed PR 만 (review-needed 제외) + clusterId 무관', async () => {
+    const repoId = setupProject();
+    const open = setupPR({ repoId, number: 1, flags: [] }); // review-needed
+    const merged = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 2,
+        title: 'merged',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-2',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'merged',
+      })
+      .returning({ id: prs.id })
+      .get();
+    const closed = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 3,
+        title: 'closed',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-3',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'closed',
+      })
+      .returning({ id: prs.id })
+      .get();
+
+    const ids = await listByCategory('done');
+    expect(ids.sort()).toEqual([merged.id, closed.id].sort());
+    // open 은 'all' 에는 잡히지만 'done' 엔 없음.
+    expect(await listByCategory('all')).toEqual([open]);
   });
 });

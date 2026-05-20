@@ -447,8 +447,10 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.clusters}</h2>
-              {/* /clusters 라우트는 Phase 6 진입 시 활성화. */}
-              <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
+              {/* /clusters 활성화 (PR #45). */}
+              <Link href="/clusters" className={styles.sectionMore}>
+                {t.dashboard.section.clustersMore}
+              </Link>
             </div>
             <div className={styles.feedCard}>
               <div className={styles.feed}>

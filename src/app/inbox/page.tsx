@@ -19,6 +19,7 @@ const categoryLabel: Record<InboxCategoryId, string> = {
   migration: t.inbox.rail.migration,
   cluster: t.inbox.rail.cluster,
   mentioned: t.inbox.rail.mentioned,
+  done: t.inbox.rail.done,
 };
 
 const projectDotClass: Record<InboxProject['dot'], string> = {
@@ -110,6 +111,19 @@ function categoryIcon(id: InboxCategoryId) {
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
       );
+    case 'done':
+      return (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      );
   }
 }
 
@@ -134,6 +148,7 @@ function searchIcon() {
 // 인박스 자체 흐름과 의미가 다른 카테고리들의 동작:
 // - cluster: /clusters 목록으로 navigate (PR #45 화면이 더 적합).
 // - mentioned: 멘션 데이터 인프라 미구현 — disabled span.
+// - done: status IN (merged, closed) 별도 SQL 분기. 머지 후 PR 직접 접근.
 function categoryHref(id: InboxCategoryId): string | null {
   if (id === 'mentioned') return null;
   if (id === 'cluster') return '/clusters';
@@ -146,6 +161,7 @@ const FILTERABLE_CATEGORIES: ReadonlyArray<InboxCategoryId> = [
   'flagged',
   'large',
   'migration',
+  'done',
 ];
 
 function parseCategory(raw: string | string[] | undefined): InboxCategoryId {
