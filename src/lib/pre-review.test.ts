@@ -239,3 +239,143 @@ describe('analyzePR', () => {
     expect(row?.confidenceTier).toBe('high');
   });
 });
+
+describe('analyzePR — Phase 4.5b triage (CORTEX_TRIAGE_ENABLED=1)', () => {
+  // env.triageEnabled() 가 process.env 를 매번 lazy 평가하므로 set/restore 로 토글.
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.CORTEX_TRIAGE_ENABLED;
+    process.env.CORTEX_TRIAGE_ENABLED = '1';
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.CORTEX_TRIAGE_ENABLED;
+    else process.env.CORTEX_TRIAGE_ENABLED = originalEnv;
+  });
+
+  function makeTwoStepAnthropic(triagePayload: unknown, deepPayload: unknown) {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(llmResponse(triagePayload as Record<string, unknown>))
+      .mockResolvedValueOnce(llmResponse(deepPayload as Record<string, unknown>));
+    return {
+      create,
+      client: { messages: { create } } as unknown as Anthropic,
+    };
+  }
+
+  it('단순 PR (needsDeepReview=false + flags 비어있음 + confidence>=80) → Opus 호출 안 함', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const { create, client } = makeTwoStepAnthropic(
+      {
+        needsDeepReview: false,
+        confidence: 90,
+        flagCandidates: [],
+        summary: '단순 변수 추가.',
+      },
+      // Opus 호출되면 안 되지만 안전망.
+      {
+        confidence: 50,
+        flags: [],
+        summary: 'should-not-be-used',
+        comments: [],
+        hunkAnnotations: [],
+      },
+    );
+    setAnthropic(client);
+
+    const prId = setupPR({});
+    const r = await analyzePR(prId);
+
+    expect(r.kind).toBe('analyzed');
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0].model).toBe('claude-haiku-4-5-20251001');
+    if (r.kind !== 'analyzed') return;
+    expect(r.row.confidence).toBe(90);
+    expect(r.row.summary).toBe('단순 변수 추가.');
+    expect(r.row.comments).toEqual([]);
+  });
+
+  it('복잡 PR (needsDeepReview=true) → Opus 로 재호출 + 그 결과 사용', async () => {
+    setOctokit(
+      makeOctokitWithDiff(
+        'diff --git a/src/payment/refund.ts b/src/payment/refund.ts\n+ const x = 1;',
+      ),
+    );
+    const { create, client } = makeTwoStepAnthropic(
+      {
+        needsDeepReview: true,
+        confidence: 60,
+        flagCandidates: ['payment-domain'],
+        summary: '결제 영역 의심.',
+      },
+      {
+        confidence: 55,
+        flags: ['payment-domain'],
+        summary: '결제 영역 환불 로직 변경.',
+        comments: [{ path: 'src/payment/refund.ts', line: 1, body: '검토 필요' }],
+        hunkAnnotations: [{ hunkId: 'src/payment/refund.ts:1', decision: 'review' }],
+      },
+    );
+    setAnthropic(client);
+
+    const r = await analyzePR(setupPR({}));
+
+    expect(r.kind).toBe('analyzed');
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[0][0].model).toBe('claude-haiku-4-5-20251001');
+    expect(create.mock.calls[1][0].model).toBe('claude-opus-4-7');
+    if (r.kind !== 'analyzed') return;
+    // Opus 결과 사용.
+    expect(r.row.confidence).toBe(55);
+    expect(r.row.summary).toBe('결제 영역 환불 로직 변경.');
+    expect(r.row.comments).toHaveLength(1);
+  });
+
+  it('triage confidence<80 면 단순 조건 안 되므로 Opus 재호출', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const { create, client } = makeTwoStepAnthropic(
+      {
+        needsDeepReview: false,
+        confidence: 70, // 80 미만 → simple 아님
+        flagCandidates: [],
+        summary: '확신 부족.',
+      },
+      {
+        confidence: 75,
+        flags: [],
+        summary: 'opus 결과.',
+        comments: [],
+        hunkAnnotations: [],
+      },
+    );
+    setAnthropic(client);
+
+    const r = await analyzePR(setupPR({}));
+    expect(create).toHaveBeenCalledTimes(2);
+    if (r.kind === 'analyzed') expect(r.row.confidence).toBe(75);
+  });
+
+  it('triage 호출이 실패하면 Opus 로 안전 폴백', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('haiku rate limit'))
+      .mockResolvedValueOnce(
+        llmResponse({
+          confidence: 85,
+          flags: [],
+          summary: 'opus fallback ok.',
+          comments: [],
+          hunkAnnotations: [],
+        }),
+      );
+    setAnthropic({ messages: { create } } as unknown as Anthropic);
+
+    const r = await analyzePR(setupPR({}));
+    expect(r.kind).toBe('analyzed');
+    expect(create).toHaveBeenCalledTimes(2);
+    if (r.kind === 'analyzed') expect(r.row.summary).toBe('opus fallback ok.');
+  });
+});
