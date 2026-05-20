@@ -184,17 +184,28 @@ export default async function InboxPage() {
             <span className={styles.sub}>{t.inbox.subtitle}</span>
           </div>
           <div className={styles.actions}>
-            <button type="button" className={styles.iconBtn} aria-label={t.inbox.notifications}>
+            {/* 알림 · 필터는 백엔드 미구현 — disabled. */}
+            <button
+              type="button"
+              className={styles.iconBtn}
+              aria-label={t.inbox.notifications}
+              disabled
+            >
               <BellIcon />
-              <span className={`ds-badge ds-badge--pill ${styles.iconBtnBadge}`}>3</span>
             </button>
-            <button type="button" className="ds-btn ds-btn--md ds-btn--outlined-basic">
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--outlined-basic"
+              disabled
+              aria-disabled="true"
+            >
               <span className="ds-btn__label">{t.inbox.filter}</span>
             </button>
           </div>
         </div>
 
         <div className={styles.toolbar}>
+          {/* 정렬은 현재 priority(orderInbox) 만 구현 — 나머지 탭은 disabled. */}
           <div className="ds-segment" role="tablist" aria-label={t.inbox.sort.ariaLabel}>
             {sortTabs.map((tab) => (
               <button
@@ -202,12 +213,15 @@ export default async function InboxPage() {
                 type="button"
                 role="tab"
                 aria-selected={tab.active}
+                disabled={!tab.active}
+                aria-disabled={!tab.active}
                 className={`ds-segment__item ${tab.active ? 'ds-segment__item--active' : ''}`}
               >
                 {tab.label}
               </button>
             ))}
           </div>
+          {/* 검색은 백엔드 미구현 — disabled. */}
           <div className={styles.toolbarSearch}>
             <div className="ds-input ds-input--md ds-input--full-width ds-input--with-icon">
               <input
@@ -215,6 +229,7 @@ export default async function InboxPage() {
                 type="text"
                 placeholder={t.inbox.search.placeholder}
                 aria-label={t.inbox.search.ariaLabel}
+                disabled
               />
               <span className="ds-input__icon" aria-hidden="true">
                 {searchIcon()}

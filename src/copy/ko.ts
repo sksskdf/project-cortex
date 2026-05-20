@@ -6,7 +6,6 @@ export const ko = {
   nav: {
     section: {
       workspace: '워크스페이스',
-      favorites: '즐겨찾기',
     },
     dashboard: '대시보드',
     inbox: '인박스',

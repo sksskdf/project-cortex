@@ -1,4 +1,4 @@
-import { currentUser, favoriteProjects } from '@/lib/config';
+import { currentUser } from '@/lib/config';
 import { getSidebarCounts } from '@/lib/inbox';
 import { Sidebar } from './Sidebar';
 import { WebhookListener } from './WebhookListener';
@@ -10,7 +10,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     <div className={styles.app}>
       {/* webhook sync 가 일어날 때마다 SSE 로 push → router.refresh() — 폴링 없이 실시간. */}
       <WebhookListener />
-      <Sidebar counts={counts} user={currentUser} favoriteProjects={favoriteProjects} />
+      <Sidebar counts={counts} user={currentUser} />
       <main className={styles.main}>{children}</main>
     </div>
   );

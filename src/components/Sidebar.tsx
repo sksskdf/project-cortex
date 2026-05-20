@@ -133,19 +133,6 @@ const helpIcon = (
   </svg>
 );
 
-const chevronIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
-);
-
 function isActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -187,15 +174,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function Sidebar({
-  counts,
-  user,
-  favoriteProjects,
-}: {
-  counts: SidebarCounts;
-  user: CurrentUser;
-  favoriteProjects: ReadonlyArray<string>;
-}) {
+export function Sidebar({ counts, user }: { counts: SidebarCounts; user: CurrentUser }) {
   const pathname = usePathname();
 
   // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
@@ -255,21 +234,7 @@ export function Sidebar({
         </ul>
       </nav>
 
-      <nav className={styles.section} aria-label={t.nav.section.favorites}>
-        <div className={styles.sectionTitle}>{t.nav.section.favorites}</div>
-        <ul className={styles.list}>
-          {favoriteProjects.map((name) => (
-            <li key={name}>
-              {/* /projects/[name] 라우트 Phase 8 진입 시 활성화. */}
-              <span className={`${styles.item} ${styles.itemDisabled}`} aria-disabled="true">
-                {chevronIcon}
-                <span className={styles.itemLabel}>{name}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
+      {/* 즐겨찾기 섹션은 Phase 8 onboarding 에서 사용자 선택을 받기 전까지 비활성. */}
       <div className={styles.divider} />
 
       <nav className={styles.section}>
