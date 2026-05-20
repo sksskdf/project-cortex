@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
-import { attemptAutoMerge, attemptHumanMerge } from './auto-merge';
+import { attemptAutoMerge, attemptHumanMerge, deleteMergedBranch } from './auto-merge';
 import { setOctokit } from './github';
 
 function mockOctokit(merge?: Mock): Octokit {
@@ -82,11 +82,12 @@ describe('attemptAutoMerge', () => {
     expect(result.kind).toBe('merged');
     if (result.kind === 'merged') expect(result.sha).toBe('merged-sha');
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('merged');
+    // commit_title 미전송 — GitHub default ('<PR title> (#<number>)') 그대로.
     expect(mergeMock).toHaveBeenCalledWith({
       owner: 'acme',
       repo: 'web',
       pull_number: 42,
-      commit_title: 'Auto PR',
+      commit_title: undefined,
       merge_method: 'squash',
     });
   });
@@ -232,5 +233,67 @@ describe('attemptHumanMerge', () => {
 
     const r = await attemptHumanMerge(pr.id);
     expect(r).toEqual({ kind: 'skipped', reason: 'no-installation' });
+  });
+});
+
+describe('deleteMergedBranch', () => {
+  function mockOctokitForBranch(opts: { pullsGet: Mock; deleteRef?: Mock }): Octokit {
+    return {
+      pulls: { get: opts.pullsGet, merge: vi.fn() },
+      git: { deleteRef: opts.deleteRef ?? vi.fn().mockResolvedValue({}) },
+    } as unknown as Octokit;
+  }
+
+  it('merged PR 의 same-repo head 브랜치를 삭제', async () => {
+    const pullsGet = vi.fn().mockResolvedValue({
+      data: {
+        head: { ref: 'feat/x', repo: { full_name: 'acme/web' } },
+      },
+    });
+    const deleteRef = vi.fn().mockResolvedValue({});
+    setOctokit(mockOctokitForBranch({ pullsGet, deleteRef }));
+    const prId = setupPR({ status: 'merged', slug: 'acme/web' });
+
+    const r = await deleteMergedBranch(prId);
+
+    expect(r).toEqual({ kind: 'deleted', ref: 'feat/x' });
+    expect(deleteRef).toHaveBeenCalledWith({
+      owner: 'acme',
+      repo: 'web',
+      ref: 'heads/feat/x',
+    });
+  });
+
+  it('fork / 다른 레포의 head 는 fork-or-cross-repo 로 skip', async () => {
+    const pullsGet = vi.fn().mockResolvedValue({
+      data: { head: { ref: 'feat/x', repo: { full_name: 'other/fork' } } },
+    });
+    const deleteRef = vi.fn();
+    setOctokit(mockOctokitForBranch({ pullsGet, deleteRef }));
+    const prId = setupPR({ status: 'merged', slug: 'acme/web' });
+
+    const r = await deleteMergedBranch(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'fork-or-cross-repo' });
+    expect(deleteRef).not.toHaveBeenCalled();
+  });
+
+  it('머지되지 않은 PR 은 not-merged 로 skip', async () => {
+    setOctokit(mockOctokitForBranch({ pullsGet: vi.fn() }));
+    const prId = setupPR({ status: 'review-needed' });
+    const r = await deleteMergedBranch(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'not-merged' });
+  });
+
+  it('GitHub deleteRef 가 실패하면 failed 반환', async () => {
+    const pullsGet = vi.fn().mockResolvedValue({
+      data: { head: { ref: 'feat/x', repo: { full_name: 'acme/web' } } },
+    });
+    const deleteRef = vi.fn().mockRejectedValue(new Error('Reference not found'));
+    setOctokit(mockOctokitForBranch({ pullsGet, deleteRef }));
+    const prId = setupPR({ status: 'merged' });
+
+    const r = await deleteMergedBranch(prId);
+    expect(r.kind).toBe('failed');
+    if (r.kind === 'failed') expect(r.reason).toContain('Reference not found');
   });
 });

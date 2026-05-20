@@ -131,7 +131,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
   if (!view) {
     notFound();
   }
-  const { pr, fixture, hunkSummary, source } = view;
+  const { pr, fixture, hunkSummary, source, isMerged } = view;
   const detail = { ...fixture, hunkSummary };
 
   return (
@@ -276,7 +276,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <div className={styles.actionBarRight}>
             {/* fixture 폴백(시드) PR 은 GitHub 머지 못 함 — source 가 'analyzed' 일 때만 활성. */}
-            <PRActions viewId={pr.id} canMerge={source === 'analyzed'} />
+            <PRActions viewId={pr.id} canMerge={source === 'analyzed'} isMerged={isMerged} />
           </div>
         </div>
       </main>

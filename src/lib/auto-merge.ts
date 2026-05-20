@@ -5,7 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
-import { mergePR } from './github';
+import { deletePRHeadBranch, mergePR } from './github';
 
 export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
@@ -42,9 +42,9 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
   const [owner, repo] = project.slug.split('/');
 
   try {
+    // commitTitle 미전송 — GitHub default ('<PR title> (#<number>)') 를 그대로 사용.
     const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
       method: 'squash',
-      commitTitle: pr.title,
     });
     if (!result.merged) {
       return revertToReviewNeeded(prId, 'GitHub 머지 거부 — merged=false 반환.');
@@ -92,9 +92,9 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
   const [owner, repo] = project.slug.split('/');
 
   try {
+    // commitTitle 미전송 — GitHub default ('<PR title> (#<number>)') 를 그대로 사용.
     const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
       method: 'squash',
-      commitTitle: pr.title,
     });
     if (!result.merged) {
       return { kind: 'failed', reason: 'GitHub 머지 거부 — merged=false 반환.' };
@@ -122,5 +122,35 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'failed', reason: `GitHub 머지 실패: ${message}` };
+  }
+}
+
+// 머지 후 head 브랜치 삭제 — UI 의 "브랜치 삭제" 버튼이 호출. PR.status='merged' 만 처리.
+// fork/cross-repo 인 경우 deletePRHeadBranch 가 skip 반환.
+export type DeletePRBranchResult =
+  | { kind: 'deleted'; ref: string }
+  | {
+      kind: 'skipped';
+      reason: 'no-pr' | 'no-project' | 'no-installation' | 'not-merged' | 'fork-or-cross-repo';
+    }
+  | { kind: 'failed'; reason: string };
+
+export async function deleteMergedBranch(prId: number): Promise<DeletePRBranchResult> {
+  const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
+  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  if (pr.status !== 'merged') return { kind: 'skipped', reason: 'not-merged' };
+
+  const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
+  if (!project) return { kind: 'skipped', reason: 'no-project' };
+  if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
+
+  const [owner, repo] = project.slug.split('/');
+  try {
+    const result = await deletePRHeadBranch(project.installationId, { owner, repo }, pr.number);
+    if (result.kind === 'skipped') return { kind: 'skipped', reason: result.reason };
+    return { kind: 'deleted', ref: result.ref };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'failed', reason: `브랜치 삭제 실패: ${message}` };
   }
 }

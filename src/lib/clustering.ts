@@ -207,9 +207,9 @@ export async function mergeCluster(clusterId: number): Promise<ClusterMergeResul
 
     const [owner, repo] = project.slug.split('/');
     try {
+      // commitTitle 미전송 — GitHub default ('<PR title> (#<number>)') 그대로.
       const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
         method: 'squash',
-        commitTitle: pr.title,
       });
       if (!result.merged) {
         details.push({
