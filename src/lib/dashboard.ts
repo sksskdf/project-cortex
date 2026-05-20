@@ -1,7 +1,7 @@
-import { and, avg, count, desc, eq, gte, isNull } from 'drizzle-orm';
+import { and, avg, count, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { clusterNotes, agentsRunningCount, statDeltas } from '@/fixtures/dashboard';
+import { agentRuns, clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { clusterNotes, statDeltas } from '@/fixtures/dashboard';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { orderInbox } from '@/lib/queue';
 import type { PR, ReasonTone, StatDelta } from '@/lib/types';
@@ -50,10 +50,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .from(preReviews)
     .get();
 
+  // 진행 중 에이전트 = agent_runs.status in ('queued', 'running').
+  // 실데이터 흐름이 아직 없으면 0 — Phase 8 에서 onboarding 이슈 + 에이전트 실행이 들어오면 자연스럽게 채워짐.
+  const agentsRunning = db
+    .select({ n: count() })
+    .from(agentRuns)
+    .where(inArray(agentRuns.status, ['queued', 'running']))
+    .get();
+
   return {
     pendingReview: { value: pending?.n ?? 0, delta: statDeltas.pendingReview },
     autoMergedThisWeek: { value: mergedRecent?.n ?? 0, delta: statDeltas.autoMerged },
-    agentsRunning: { value: agentsRunningCount },
+    agentsRunning: { value: agentsRunning?.n ?? 0 },
     avgConfidence: {
       value: Math.round(Number(avgConf?.a ?? 0)),
       delta: statDeltas.avgConfidence,

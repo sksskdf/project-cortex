@@ -447,6 +447,13 @@
   border-radius: var(--ds-border-radius-card);
 }
 
+.workloadEmpty {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  text-align: center;
+  padding: var(--ds-spacing-20) 0;
+}
+
 .workload {
   display: flex;
   flex-direction: column;

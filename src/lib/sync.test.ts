@@ -301,7 +301,7 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     expect(td?.reason).toContain('GitHub 머지 거부');
   });
 
-  it('opened → Anthropic failure 는 sync 자체를 막지 않음 (runTriage 가 skip)', async () => {
+  it('opened → Anthropic failure 시 review-needed 로 폴백 (사용자 시야에서 사라지지 않게)', async () => {
     setAnthropic({
       messages: { create: vi.fn().mockRejectedValue(new Error('rate-limited')) },
     } as unknown as Anthropic);
@@ -314,7 +314,8 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     expect(
       db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get(),
     ).toBeUndefined();
-    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('open');
+    // 분석 실패해도 PR.status='review-needed' 라 인박스에 등장 — 묻히지 않음.
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
   });
 
   it('synchronize 는 새 SHA 에 대해 재분석 트리거 (cache miss)', async () => {

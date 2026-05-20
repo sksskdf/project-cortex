@@ -242,6 +242,14 @@ function TodoRowCard({ row }: { row: PR }) {
 }
 
 function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkload> }) {
+  if (rows.length === 0) {
+    // agent_runs 데이터 없는 상태 — Phase 8 onboarding 이후 채워짐.
+    return (
+      <div className={styles.workloadCard}>
+        <div className={styles.workloadEmpty}>{t.dashboard.workload.empty}</div>
+      </div>
+    );
+  }
   return (
     <div className={styles.workloadCard}>
       <div className={styles.workload}>
