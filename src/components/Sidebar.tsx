@@ -208,7 +208,6 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       label: t.nav.clusters,
       icon: clustersIcon,
       count: counts.clusters,
-      comingSoon: true,
     },
     { href: '/reports', label: t.nav.reports, icon: reportsIcon, comingSoon: true },
   ];
