@@ -340,6 +340,11 @@ data/cortex.sqlite                     ← 첫 실데이터 적재 시작
 - 가장 본격적인 `dfasee2`부터 시작 — 첫 자동 머지가 24시간 내 발생
 - 6개 레포의 첫 주 메트릭이 대시보드에 표시됨
 
+**후속 작업 (백로그)**
+- **레포 등록 마법사 UX** — 사용자가 GitHub URL 붙여 넣으면 (a) App install 안내 (없으면) → (b) webhook 자동 설정 → (c) 첫 분석 1회 실행 → (d) 자동 머지 정책 옵션 노출. 단계별 진행 상태 표시.
+- **포렌식 도메인 위험 플래그 추가** — `license-tampering` · `evidence-handling` · `chain-of-custody` 후보. risk-flags.ts 의 정규식·LLM 프롬프트에 합류.
+- **레포별 분석 모델 선택** — Phase 4.5b 의 Haiku/Opus 분기 외에 레포별 디폴트 모델 지정 (e.g. dfas 시리즈는 보수적으로 Opus 강제).
+
 **비-목표 (이 Phase에서도)**
 - 코드를 한 모노레포로 통합하는 작업 (의도적으로 안 함)
 - 비-Cortex 외부 사용자에게 공개 (단일 사용자 전용)
