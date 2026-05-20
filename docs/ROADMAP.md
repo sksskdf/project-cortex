@@ -264,6 +264,10 @@ src/actions/cluster.ts                ← mergeCluster(id), dissolveCluster(id)
 
 > 출시 후 유지하는 데 필요한 것.
 
+**진척**
+- 대시보드 stat delta 실 계산 시작 (#50) — `pendingReview` · `autoMerged` · `avgConfidence` 모두 이번 7일 vs 지난 7일 비교. `fixtures/dashboard` 의 `statDeltas` 제거.
+- 구조화 로깅 · Sentry · 자동 머지율·revert율 메트릭은 후속.
+
 **산출물**
 - 구조화 로깅 (Pino 또는 Next.js logger)
 - 에러 트래킹 (Sentry 옵션)
