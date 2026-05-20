@@ -125,3 +125,32 @@ export async function mergePR(
   });
   return { merged: data.merged, sha: data.sha };
 }
+
+// 머지된 PR 의 head 브랜치를 삭제. octokit.pulls.get 으로 head.ref 조회 후 git.deleteRef.
+// fork / cross-repo PR 은 base 레포에 브랜치가 없어 skip — head.repo.full_name 비교로 판단.
+export type DeleteBranchResult =
+  | { kind: 'deleted'; ref: string }
+  | { kind: 'skipped'; reason: 'fork-or-cross-repo' };
+
+export async function deletePRHeadBranch(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<DeleteBranchResult> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.get({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+  });
+  const headFullName = data.head.repo?.full_name;
+  if (headFullName !== `${ref.owner}/${ref.repo}`) {
+    return { kind: 'skipped', reason: 'fork-or-cross-repo' };
+  }
+  await octokit.git.deleteRef({
+    owner: ref.owner,
+    repo: ref.repo,
+    ref: `heads/${data.head.ref}`,
+  });
+  return { kind: 'deleted', ref: data.head.ref };
+}

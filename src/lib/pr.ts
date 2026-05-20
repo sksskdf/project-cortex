@@ -25,6 +25,8 @@ export type PRDetailView = {
   // 실 데이터 출처 — preReview 있으면 'analyzed', 없으면 'fixture'.
   // UI 가 "샘플 diff" 배너 등으로 활용.
   source: 'analyzed' | 'fixture';
+  // PR 상세의 액션 버튼 (머지 / 브랜치 삭제) 노출 조건 결정용.
+  isMerged: boolean;
 };
 
 function parsePrId(viewId: string): number | null {
@@ -283,6 +285,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
         deletions: row.pr.linesRemoved,
       },
       source: 'analyzed',
+      isMerged: row.pr.status === 'merged',
     };
   }
 
@@ -297,5 +300,6 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       deletions: row.pr.linesRemoved,
     },
     source: 'fixture',
+    isMerged: row.pr.status === 'merged',
   };
 }
