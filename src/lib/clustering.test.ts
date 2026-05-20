@@ -376,4 +376,40 @@ describe('dissolveCluster', () => {
     expect(c?.status).toBe('dissolved');
     expect(c?.closedAt).not.toBeNull();
   });
+
+  it('머지된 PR 은 dissolve 시 review-needed 로 되살아나지 않는다', () => {
+    const repoId = setupProject();
+    const cluster = db
+      .insert(clusters)
+      .values({ pattern: 'mixed', title: 't', avgConfidence: 90 })
+      .returning({ id: clusters.id })
+      .get();
+    // 일부는 머지된 상태, 일부는 활성.
+    setupPR({ repoId, paths: ['x.ts'], number: 1, clusterId: cluster.id, status: 'merged' });
+    setupPR({ repoId, paths: ['x.ts'], number: 2, clusterId: cluster.id, status: 'review-needed' });
+    setupPR({
+      repoId,
+      paths: ['x.ts'],
+      number: 3,
+      clusterId: cluster.id,
+      status: 'auto-mergeable',
+    });
+
+    const r = dissolveCluster(cluster.id);
+    // 활성 2건만 인박스로 복귀.
+    expect(r.released).toBe(2);
+
+    const merged = db.select().from(prs).where(eq(prs.number, 1)).get();
+    // 머지된 PR 은 status='merged' 유지, clusterId 도 그대로 (인박스에 안 잡힘).
+    expect(merged?.status).toBe('merged');
+    expect(merged?.clusterId).toBe(cluster.id);
+
+    const restored = db.select().from(prs).where(eq(prs.number, 2)).get();
+    expect(restored?.status).toBe('review-needed');
+    expect(restored?.clusterId).toBeNull();
+
+    const fromAutoMergeable = db.select().from(prs).where(eq(prs.number, 3)).get();
+    expect(fromAutoMergeable?.status).toBe('review-needed');
+    expect(fromAutoMergeable?.clusterId).toBeNull();
+  });
 });

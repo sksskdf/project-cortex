@@ -7,6 +7,7 @@ import {
   mergeClusterAction,
   type ClusterActionState,
 } from '@/actions/cluster';
+import type { ClusterRow } from '@/db/schema';
 import styles from './ClusterActions.module.css';
 
 type Props = {
@@ -14,13 +15,21 @@ type Props = {
   totalCount: number;
   identicalCount: number;
   individualReviewNumber: number;
+  status: ClusterRow['status'];
 };
+
+// 머지/해제가 의미 있는 상태 — 'open' 또는 'partially-merged' (일부 PR 만 머지).
+// merged/dissolved 면 닫힌 클러스터라 모든 액션 disable.
+function isActiveStatus(status: ClusterRow['status']): boolean {
+  return status === 'open' || status === 'partially-merged';
+}
 
 export function ClusterActions({
   viewId,
   totalCount,
   identicalCount,
   individualReviewNumber,
+  status,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ClusterActionState>({ kind: 'idle' });
@@ -41,23 +50,32 @@ export function ClusterActions({
     });
   }
 
+  // 닫힌 클러스터(merged/dissolved) 또는 액션 진행 중이면 모든 머지/해제 disable.
+  // 액션 직후 revalidatePath 가 페이지를 새로 그리지만, 그 사이에도 중복 트리거 방지.
+  const closed = !isActiveStatus(status);
+  const blocked = closed || pending || state.kind === 'merged' || state.kind === 'dissolved';
+
   return (
     <>
       <button
         type="button"
         className="ds-btn ds-btn--lg ds-btn--filled-blue ds-btn--full-width"
         onClick={runMerge}
-        disabled={pending}
+        disabled={blocked}
         aria-busy={pending}
+        aria-disabled={blocked}
       >
         <span className="ds-btn__label">
           {pending ? t.cluster.action.pending : t.cluster.action.mergeAll(totalCount)}
         </span>
       </button>
+      {/* splitMerge · switchIndividual 은 의도된 기능이 정의됐지만 wire-up 안 됨.
+          전체 머지 / 해제 의 조합으로 갈음 가능하므로 미구현 상태 그대로 disable. */}
       <button
         type="button"
         className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
-        disabled={pending}
+        disabled
+        aria-disabled="true"
       >
         <span className="ds-btn__label">
           {t.cluster.action.splitMerge(identicalCount, individualReviewNumber)}
@@ -67,7 +85,8 @@ export function ClusterActions({
       <button
         type="button"
         className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
-        disabled={pending}
+        disabled
+        aria-disabled="true"
       >
         <span className="ds-btn__label">{t.cluster.action.switchIndividual}</span>
       </button>
@@ -75,20 +94,31 @@ export function ClusterActions({
         type="button"
         className="ds-btn ds-btn--md ds-btn--filled-gray ds-btn--full-width"
         onClick={runDissolve}
-        disabled={pending}
+        disabled={blocked}
         aria-busy={pending}
+        aria-disabled={blocked}
       >
         <span className="ds-btn__label">
           {pending ? t.cluster.action.pending : t.cluster.action.dissolve}
         </span>
       </button>
-      <ClusterActionResult state={state} />
+      <ClusterActionResult state={state} closed={closed} />
     </>
   );
 }
 
-function ClusterActionResult({ state }: { state: ClusterActionState }) {
-  if (state.kind === 'idle') return null;
+function ClusterActionResult({ state, closed }: { state: ClusterActionState; closed: boolean }) {
+  if (state.kind === 'idle') {
+    // 액션 결과는 없지만 이미 닫힌 클러스터면 상태 안내.
+    if (closed) {
+      return (
+        <div className={`${styles.result} ${styles.resultPartial}`} role="note">
+          {t.cluster.action.result.closed}
+        </div>
+      );
+    }
+    return null;
+  }
 
   if (state.kind === 'merged') {
     const { merged, failed, skipped, total } = state.result;

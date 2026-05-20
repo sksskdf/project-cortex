@@ -136,13 +136,19 @@ export async function tryClusterPR(prId: number): Promise<TryClusterResult> {
   return { kind: 'clustered', clusterId: newCluster.id, size: totalSize };
 }
 
-// 클러스터 해체 — 모든 PR 의 clusterId 를 null 로, 클러스터 status='dissolved'.
+// 클러스터 해체 — 활성 PR (open/review-needed/auto-mergeable) 만 clusterId/status 를
+// 인박스로 되돌리고, merged/closed PR 은 그대로 둔다 (해체로 인해 되살아나면 안 됨).
 // 사람이 cluster 화면에서 "해체" 버튼 눌렀을 때.
 export function dissolveCluster(clusterId: number): { released: number } {
   const released = db
     .update(prs)
     .set({ clusterId: null, status: 'review-needed', updatedAt: new Date() })
-    .where(eq(prs.clusterId, clusterId))
+    .where(
+      and(
+        eq(prs.clusterId, clusterId),
+        inArray(prs.status, ['open', 'review-needed', 'auto-mergeable']),
+      ),
+    )
     .returning({ id: prs.id })
     .all();
 

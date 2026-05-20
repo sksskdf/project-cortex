@@ -262,6 +262,16 @@ src/actions/cluster.ts                ← mergeCluster(id), dissolveCluster(id)
 - 6.1 자카드 유사도 (#26) · 6.2 일괄 머지/해체 액션 (#36) · 6.3 derive 패턴 (#37) · sync wire-up (#43) 완료.
 - 임베딩 기반 의미 유사도 (`embeddings.ts`) 는 후속 — 자카드 만으로도 i18n 류 동일 파일 반복 패턴은 잘 잡힘.
 
+**후속 작업 (백로그)**
+- **클러스터 일괄 머지 후 브랜치 일괄 삭제** — PR #46 의 `deleteMergedBranch` 를 `mergeCluster` 후처리로 묶기. UI 결과 토스트에 삭제 N건 같이 표시.
+- **머지 충돌 해결 흐름** — 일괄 머지 중 한 PR 이 GitHub `mergeable_state` 가 `dirty` 또는 머지 호출이 409 (conflict) 반환 시:
+  - 현재: 그 PR 만 `failed` 처리, 나머지는 진행, 클러스터 status='partially-merged'.
+  - 개선 후보: (a) 충돌 PR 만 자동으로 base 에서 rebase 시도 (octokit `repos.merge` 로 base→head 머지 커밋) → 성공 시 재머지. (b) 사용자에게 충돌 PR 목록 + "GitHub 에서 해결" 링크 노출. (c) "충돌 PR 빼고 다시 머지" 액션.
+  - 우선순위 (b) > (c) > (a). 자동 rebase 는 base history 가 바뀌므로 의도치 않은 변경 위험.
+- **해제된 PR 들의 재클러스터링** — `dissolveCluster` 후 같은 PR 들이 다시 자동 묶이지 않도록 `dissolved_at` 기준 짧은 cooldown 또는 사용자 명시적 "다시 묶기" 버튼.
+- **클러스터의 진짜 공통 hunk 추출** — 현재 `derivePatternLines` 가 첫 PR 의 첫 hunk 만 발췌. 멤버 PR diff 들의 라인 교집합 (또는 임베딩 cluster head) 으로 진짜 공통 패턴 노출.
+- **머지 후 클러스터 상태 표시 강화** — PR #36 의 ClusterActions 가 `cluster.status` 기준 disable 처리 (해당 PR 에서 적용 예정).
+
 ---
 
 ## Phase 7 — 운영 (지속)
