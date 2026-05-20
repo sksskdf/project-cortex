@@ -131,9 +131,40 @@ function searchIcon() {
   );
 }
 
-export default async function InboxPage() {
+// 인박스 자체 흐름과 의미가 다른 카테고리들의 동작:
+// - cluster: /clusters 목록으로 navigate (PR #45 화면이 더 적합).
+// - mentioned: 멘션 데이터 인프라 미구현 — disabled span.
+function categoryHref(id: InboxCategoryId): string | null {
+  if (id === 'mentioned') return null;
+  if (id === 'cluster') return '/clusters';
+  if (id === 'all') return '/inbox';
+  return `/inbox?category=${id}`;
+}
+
+const FILTERABLE_CATEGORIES: ReadonlyArray<InboxCategoryId> = [
+  'all',
+  'flagged',
+  'large',
+  'migration',
+];
+
+function parseCategory(raw: string | string[] | undefined): InboxCategoryId {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value && (FILTERABLE_CATEGORIES as ReadonlyArray<string>).includes(value)
+    ? (value as InboxCategoryId)
+    : 'all';
+}
+
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const activeCategory = parseCategory(params.category);
+
   const [inboxQueue, inboxCategories, inboxProjects, inboxClusterBanner] = await Promise.all([
-    listInboxQueue(),
+    listInboxQueue(activeCategory),
     getInboxCategories(),
     getInboxProjects(),
     getInboxClusterBanner(),
@@ -144,18 +175,40 @@ export default async function InboxPage() {
       <nav className={styles.rail} aria-label={t.inbox.rail.ariaLabel}>
         <div className={styles.railTitle}>{t.inbox.rail.categoryTitle}</div>
         <ul className={styles.railList}>
-          {inboxCategories.map((cat, i) => (
-            <li key={cat.id}>
-              <Link
-                href="/inbox"
-                className={`${styles.railItem} ${i === 0 ? styles.railItemActive : ''}`}
-              >
+          {inboxCategories.map((cat) => {
+            const href = categoryHref(cat.id);
+            const isActive = cat.id === activeCategory;
+            const body = (
+              <>
                 {categoryIcon(cat.id)}
                 <span className={styles.railLabel}>{categoryLabel[cat.id]}</span>
                 <span className={styles.railCount}>{cat.count}</span>
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            if (href === null) {
+              // mentioned — 미구현, 클릭 비활성.
+              return (
+                <li key={cat.id}>
+                  <span
+                    className={`${styles.railItem} ${styles.railItemDisabled}`}
+                    aria-disabled="true"
+                  >
+                    {body}
+                  </span>
+                </li>
+              );
+            }
+            return (
+              <li key={cat.id}>
+                <Link
+                  href={href}
+                  className={`${styles.railItem} ${isActive ? styles.railItemActive : ''}`}
+                >
+                  {body}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         <div className={`${styles.railTitle} ${styles.railTitleProjects}`}>
