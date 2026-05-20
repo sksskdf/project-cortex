@@ -1,11 +1,18 @@
-import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { orderInbox } from '@/lib/queue';
 import type { PR, ReasonTone, SidebarCounts } from '@/lib/types';
 
-export type InboxCategoryId = 'all' | 'flagged' | 'large' | 'migration' | 'cluster' | 'mentioned';
+export type InboxCategoryId =
+  | 'all'
+  | 'flagged'
+  | 'large'
+  | 'migration'
+  | 'cluster'
+  | 'mentioned'
+  | 'done';
 
 export type InboxCategory = {
   id: InboxCategoryId;
@@ -62,6 +69,7 @@ export async function getSidebarCounts(): Promise<SidebarCounts> {
 
 // 카테고리별 in-memory 필터링. all 외에는 raw 행에서 flag/tone 기준 거름.
 // cluster / mentioned 는 인박스 페이지가 별도 라우트 / disable 처리하므로 여기엔 안 잡힘.
+// done 은 SQL 단에서 다른 status 로 필터링하므로 통과만.
 function passesCategory(
   item: PR,
   raw: { flags: ReadonlyArray<string> },
@@ -69,6 +77,7 @@ function passesCategory(
 ): boolean {
   switch (category) {
     case 'all':
+    case 'done':
       return true;
     case 'flagged':
       return item.reason.tone === 'alert';
@@ -84,7 +93,15 @@ function passesCategory(
 }
 
 export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise<PR[]> {
-  const rows = db
+  // 카테고리에 따라 SQL where 분기:
+  // - done: status IN ('merged','closed'), clusterId 무관 (클러스터로 머지된 PR 도 노출).
+  // - 그 외: status='review-needed' + 비-클러스터 (인박스 큐 룰).
+  const whereClause =
+    category === 'done'
+      ? inArray(prs.status, ['merged', 'closed'])
+      : and(eq(prs.status, 'review-needed'), isNull(prs.clusterId));
+
+  const baseQuery = db
     .select({
       pr: prs,
       preReview: preReviews,
@@ -95,8 +112,9 @@ export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise
     .innerJoin(projects, eq(prs.repoId, projects.id))
     .leftJoin(preReviews, eq(preReviews.prId, prs.id))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
-    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
-    .all();
+    .where(whereClause);
+  // done 은 최근 머지/닫힘 순. 다른 카테고리는 orderInbox 가 후처리 정렬.
+  const rows = category === 'done' ? baseQuery.orderBy(desc(prs.updatedAt)).all() : baseQuery.all();
 
   type Decorated = { item: PR; flags: ReadonlyArray<string> };
   const decorated: Decorated[] = rows.map((row) => {
@@ -132,8 +150,11 @@ export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise
   });
 
   const filtered = decorated.filter((d) => passesCategory(d.item, { flags: d.flags }, category));
+  const items = filtered.map((d) => d.item);
+  // done 은 SQL 단에서 updatedAt DESC 정렬 — 입력 순서 유지.
+  if (category === 'done') return items;
   // 우선순위 정렬: tone (alert > warn > info) > gauge 낮은 순 > age 오래된 순.
-  return [...orderInbox(filtered.map((d) => d.item))];
+  return [...orderInbox(items)];
 }
 
 export async function getInboxCategories(): Promise<InboxCategory[]> {
@@ -150,6 +171,12 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
     .where(eq(triageDecisions.decision, 'cluster'))
     .get();
 
+  const donePrs = db
+    .select({ n: count() })
+    .from(prs)
+    .where(inArray(prs.status, ['merged', 'closed']))
+    .get();
+
   return [
     { id: 'all', count: total },
     { id: 'flagged', count: flagged },
@@ -157,6 +184,7 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
     { id: 'migration', count: migration },
     { id: 'cluster', count: clusterPrs?.n ?? 0 },
     { id: 'mentioned', count: 0 },
+    { id: 'done', count: donePrs?.n ?? 0 },
   ];
 }
 
