@@ -175,25 +175,27 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
           </div>
         </section>
 
-        <section className={styles.patternCard}>
-          <header className={styles.patternCardHead}>
-            <span className={styles.patternCardTitle}>
-              {t.cluster.pattern.title(cluster.prs.length)}
-            </span>
-            <span className={styles.patternCardSub}>
-              {t.cluster.pattern.example(cluster.pattern.sourceLabel)}
-            </span>
-          </header>
-          <div className={styles.code}>
-            {cluster.pattern.lines.map((line, i) => (
-              <div key={i} className={`${styles.line} ${lineKindClass[line.kind]}`}>
-                <span className={styles.lineNum}>{line.lineNumber ?? ''}</span>
-                <span className={styles.lineSign}>{signFor(line.kind)}</span>
-                <span className={styles.lineText}>{line.text}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+        {cluster.pattern.lines.length > 0 && (
+          <section className={styles.patternCard}>
+            <header className={styles.patternCardHead}>
+              <span className={styles.patternCardTitle}>
+                {t.cluster.pattern.title(cluster.prs.length)}
+              </span>
+              <span className={styles.patternCardSub}>
+                {t.cluster.pattern.example(cluster.pattern.sourceLabel)}
+              </span>
+            </header>
+            <div className={styles.code}>
+              {cluster.pattern.lines.map((line, i) => (
+                <div key={i} className={`${styles.line} ${lineKindClass[line.kind]}`}>
+                  <span className={styles.lineNum}>{line.lineNumber ?? ''}</span>
+                  <span className={styles.lineSign}>{signFor(line.kind)}</span>
+                  <span className={styles.lineText}>{line.text}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className={styles.diffCard}>
           <h2 className={styles.diffCardTitle}>{t.cluster.diff.title}</h2>

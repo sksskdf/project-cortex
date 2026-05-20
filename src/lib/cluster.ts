@@ -6,7 +6,9 @@ import {
   clusterIndividualReviewNumber,
   type ClusterDescriptionSegment,
   type ClusterDiffRowFixture,
+  type ClusterFixture,
 } from '@/fixtures/cluster';
+import { derivePattern, deriveIndividualReviewNumber } from '@/lib/cluster-pattern';
 import { formatRelativeAge, gaugeTierFromConfidence } from '@/lib/format';
 import type { GaugeTier } from '@/lib/types';
 
@@ -71,9 +73,6 @@ export async function getClusterDetail(viewId: string): Promise<ClusterDetailVie
   const cluster = db.select().from(clusters).where(eq(clusters.id, dbId)).get();
   if (!cluster) return null;
 
-  const fixture = clusterFixtures[cluster.pattern];
-  if (!fixture) return null;
-
   const prRows = db
     .select({
       pr: prs,
@@ -87,13 +86,24 @@ export async function getClusterDetail(viewId: string): Promise<ClusterDetailVie
     .orderBy(asc(prs.number))
     .all();
 
+  // fixture 가 있는 패턴(시드의 i18n-labels)은 fixture 우선.
+  // 없으면 PR · preReview 행에서 derive (Phase 6.3).
+  const seedFixture: ClusterFixture | null = clusterFixtures[cluster.pattern] ?? null;
+  const derivedFixture: ClusterFixture | null = seedFixture
+    ? null
+    : derivePattern(prRows.map((r) => ({ pr: r.pr, preReview: r.preReview })));
+  const fixture = seedFixture ?? derivedFixture;
+  if (!fixture) return null;
+
   const totals = db
     .select({ added: sum(prs.linesAdded), files: sum(prs.filesChanged) })
     .from(prs)
     .where(eq(prs.clusterId, dbId))
     .get();
 
-  const individualNumber = clusterIndividualReviewNumber[cluster.pattern] ?? 0;
+  const individualNumber =
+    clusterIndividualReviewNumber[cluster.pattern] ??
+    deriveIndividualReviewNumber(prRows.map((r) => ({ pr: r.pr, preReview: r.preReview })));
   const firstPrNumber = prRows.length > 0 ? prRows[0].pr.number : null;
   const items: ClusterPRItem[] = prRows.map((row) => {
     const confidence = row.preReview?.confidence ?? 0;

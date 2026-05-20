@@ -149,6 +149,31 @@ export const ko = {
     backToInbox: '인박스로 돌아가기',
     chip: '클러스터',
     detectedAgo: (text: string) => `${text} 자동 묶음`,
+    description: {
+      prefix: (count: number) => `${count}개 PR이 `,
+      suffix: (totalPaths: number) =>
+        totalPaths > 1
+          ? ` 외 ${totalPaths - 1}개 파일을 공통으로 수정합니다.`
+          : ' 를 공통으로 수정합니다.',
+      noCommonPath: (count: number) =>
+        `${count}개 PR이 같은 작성자의 유사 변경입니다 — 파일 경로는 분기되어 있어요.`,
+    },
+    derived: {
+      majorityTitle: (count: number) => `${count}개 PR — 동일 패턴`,
+      outlierTitle: (count: number) =>
+        count > 1 ? `${count}개 PR — 다른 패턴` : '단독 PR — 다른 패턴',
+      detailCommonPath: (count: number, path: string, totalPaths: number) =>
+        totalPaths > 1
+          ? `${count}개 PR 모두 ${path} 외 ${totalPaths - 1}개 파일을 공통으로 변경합니다.`
+          : `${count}개 PR 모두 ${path} 를 변경합니다.`,
+      detailNoCommonPath: (count: number) => `${count}개 PR이 분기된 경로를 변경합니다.`,
+      flagIdentical: '동일 패턴',
+      flagOther: '다른 패턴',
+      noteOutlierHighlight: (number: number) => `#${number}는 다른 패턴입니다.`,
+      noteOutlierRest: '일괄 머지 전에 해당 PR 의 차이를 한 번 더 확인하세요.',
+      noteUniformHighlight: (total: number) => `${total}개 PR 이 동일 패턴입니다.`,
+      noteUniformRest: '플래그가 일치하므로 일괄 머지 후보로 안전합니다.',
+    },
     prList: {
       ariaLabel: '클러스터 PR 목록',
       title: (count: number) => `묶인 PR · ${count}건`,
