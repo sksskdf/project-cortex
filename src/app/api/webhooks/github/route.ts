@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
+import { events } from '@/lib/events';
 import { handlePullRequestWebhook } from '@/lib/sync';
 import { mapPullRequestEvent, type GithubPullRequestEventPartial } from '@/lib/webhook-payload';
 import { verifyGithubSignature } from '@/lib/webhook-verify';
@@ -35,6 +36,10 @@ export async function POST(req: Request) {
 
   try {
     const result = await handlePullRequestWebhook(payload);
+    // 성공한 insert/update 만 push — skip 은 무의미한 새로고침이라 emit X.
+    if (result.kind === 'inserted' || result.kind === 'updated') {
+      events.emit('sync', { type: 'sync', prId: result.prId, kind: result.kind });
+    }
     return NextResponse.json({ ok: true, result });
   } catch (err) {
     // 사용자 노출 X — 로그만. 5xx로 응답하면 GitHub가 재시도 → 멱등성 의존.
