@@ -149,6 +149,30 @@ export const ko = {
       },
     },
   },
+  clustersIndex: {
+    title: '클러스터',
+    subtitle: '같은 작성자 · 같은 패턴 PR 을 묶어 한 번에 결정합니다.',
+    section: {
+      active: '활성 클러스터',
+      closed: '닫힘 — 머지 · 해체',
+    },
+    empty: {
+      active: '아직 활성 클러스터가 없습니다.',
+      closed: '닫힌 클러스터가 없습니다.',
+    },
+    statusLabel: {
+      open: '열림',
+      'partially-merged': '일부 머지',
+      merged: '전체 머지',
+      dissolved: '해체',
+    },
+    card: {
+      meta: (count: number, author: string, repo: string) => `PR ${count}건 · ${author} · ${repo}`,
+      score: '평균 신뢰',
+      detectedAgo: (text: string) => `${text} 자동 묶음`,
+      closedAgo: (text: string) => `${text} 닫힘`,
+    },
+  },
   cluster: {
     backToInbox: '인박스로 돌아가기',
     chip: '클러스터',
