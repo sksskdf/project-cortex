@@ -14,9 +14,11 @@ type Props = {
   viewId: string;
   canMerge: boolean;
   isMerged: boolean;
+  // 서버에서 받은 영속 상태 — head 브랜치가 이미 삭제된 경우 버튼 비활성화.
+  branchDeleted: boolean;
 };
 
-export function PRActions({ viewId, canMerge, isMerged }: Props) {
+export function PRActions({ viewId, canMerge, isMerged, branchDeleted }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
   const [branchState, setBranchState] = useState<PRBranchDeleteState>({ kind: 'idle' });
@@ -67,11 +69,16 @@ export function PRActions({ viewId, canMerge, isMerged }: Props) {
           type="button"
           className="ds-btn ds-btn--md ds-btn--outlined-basic"
           onClick={runDeleteBranch}
-          disabled={pending || branchState.kind === 'deleted'}
+          disabled={branchDeleted || pending || branchState.kind === 'deleted'}
           aria-busy={pending}
+          aria-disabled={branchDeleted}
         >
           <span className="ds-btn__label">
-            {pending ? t.pr.actionBar.deletingBranch : t.pr.actionBar.deleteBranch}
+            {branchDeleted
+              ? t.pr.actionBar.branchAlreadyDeleted
+              : pending
+                ? t.pr.actionBar.deletingBranch
+                : t.pr.actionBar.deleteBranch}
           </span>
         </button>
       ) : (

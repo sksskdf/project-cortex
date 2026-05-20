@@ -1,0 +1,1 @@
+ALTER TABLE `prs` ADD `branch_deleted_at` integer;

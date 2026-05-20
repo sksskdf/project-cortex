@@ -27,6 +27,8 @@ export type PRDetailView = {
   source: 'analyzed' | 'fixture';
   // PR 상세의 액션 버튼 (머지 / 브랜치 삭제) 노출 조건 결정용.
   isMerged: boolean;
+  // head 브랜치가 이미 삭제됐는지 — PR 상세의 '브랜치 삭제' 버튼 비활성화에 사용.
+  branchDeleted: boolean;
   // GitHub PR description. null 이면 본문 없음 — UI 가 섹션 자체를 숨김.
   body: string | null;
 };
@@ -288,6 +290,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       },
       source: 'analyzed',
       isMerged: row.pr.status === 'merged',
+      branchDeleted: row.pr.branchDeletedAt !== null,
       body: row.pr.body,
     };
   }
@@ -304,6 +307,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     },
     source: 'fixture',
     isMerged: row.pr.status === 'merged',
+    branchDeleted: row.pr.branchDeletedAt !== null,
     body: row.pr.body,
   };
 }

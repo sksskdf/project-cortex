@@ -2,10 +2,10 @@
 // 3건 이상 매칭되면 자동으로 클러스터를 생성/조인한다.
 // 임베딩 기반 의미 유사도는 Phase 6 후속.
 
-import { and, eq, gte, inArray, ne, isNull } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, projects, prs } from '@/db/schema';
-import { mergePR } from './github';
+import { deletePRHeadBranch, mergePR } from './github';
 
 // 클러스터링에서 제외해야 하는 차단 플래그 — DOMAIN §4 와 동일.
 // payment-domain 등 강한 위험이 있는 PR 은 개별 검토.
@@ -162,12 +162,18 @@ export function dissolveCluster(clusterId: number): { released: number } {
 
 // 일괄 머지 결과 — 사람이 cluster 화면에서 "전체 머지" 버튼 눌렀을 때.
 // PR 별 결과를 details 에 모아 UI 가 부분 실패도 명확히 보여줄 수 있게 한다.
+// branches 는 머지 성공 PR 들에 대한 head 브랜치 삭제 결과 — fork/cross-repo 는 skip.
 export type ClusterMergeResult = {
   merged: number;
   failed: number;
   skipped: number;
   total: number;
   details: ReadonlyArray<ClusterMergePRResult>;
+  branches: {
+    deleted: number;
+    skipped: number;
+    failed: number;
+  };
 };
 
 export type ClusterMergePRResult =
@@ -253,5 +259,32 @@ export async function mergeCluster(clusterId: number): Promise<ClusterMergeResul
     db.update(clusters).set({ status: 'partially-merged' }).where(eq(clusters.id, clusterId)).run();
   }
 
-  return { merged, failed, skipped, total, details };
+  // 머지 성공한 PR 의 head 브랜치 일괄 삭제. fork/cross-repo skip.
+  // 성공 시 prs.branchDeletedAt 기록 — PR 상세 재방문 시 버튼 disable 일관성.
+  const branches = { deleted: 0, skipped: 0, failed: 0 };
+  const mergedRows = details.filter(
+    (d): d is Extract<ClusterMergePRResult, { kind: 'merged' }> => d.kind === 'merged',
+  );
+  for (const m of mergedRows) {
+    const row = rows.find((r) => r.pr.id === m.prId);
+    if (!row || row.project.installationId === null) {
+      branches.skipped++;
+      continue;
+    }
+    const [owner, repo] = row.project.slug.split('/');
+    try {
+      const r = await deletePRHeadBranch(row.project.installationId, { owner, repo }, m.number);
+      if (r.kind === 'deleted') {
+        db.update(prs).set({ branchDeletedAt: new Date() }).where(eq(prs.id, m.prId)).run();
+        branches.deleted++;
+      } else {
+        branches.skipped++;
+      }
+    } catch (err) {
+      console.error(`deletePRHeadBranch failed for PR ${m.prId}:`, err);
+      branches.failed++;
+    }
+  }
+
+  return { merged, failed, skipped, total, details, branches };
 }

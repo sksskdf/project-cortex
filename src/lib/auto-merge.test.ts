@@ -262,6 +262,23 @@ describe('deleteMergedBranch', () => {
       repo: 'web',
       ref: 'heads/feat/x',
     });
+    // branchDeletedAt 영속 기록 — 재방문 시 버튼 disable 에 사용.
+    const after = db.select().from(prs).where(eq(prs.id, prId)).get();
+    expect(after?.branchDeletedAt).not.toBeNull();
+  });
+
+  it('이미 삭제된 브랜치 — already-deleted 로 skip (멱등)', async () => {
+    const pullsGet = vi.fn();
+    const deleteRef = vi.fn();
+    setOctokit(mockOctokitForBranch({ pullsGet, deleteRef }));
+    const prId = setupPR({ status: 'merged', slug: 'acme/web' });
+    // 이미 삭제된 상태로 표시.
+    db.update(prs).set({ branchDeletedAt: new Date() }).where(eq(prs.id, prId)).run();
+
+    const r = await deleteMergedBranch(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'already-deleted' });
+    expect(pullsGet).not.toHaveBeenCalled();
+    expect(deleteRef).not.toHaveBeenCalled();
   });
 
   it('fork / 다른 레포의 head 는 fork-or-cross-repo 로 skip', async () => {

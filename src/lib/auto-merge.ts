@@ -127,11 +127,18 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
 
 // 머지 후 head 브랜치 삭제 — UI 의 "브랜치 삭제" 버튼이 호출. PR.status='merged' 만 처리.
 // fork/cross-repo 인 경우 deletePRHeadBranch 가 skip 반환.
+// 성공 시 prs.branchDeletedAt 기록 — PR 상세 재방문 시 버튼이 비활성화되도록.
 export type DeletePRBranchResult =
   | { kind: 'deleted'; ref: string }
   | {
       kind: 'skipped';
-      reason: 'no-pr' | 'no-project' | 'no-installation' | 'not-merged' | 'fork-or-cross-repo';
+      reason:
+        | 'no-pr'
+        | 'no-project'
+        | 'no-installation'
+        | 'not-merged'
+        | 'fork-or-cross-repo'
+        | 'already-deleted';
     }
   | { kind: 'failed'; reason: string };
 
@@ -139,6 +146,8 @@ export async function deleteMergedBranch(prId: number): Promise<DeletePRBranchRe
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
   if (pr.status !== 'merged') return { kind: 'skipped', reason: 'not-merged' };
+  // 이미 삭제된 브랜치 — 멱등 skip. UI 가 버튼을 disable 한 채로 두기 위함.
+  if (pr.branchDeletedAt !== null) return { kind: 'skipped', reason: 'already-deleted' };
 
   const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
   if (!project) return { kind: 'skipped', reason: 'no-project' };
@@ -148,6 +157,8 @@ export async function deleteMergedBranch(prId: number): Promise<DeletePRBranchRe
   try {
     const result = await deletePRHeadBranch(project.installationId, { owner, repo }, pr.number);
     if (result.kind === 'skipped') return { kind: 'skipped', reason: result.reason };
+    // 성공 — branchDeletedAt 기록.
+    db.update(prs).set({ branchDeletedAt: new Date() }).where(eq(prs.id, prId)).run();
     return { kind: 'deleted', ref: result.ref };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

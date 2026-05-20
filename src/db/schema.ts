@@ -69,6 +69,9 @@ export const prs = sqliteTable('prs', {
     .notNull()
     .default('open'),
   clusterId: integer('cluster_id').references(() => clusters.id),
+  // head 브랜치가 머지 후 삭제된 시점. null 이면 미삭제. PR 상세의 '브랜치 삭제'
+  // 버튼이 두 번째 진입 시에도 비활성화될 수 있도록 영속 기록.
+  branchDeletedAt: integer('branch_deleted_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
