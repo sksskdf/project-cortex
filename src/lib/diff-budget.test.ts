@@ -48,9 +48,11 @@ describe('budgetDiff', () => {
       makeFile('src/real.ts', 3),
     ].join('\n');
     const r = budgetDiff(diff);
-    expect([...r.bodySkippedPaths].sort()).toEqual(
-      ['build/output.css', 'dist/bundle.js', 'src/generated/types.ts'],
-    );
+    expect([...r.bodySkippedPaths].sort()).toEqual([
+      'build/output.css',
+      'dist/bundle.js',
+      'src/generated/types.ts',
+    ]);
     expect(r.includedPaths).toEqual(['src/real.ts']);
   });
 
