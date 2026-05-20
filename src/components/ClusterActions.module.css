@@ -1,0 +1,28 @@
+.divider {
+  height: var(--ds-border-width-1);
+  background: var(--ds-color-line-02);
+  margin: var(--ds-spacing-12) 0;
+}
+
+.result {
+  margin-top: var(--ds-spacing-12);
+  padding: var(--ds-spacing-10) var(--ds-spacing-12);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+  line-height: var(--ds-typography-line-height-148);
+}
+
+.resultSuccess {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.resultPartial {
+  background: var(--ds-color-soft-yellow);
+  color: var(--ds-color-state-warning-text-dark);
+}
+
+.resultError {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}

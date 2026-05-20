@@ -1,16 +1,19 @@
+import type { Octokit } from '@octokit/rest';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects } from '@/db/schema';
 import {
   CLUSTER_WINDOW_MS,
   dissolveCluster,
   jaccardSimilarity,
+  mergeCluster,
   MIN_CLUSTER_SIZE,
   SIMILARITY_THRESHOLD,
   tryClusterPR,
 } from './clustering';
+import { setOctokit } from './github';
 
 describe('jaccardSimilarity', () => {
   it('returns 1 for identical sets', () => {
@@ -230,6 +233,121 @@ describe('tryClusterPR', () => {
 
     const r = await tryClusterPR(a);
     expect(r.kind).toBe('skipped');
+  });
+});
+
+function mockOctokit(merge?: Mock): Octokit {
+  return {
+    pulls: { get: vi.fn(), merge: merge ?? vi.fn() },
+  } as unknown as Octokit;
+}
+
+afterEach(() => {
+  setOctokit(null);
+});
+
+describe('mergeCluster', () => {
+  function setupCluster(installationId: number | null = 12345): {
+    clusterId: number;
+    prIds: number[];
+  } {
+    const project = db
+      .insert(projects)
+      .values({ slug: 'acme/web', name: 'Web', autoMergeEnabled: true, installationId })
+      .returning({ id: projects.id })
+      .get();
+    const cluster = db
+      .insert(clusters)
+      .values({ pattern: 'p', title: 't', avgConfidence: 90 })
+      .returning({ id: clusters.id })
+      .get();
+    const prIds = [1, 2, 3].map((n) =>
+      setupPR({
+        repoId: project.id,
+        paths: ['x.ts'],
+        number: n,
+        clusterId: cluster.id,
+      }),
+    );
+    return { clusterId: cluster.id, prIds };
+  }
+
+  it('머지 모두 성공 → 클러스터 status=merged', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'sha-x' } });
+    setOctokit(mockOctokit(mergeMock));
+    const { clusterId, prIds } = setupCluster();
+
+    const r = await mergeCluster(clusterId);
+
+    expect(r.merged).toBe(3);
+    expect(r.failed).toBe(0);
+    expect(r.skipped).toBe(0);
+    expect(r.total).toBe(3);
+    expect(mergeMock).toHaveBeenCalledTimes(3);
+    const merged = db.select().from(prs).where(eq(prs.clusterId, clusterId)).all();
+    expect(merged.every((p) => p.status === 'merged')).toBe(true);
+    expect(prIds.length).toBe(3);
+    const c = db.select().from(clusters).where(eq(clusters.id, clusterId)).get();
+    expect(c?.status).toBe('merged');
+    expect(c?.closedAt).not.toBeNull();
+  });
+
+  it('일부만 성공 → status=partially-merged', async () => {
+    const mergeMock = vi
+      .fn()
+      .mockResolvedValueOnce({ data: { merged: true, sha: 's1' } })
+      .mockRejectedValueOnce(new Error('conflict'))
+      .mockResolvedValueOnce({ data: { merged: true, sha: 's3' } });
+    setOctokit(mockOctokit(mergeMock));
+    const { clusterId } = setupCluster();
+
+    const r = await mergeCluster(clusterId);
+
+    expect(r.merged).toBe(2);
+    expect(r.failed).toBe(1);
+    const c = db.select().from(clusters).where(eq(clusters.id, clusterId)).get();
+    expect(c?.status).toBe('partially-merged');
+  });
+
+  it('GitHub 가 merged=false 반환 → 해당 PR failed', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: false, sha: '' } });
+    setOctokit(mockOctokit(mergeMock));
+    const { clusterId } = setupCluster();
+
+    const r = await mergeCluster(clusterId);
+
+    expect(r.merged).toBe(0);
+    expect(r.failed).toBe(3);
+    // 모두 실패 → 클러스터 status open 유지.
+    const c = db.select().from(clusters).where(eq(clusters.id, clusterId)).get();
+    expect(c?.status).toBe('open');
+  });
+
+  it('installationId 가 없는 프로젝트는 skip 처리', async () => {
+    setOctokit(mockOctokit());
+    const { clusterId } = setupCluster(null);
+
+    const r = await mergeCluster(clusterId);
+
+    expect(r.merged).toBe(0);
+    expect(r.skipped).toBe(3);
+    expect(r.details.every((d) => d.kind === 'skipped' && d.reason === 'no-installation')).toBe(
+      true,
+    );
+  });
+
+  it('이미 머지된 PR 은 already-merged 로 skip — 멱등', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'sha-y' } });
+    setOctokit(mockOctokit(mergeMock));
+    const { clusterId } = setupCluster();
+
+    await mergeCluster(clusterId);
+    // 2회차 — 이미 모두 merged.
+    const second = await mergeCluster(clusterId);
+
+    expect(second.merged).toBe(0);
+    expect(second.skipped).toBe(3);
+    expect(mergeMock).toHaveBeenCalledTimes(3); // 1회차에서만 호출.
   });
 });
 

@@ -476,12 +476,6 @@
   gap: var(--ds-spacing-8);
 }
 
-.actionDivider {
-  height: var(--ds-border-width-1);
-  background: var(--ds-color-line-02);
-  margin: var(--ds-spacing-12) 0;
-}
-
 .actionNote {
   margin-top: var(--ds-spacing-20);
   padding: var(--ds-spacing-12) var(--ds-spacing-14);

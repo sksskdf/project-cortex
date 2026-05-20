@@ -1,10 +1,11 @@
 // Phase 6.1 — 새 PR 이 들어오면 비슷한 최근 PR 과 자카드 유사도를 비교해
 // 3건 이상 매칭되면 자동으로 클러스터를 생성/조인한다.
-// 임베딩 기반 의미 유사도는 Phase 6.2 후속.
+// 임베딩 기반 의미 유사도는 Phase 6 후속.
 
 import { and, eq, gte, inArray, ne, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { clusters, preReviews, prs } from '@/db/schema';
+import { clusters, preReviews, projects, prs } from '@/db/schema';
+import { mergePR } from './github';
 
 // 클러스터링에서 제외해야 하는 차단 플래그 — DOMAIN §4 와 동일.
 // payment-domain 등 강한 위험이 있는 PR 은 개별 검토.
@@ -151,4 +152,100 @@ export function dissolveCluster(clusterId: number): { released: number } {
     .run();
 
   return { released: released.length };
+}
+
+// 일괄 머지 결과 — 사람이 cluster 화면에서 "전체 머지" 버튼 눌렀을 때.
+// PR 별 결과를 details 에 모아 UI 가 부분 실패도 명확히 보여줄 수 있게 한다.
+export type ClusterMergeResult = {
+  merged: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  details: ReadonlyArray<ClusterMergePRResult>;
+};
+
+export type ClusterMergePRResult =
+  | { prId: number; number: number; kind: 'merged'; sha: string }
+  | { prId: number; number: number; kind: 'skipped'; reason: ClusterMergeSkipReason }
+  | { prId: number; number: number; kind: 'failed'; reason: string };
+
+export type ClusterMergeSkipReason =
+  | 'already-merged'
+  | 'pr-closed'
+  | 'no-installation'
+  | 'no-project';
+
+// PR 1건씩 GitHub 머지 호출 — 부분 실패를 허용하고 클러스터 status 를 결과에 맞게 갱신.
+// 전부 성공 → 'merged', 일부 성공 → 'partially-merged', 전부 실패 → 'open' 유지.
+export async function mergeCluster(clusterId: number): Promise<ClusterMergeResult> {
+  const rows = db
+    .select({ pr: prs, project: projects })
+    .from(prs)
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(eq(prs.clusterId, clusterId))
+    .all();
+
+  const details: ClusterMergePRResult[] = [];
+  for (const { pr, project } of rows) {
+    if (pr.status === 'merged') {
+      details.push({ prId: pr.id, number: pr.number, kind: 'skipped', reason: 'already-merged' });
+      continue;
+    }
+    if (pr.status === 'closed') {
+      details.push({ prId: pr.id, number: pr.number, kind: 'skipped', reason: 'pr-closed' });
+      continue;
+    }
+    if (project.installationId === null) {
+      details.push({
+        prId: pr.id,
+        number: pr.number,
+        kind: 'skipped',
+        reason: 'no-installation',
+      });
+      continue;
+    }
+
+    const [owner, repo] = project.slug.split('/');
+    try {
+      const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
+        method: 'squash',
+        commitTitle: pr.title,
+      });
+      if (!result.merged) {
+        details.push({
+          prId: pr.id,
+          number: pr.number,
+          kind: 'failed',
+          reason: 'GitHub 머지 거부 — merged=false 반환.',
+        });
+        continue;
+      }
+      db.update(prs)
+        .set({ status: 'merged', updatedAt: new Date() })
+        .where(eq(prs.id, pr.id))
+        .run();
+      details.push({ prId: pr.id, number: pr.number, kind: 'merged', sha: result.sha });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      details.push({ prId: pr.id, number: pr.number, kind: 'failed', reason: message });
+    }
+  }
+
+  const merged = details.filter((d) => d.kind === 'merged').length;
+  const failed = details.filter((d) => d.kind === 'failed').length;
+  const skipped = details.filter((d) => d.kind === 'skipped').length;
+  const total = details.length;
+
+  // 머지 결과에 따른 클러스터 status 갱신.
+  // total === 0 이면 클러스터에 PR 자체가 없는 비정상 — open 유지.
+  if (total > 0 && merged === total) {
+    db.update(clusters)
+      .set({ status: 'merged', closedAt: new Date() })
+      .where(eq(clusters.id, clusterId))
+      .run();
+  } else if (merged > 0) {
+    db.update(clusters).set({ status: 'partially-merged' }).where(eq(clusters.id, clusterId)).run();
+  }
+
+  return { merged, failed, skipped, total, details };
 }
