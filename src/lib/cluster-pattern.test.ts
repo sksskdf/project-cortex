@@ -46,6 +46,12 @@ function member(opts: MemberOpts): { pr: PRRecord; preReview: PreReviewRow } {
   return { pr, preReview };
 }
 
+// cluster.ts 의 leftJoin(preReviews) 는 분석 전 PR 에 대해 preReview=null 을 반환.
+// 그 멤버를 안전하게 다루는지 확인하기 위한 helper.
+function memberWithoutPreReview(number: number): { pr: PRRecord; preReview: null } {
+  return { pr: member({ number }).pr, preReview: null };
+}
+
 describe('derivePattern', () => {
   it('returns null for empty members', () => {
     expect(derivePattern([])).toBeNull();
@@ -128,6 +134,22 @@ describe('derivePattern', () => {
     const r = derivePattern([member({ number: 1 }), member({ number: 2 }), member({ number: 3 })])!;
     expect(r.decisionNote.highlight).toContain('3');
     expect(r.decisionNote.highlight).toContain('동일 패턴');
+  });
+
+  // leftJoin 이라 분석 전 PR 은 preReview=null. 그 케이스에서 throw 안 하고
+  // 빈 경로/플래그로 취급되는지 확인.
+  it('preReview 가 null 인 멤버를 안전하게 처리한다', () => {
+    const r = derivePattern([
+      member({ number: 1, paths: ['x.ts'] }),
+      member({ number: 2, paths: ['x.ts'] }),
+      memberWithoutPreReview(3),
+    ])!;
+    // intersect 가 null 멤버로 인해 비게 되므로 noCommonPath 분기.
+    expect(r.descriptionSegments[0].text).toContain('파일 경로는 분기');
+    // 그룹핑은 빈 flag-set 으로 합쳐져 단일 그룹.
+    expect(r.diffs).toHaveLength(1);
+    expect(r.diffs[0].prNumbers).toEqual([1, 2, 3]);
+    expect(r.patternLines).toEqual([]);
   });
 });
 
