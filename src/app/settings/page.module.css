@@ -1,0 +1,109 @@
+.page {
+  padding: var(--ds-spacing-32);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--ds-spacing-24);
+}
+
+.title {
+  font-size: var(--ds-typography-font-size-28);
+  font-weight: var(--ds-typography-font-weight-bold);
+  letter-spacing: var(--ds-typography-letter-spacing-tight);
+  line-height: var(--ds-typography-line-height-136);
+  color: var(--ds-color-text-03-high);
+  margin: 0;
+}
+
+.subtitle {
+  margin-top: var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-14);
+  color: var(--ds-color-text-02);
+}
+
+.card {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-20);
+  margin-bottom: var(--ds-spacing-16);
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ds-spacing-16);
+  margin-bottom: var(--ds-spacing-10);
+}
+
+.cardTitle {
+  font-size: var(--ds-typography-font-size-16);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.cardDesc {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  line-height: var(--ds-typography-line-height-148);
+}
+
+.cardImpact {
+  margin-top: var(--ds-spacing-12);
+  padding: var(--ds-spacing-10) var(--ds-spacing-14);
+  background: var(--ds-color-bg-01);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  line-height: var(--ds-typography-line-height-148);
+}
+
+.cardImpact ul {
+  margin: var(--ds-spacing-6) 0 0;
+  padding-left: var(--ds-spacing-20);
+}
+
+.cardImpact li {
+  margin-bottom: 2px;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+}
+
+.toggleLabel {
+  font-size: var(--ds-typography-font-size-13);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+  min-width: 60px;
+}
+
+.toggleLabelOn {
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.toggleLabelOff {
+  color: var(--ds-color-text-02);
+}
+
+.result {
+  margin-top: var(--ds-spacing-12);
+  padding: var(--ds-spacing-8) var(--ds-spacing-12);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.resultSuccess {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.resultError {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}

@@ -156,6 +156,15 @@ export const triageDecisions = sqliteTable('triage_decisions', {
   decidedAt: integer('decided_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
+// 전역 단일 row 설정. id=1 강제. 새 설정은 컬럼 추가로 확장.
+// 운영 토글 (예: AI 분석 on/off) 을 UI 에서 즉시 반영하기 위함.
+export const appSettings = sqliteTable('app_settings', {
+  id: integer('id').primaryKey(),
+  // false 면 analyzePR · tryClusterPR · 자동 머지가 모두 skip — Anthropic 호출 0.
+  aiEnabled: integer('ai_enabled', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type IssueRow = typeof issues.$inferSelect;
 export type AgentRunRow = typeof agentRuns.$inferSelect;
@@ -163,3 +172,4 @@ export type PRRecord = typeof prs.$inferSelect;
 export type PreReviewRow = typeof preReviews.$inferSelect;
 export type TriageDecisionRow = typeof triageDecisions.$inferSelect;
 export type ClusterRow = typeof clusters.$inferSelect;
+export type AppSettingsRow = typeof appSettings.$inferSelect;

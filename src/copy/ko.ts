@@ -159,6 +159,33 @@ export const ko = {
       },
     },
   },
+  settings: {
+    title: '설정',
+    subtitle: '단일 사용자 모드. 토글은 즉시 반영됩니다.',
+    ai: {
+      title: 'AI 사전 리뷰',
+      ariaLabel: 'AI 분석 토글',
+      desc: 'Cortex 가 webhook 으로 들어오는 PR 을 Anthropic 으로 분석할지 여부. 끄면 Anthropic 크레딧 사용이 0 입니다.',
+      on: 'ON',
+      off: 'OFF',
+      statusOn: '활성',
+      statusOff: '비활성',
+      impactTitle: '비활성 시 동작',
+      impact: {
+        analyze:
+          'Anthropic 호출 0 — 신규 PR 의 신뢰 점수 · 위험 플래그 · hunk 어노테이션이 채워지지 않음.',
+        cluster: '자동 클러스터링 안 됨 (changedPaths 없어 자카드 계산 불가).',
+        autoMerge:
+          '자동 머지 안 됨 (preReview 없음). 단 현재 testsPassed 미연동이라 어차피 자동 머지는 비활성 상태.',
+        humanFlow: 'PR 은 review-needed 로 인박스에 등장 — 사용자가 직접 머지 · 브랜치 삭제 가능.',
+      },
+      result: {
+        enabled: 'AI 분석을 활성화했습니다.',
+        disabled: 'AI 분석을 비활성화했습니다 — 다음 webhook 부터 Anthropic 호출 0.',
+        error: (message: string) => `설정 변경 실패: ${message}`,
+      },
+    },
+  },
   clustersIndex: {
     title: '클러스터',
     subtitle: '같은 작성자 · 같은 패턴 PR 을 묶어 한 번에 결정합니다.',
