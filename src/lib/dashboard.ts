@@ -1,7 +1,7 @@
-import { and, avg, count, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
+import { and, avg, count, desc, eq, gte, inArray, isNull, lt } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { agentRuns, clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { clusterNotes, statDeltas } from '@/fixtures/dashboard';
+import { clusterNotes } from '@/fixtures/dashboard';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { orderInbox } from '@/lib/queue';
 import type { PR, ReasonTone, StatDelta } from '@/lib/types';
@@ -30,24 +30,74 @@ export type DashboardClusterSummary = {
   note: string;
 };
 
-const WEEK_AGO_SEC = () => Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_WEEK_MS = 7 * ONE_DAY_MS;
+const COMPARED_TO_LAST_WEEK = '지난 주 대비';
+
+// 두 정수 비교 → StatDelta 형태. 음수면 down, 0 이면 flat, 양수면 up.
+function diffToDelta(current: number, previous: number): StatDelta {
+  const amount = current - previous;
+  const direction: StatDelta['direction'] = amount > 0 ? 'up' : amount < 0 ? 'down' : 'flat';
+  return { amount: Math.abs(amount), direction, comparedTo: COMPARED_TO_LAST_WEEK };
+}
 
 export async function getDashboardStats(): Promise<DashboardStats> {
+  const now = Date.now();
+  const weekAgo = new Date(now - ONE_WEEK_MS);
+  const twoWeeksAgo = new Date(now - 2 * ONE_WEEK_MS);
+
   const pending = db
     .select({ n: count() })
     .from(prs)
     .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
     .get();
 
-  const mergedRecent = db
+  // pendingReview delta — 이번 7일 신규 review-needed vs 지난 7일.
+  const pendingThisWeek = db
     .select({ n: count() })
     .from(prs)
-    .where(and(eq(prs.status, 'merged'), gte(prs.updatedAt, new Date(WEEK_AGO_SEC() * 1000))))
+    .where(and(eq(prs.status, 'review-needed'), gte(prs.createdAt, weekAgo)))
+    .get();
+  const pendingLastWeek = db
+    .select({ n: count() })
+    .from(prs)
+    .where(
+      and(
+        eq(prs.status, 'review-needed'),
+        gte(prs.createdAt, twoWeeksAgo),
+        lt(prs.createdAt, weekAgo),
+      ),
+    )
     .get();
 
-  const avgConf = db
+  // autoMergedThisWeek — 이번 7일 merged 행. delta 는 이번 vs 지난 7일.
+  const mergedThisWeek = db
+    .select({ n: count() })
+    .from(prs)
+    .where(and(eq(prs.status, 'merged'), gte(prs.updatedAt, weekAgo)))
+    .get();
+  const mergedLastWeek = db
+    .select({ n: count() })
+    .from(prs)
+    .where(
+      and(eq(prs.status, 'merged'), gte(prs.updatedAt, twoWeeksAgo), lt(prs.updatedAt, weekAgo)),
+    )
+    .get();
+
+  // avgConfidence — 분석된 모든 PR 의 평균 (기존). delta 는 이번 7일 vs 지난 7일 분석분.
+  const avgConfAll = db
     .select({ a: avg(preReviews.confidence) })
     .from(preReviews)
+    .get();
+  const avgConfThisWeek = db
+    .select({ a: avg(preReviews.confidence) })
+    .from(preReviews)
+    .where(gte(preReviews.analyzedAt, weekAgo))
+    .get();
+  const avgConfLastWeek = db
+    .select({ a: avg(preReviews.confidence) })
+    .from(preReviews)
+    .where(and(gte(preReviews.analyzedAt, twoWeeksAgo), lt(preReviews.analyzedAt, weekAgo)))
     .get();
 
   // 진행 중 에이전트 = agent_runs.status in ('queued', 'running').
@@ -59,12 +109,21 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .get();
 
   return {
-    pendingReview: { value: pending?.n ?? 0, delta: statDeltas.pendingReview },
-    autoMergedThisWeek: { value: mergedRecent?.n ?? 0, delta: statDeltas.autoMerged },
+    pendingReview: {
+      value: pending?.n ?? 0,
+      delta: diffToDelta(pendingThisWeek?.n ?? 0, pendingLastWeek?.n ?? 0),
+    },
+    autoMergedThisWeek: {
+      value: mergedThisWeek?.n ?? 0,
+      delta: diffToDelta(mergedThisWeek?.n ?? 0, mergedLastWeek?.n ?? 0),
+    },
     agentsRunning: { value: agentsRunning?.n ?? 0 },
     avgConfidence: {
-      value: Math.round(Number(avgConf?.a ?? 0)),
-      delta: statDeltas.avgConfidence,
+      value: Math.round(Number(avgConfAll?.a ?? 0)),
+      delta: diffToDelta(
+        Math.round(Number(avgConfThisWeek?.a ?? 0)),
+        Math.round(Number(avgConfLastWeek?.a ?? 0)),
+      ),
     },
   };
 }
