@@ -1,0 +1,1 @@
+ALTER TABLE `pre_reviews` ADD `parsed_files` text DEFAULT '[]' NOT NULL;

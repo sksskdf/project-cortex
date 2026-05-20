@@ -9,6 +9,7 @@ import { preReviews, prs, projects } from '@/db/schema';
 import type { PreReviewRow } from '@/db/schema';
 import { getAnthropic, PRE_REVIEW_MODEL } from './anthropic';
 import { confidenceTier } from './confidence';
+import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
 import { getPRDiff } from './github';
 import {
   buildPreReviewUserPrompt,
@@ -127,6 +128,10 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   // LLM flags + 휴리스틱 union (중복 제거).
   const combinedFlags = Array.from(new Set<RiskFlag>([...parsed.flags, ...heuristicFlags]));
 
+  // diff 텍스트를 FileBlock[] 으로 파싱하고 LLM 코멘트를 hunk 에 부착.
+  // PR 상세 화면이 이 캐시를 그대로 렌더 — getPRDiff 재호출 없음.
+  const parsedFiles = attachCommentsToFiles(parseUnifiedDiff(diff), parsed.comments);
+
   const row = db
     .insert(preReviews)
     .values({
@@ -136,6 +141,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
       confidenceTier: confidenceTier(parsed.confidence),
       flags: combinedFlags,
       changedPaths,
+      parsedFiles,
       hunkAnnotations: parsed.hunkAnnotations,
       summary: parsed.summary,
       comments: parsed.comments,

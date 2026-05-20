@@ -128,8 +128,14 @@ function buildTree(preReview: PreReviewRow): {
     }
   }
 
+  // parsedFiles 에서 파일별 additions/deletions 빠르게 조회.
+  const statsByPath = new Map(
+    preReview.parsedFiles.map((f) => [f.path, { additions: f.additions, deletions: f.deletions }]),
+  );
+
   function toTreeFile(path: string): TreeFile {
-    return { path, status: 'ok', additions: 0, deletions: 0 };
+    const s = statsByPath.get(path);
+    return { path, status: 'ok', additions: s?.additions ?? 0, deletions: s?.deletions ?? 0 };
   }
 
   const groups: TreeGroup[] = [];
@@ -149,9 +155,14 @@ function buildTree(preReview: PreReviewRow): {
   return { tree: groups, totalHunks, autoApprovableHunks };
 }
 
-// 인라인 코멘트를 파일별 expanded FileBlock 으로 변환.
-// 실 diff hunk 가 없으므로 단일 라인 컨텍스트만 표시 — Phase 4.4b 에서 diff 파싱 들어오면 정교화.
+// preReview.parsedFiles 가 비어있지 않으면 (analyzePR 이 diff 파싱 + 코멘트 부착해서 저장)
+// 그대로 사용. 비어있으면 (legacy preReview 또는 diff 파싱 실패) 코멘트만으로 최소 렌더.
 function buildFiles(preReview: PreReviewRow): ReadonlyArray<FileBlock> {
+  if (preReview.parsedFiles.length > 0) {
+    return preReview.parsedFiles;
+  }
+
+  // 폴백 — parsedFiles 가 없는 옛날 preReview 행 대응.
   const commentsByPath = new Map<string, typeof preReview.comments>();
   for (const c of preReview.comments ?? []) {
     const list = commentsByPath.get(c.path) ?? [];
@@ -190,7 +201,7 @@ function buildFiles(preReview: PreReviewRow): ReadonlyArray<FileBlock> {
         lines: [
           {
             lineNumber: c.line,
-            text: '(diff 미연동 — Phase 4.4b 에서 hunk 컨텍스트 추가 예정)',
+            text: '(diff 미연동 — parsedFiles 비어있음)',
             kind: 'ctx' as const,
           },
         ],

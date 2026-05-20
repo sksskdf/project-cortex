@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { FileBlock } from '@/lib/types';
 
 const now = sql`(unixepoch())`;
 
@@ -116,6 +117,12 @@ export const preReviews = sqliteTable(
     // 클러스터링 유사도 계산용 — analyzePR 이 diff 에서 추출해 저장.
     changedPaths: text('changed_paths', { mode: 'json' })
       .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
+    // PR 상세 화면이 실 hunk 를 렌더하도록 파싱된 diff 를 캐시.
+    // analyzePR 이 getPRDiff 결과를 parseUnifiedDiff 로 변환해 저장. 빈 배열이면 분석 안 됨.
+    parsedFiles: text('parsed_files', { mode: 'json' })
+      .$type<FileBlock[]>()
       .notNull()
       .default(sql`'[]'`),
     hunkAnnotations: text('hunk_annotations', { mode: 'json' }).$type<PreReviewHunkAnnotation[]>(),
