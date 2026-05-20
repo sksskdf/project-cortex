@@ -109,8 +109,12 @@ export const ko = {
       subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',
       ariaLabel: 'AI 사전 리뷰',
     },
-    fixtureBanner: '이 PR 은 아직 분석되지 않았습니다.',
-    seedBanner: '시드 데이터 — GitHub installation 이 없어 샘플 화면을 표시합니다.',
+    fixtureBanner: '이 PR 은 아직 분석되지 않았습니다',
+    fixtureBannerDesc:
+      'GitHub 에서 가져온 diff 를 표시하고 있어요. AI 분석을 요청하면 신뢰 점수·위험 플래그가 채워집니다.',
+    seedBanner: '시드 데이터 화면',
+    seedBannerDesc:
+      'GitHub installation 이 없어 샘플 화면을 표시합니다. 실 PR 은 분석되거나 GitHub diff 가 표시됩니다.',
     analyze: {
       request: 'AI 분석 요청',
       pending: '분석 중…',

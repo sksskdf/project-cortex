@@ -288,15 +288,52 @@
   margin-bottom: var(--ds-spacing-20);
 }
 
-/* fixture 데이터 표시 중임을 알리는 노란 배너. preReview 들어오면 사라짐. */
+/* 시드/미분석 배너 — 단일 텍스트라 안내 카드로 격상. 아이콘 + 안내 + CTA */
 .fixtureBanner {
-  padding: var(--ds-spacing-10) var(--ds-spacing-14);
-  background: var(--ds-color-state-warn-soft);
-  color: var(--ds-color-state-warn-strong);
-  border: var(--ds-border-width-1) solid var(--ds-color-state-warn-strong);
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-12);
+  padding: var(--ds-spacing-12) var(--ds-spacing-16);
+  background: var(--ds-color-bg-04-primary);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
   border-radius: var(--ds-border-radius-card);
   margin-bottom: var(--ds-spacing-14);
-  font-size: var(--ds-typography-font-size-13);
+}
+
+.fixtureBannerIcon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--ds-color-soft-blue);
+  color: var(--ds-color-secondary-01);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fixtureBannerIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fixtureBannerBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fixtureBannerTitle {
+  font-size: var(--ds-typography-font-size-14);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.fixtureBannerDesc {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
 }
 
 /* GitHub PR description (body) 섹션 — 사전 리뷰 카드 위쪽에 배치. */
