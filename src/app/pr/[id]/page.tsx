@@ -274,13 +274,29 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
           <div className={styles.actionBarRight}>
-            <button type="button" className="ds-btn ds-btn--md ds-btn--outlined-red">
+            {/* 변경 요청 · hunk 선택 머지 · 전체 머지 wire-up 은 Server Action 별도 PR. */}
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--outlined-red"
+              disabled
+              aria-disabled="true"
+            >
               <span className="ds-btn__label">{t.pr.actionBar.requestChanges}</span>
             </button>
-            <button type="button" className="ds-btn ds-btn--md ds-btn--outlined-basic">
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--outlined-basic"
+              disabled
+              aria-disabled="true"
+            >
               <span className="ds-btn__label">{t.pr.actionBar.autoApprove}</span>
             </button>
-            <button type="button" className="ds-btn ds-btn--md ds-btn--filled-blue">
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--filled-blue"
+              disabled
+              aria-disabled="true"
+            >
               <span className="ds-btn__label">{t.pr.actionBar.mergeAll}</span>
             </button>
           </div>

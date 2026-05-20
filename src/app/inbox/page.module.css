@@ -78,6 +78,16 @@
   color: var(--ds-color-secondary-01);
 }
 
+.railItemDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.railItemDisabled:hover {
+  background: transparent;
+  color: var(--ds-color-text-02);
+}
+
 .projectDot {
   width: 6px;
   height: 6px;

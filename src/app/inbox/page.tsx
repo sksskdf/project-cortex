@@ -162,16 +162,20 @@ export default async function InboxPage() {
           {t.inbox.rail.projectTitle}
         </div>
         <ul className={styles.railList}>
+          {/* /projects/[id] 라우트는 Phase 8 onboarding 진입 시 활성. 그전엔 클릭 비활성. */}
           {inboxProjects.map((project) => (
             <li key={project.id}>
-              <Link href={`/projects/${project.id}`} className={styles.railItem}>
+              <span
+                className={`${styles.railItem} ${styles.railItemDisabled}`}
+                aria-disabled="true"
+              >
                 <span
                   className={`${styles.projectDot} ${projectDotClass[project.dot]}`}
                   aria-hidden="true"
                 />
                 <span className={styles.railLabel}>{project.name}</span>
                 <span className={styles.railCount}>{project.count}</span>
-              </Link>
+              </span>
             </li>
           ))}
         </ul>
