@@ -1,6 +1,6 @@
 import { asc, eq, sum } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { clusters, preReviews, prs, projects } from '@/db/schema';
+import { clusters, preReviews, prs, projects, type ClusterRow } from '@/db/schema';
 import {
   clusterFixtures,
   clusterIndividualReviewNumber,
@@ -26,6 +26,8 @@ export type ClusterPRItem = {
 export type ClusterDetailView = {
   id: string;
   title: string;
+  // 클러스터 상태 — UI 의 머지/해제 버튼 disable 분기에 사용.
+  status: ClusterRow['status'];
   descriptionSegments: ReadonlyArray<ClusterDescriptionSegment>;
   detectedAgo: string;
   author: string;
@@ -128,6 +130,7 @@ export async function getClusterDetail(viewId: string): Promise<ClusterDetailVie
   return {
     id: viewId,
     title: cluster.title,
+    status: cluster.status,
     descriptionSegments: fixture.descriptionSegments,
     detectedAgo: formatRelativeAge(createdAtMs),
     author: mostCommon(prRows.map((r) => r.pr.authorId)) ?? '',

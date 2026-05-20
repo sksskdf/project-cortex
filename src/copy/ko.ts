@@ -226,8 +226,11 @@ export const ko = {
       testsAllPass: '전체 통과',
     },
     pattern: {
-      title: (count: number) => `공통 패턴 — ${count}개 PR 모두 같은 변경을 합니다`,
-      example: (sample: string) => `예시: ${sample}`,
+      // 클러스터링은 파일 셋 자카드 기준이라 같은 라인을 보장하지 않음.
+      // 라벨을 "대표 변경 — 1건의 hunk 발췌" 로 정직하게 표기.
+      title: (count: number) =>
+        count > 1 ? `대표 변경 — ${count}개 PR 중 1건의 hunk 발췌` : '대표 변경 — 1건의 hunk 발췌',
+      example: (sample: string) => `발췌: ${sample}`,
     },
     diff: {
       title: '각 PR의 차이점',
@@ -251,6 +254,7 @@ export const ko = {
         dissolved: (released: number) =>
           `클러스터를 해제했습니다 — PR ${released}건이 인박스로 돌아갔습니다.`,
         error: (message: string) => `처리 중 오류가 발생했습니다: ${message}`,
+        closed: '이미 닫힌 클러스터입니다 — 추가 머지/해제는 불가합니다.',
       },
     },
   },

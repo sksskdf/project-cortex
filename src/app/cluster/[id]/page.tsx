@@ -220,6 +220,7 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
             totalCount={cluster.prs.length}
             identicalCount={identicalCount}
             individualReviewNumber={cluster.individualReviewNumber}
+            status={cluster.status}
           />
         </div>
 
