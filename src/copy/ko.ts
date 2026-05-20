@@ -142,6 +142,11 @@ export const ko = {
       requestChanges: '변경 요청',
       autoApprove: '자동 승인 가능 항목만 머지',
       mergeAll: '전체 머지',
+      merging: '머지 중…',
+      result: {
+        merged: (shortSha: string) => `머지 완료 (${shortSha}).`,
+        error: (message: string) => `머지 실패: ${message}`,
+      },
     },
   },
   cluster: {

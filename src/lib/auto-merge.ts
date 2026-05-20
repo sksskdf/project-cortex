@@ -69,3 +69,58 @@ function revertToReviewNeeded(prId: number, reason: string): AutoMergeResult {
     .run();
   return { kind: 'failed', reason };
 }
+
+// 사용자가 PR 상세에서 "전체 머지" 를 직접 누른 흐름. attemptAutoMerge 와 달리
+// status · triage decision 검사를 우회 — 사람의 명시적 결정이 정책보다 우선.
+// merged · closed PR 만 skip. GitHub 머지 호출 + DB 반영 + triage decidedBy='human' 기록.
+export type HumanMergeResult =
+  | { kind: 'merged'; sha: string }
+  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' | 'already-closed' }
+  | { kind: 'failed'; reason: string };
+
+export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult> {
+  const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
+  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  if (pr.status === 'merged' || pr.status === 'closed') {
+    return { kind: 'skipped', reason: 'already-closed' };
+  }
+
+  const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
+  if (!project) return { kind: 'skipped', reason: 'no-project' };
+  if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
+
+  const [owner, repo] = project.slug.split('/');
+
+  try {
+    const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
+      method: 'squash',
+      commitTitle: pr.title,
+    });
+    if (!result.merged) {
+      return { kind: 'failed', reason: 'GitHub 머지 거부 — merged=false 반환.' };
+    }
+    db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
+    // 사람 결정 기록 — 자동 머지 정책과 구분되게 decidedBy='human'.
+    const existing = db
+      .select({ id: triageDecisions.id })
+      .from(triageDecisions)
+      .where(eq(triageDecisions.prId, prId))
+      .get();
+    const values = {
+      prId,
+      decision: 'auto-merge' as const,
+      reason: '사용자가 PR 상세에서 직접 머지.',
+      decidedBy: 'human' as const,
+      decidedAt: new Date(),
+    };
+    if (existing) {
+      db.update(triageDecisions).set(values).where(eq(triageDecisions.id, existing.id)).run();
+    } else {
+      db.insert(triageDecisions).values(values).run();
+    }
+    return { kind: 'merged', sha: result.sha };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'failed', reason: `GitHub 머지 실패: ${message}` };
+  }
+}
