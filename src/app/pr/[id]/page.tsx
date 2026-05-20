@@ -83,8 +83,11 @@ function PRGauge({ value, tier }: { value: number; tier: GaugeTier }) {
 }
 
 function TreeItem({ file }: { file: TreeFile }) {
+  // 같은 페이지 안 anchor 점프 — next/link 의 prefetch · client routing 불필요하고,
+  // file.path 가 src/app/cluster/[id]/page.tsx 처럼 `[...]` 를 포함하면 next/link 가
+  // 동적 라우트 패턴으로 오인하므로 native <a> 사용.
   return (
-    <Link
+    <a
       href={`#${file.path}`}
       className={`${styles.treeItem} ${file.active ? styles.treeItemActive : ''}`}
     >
@@ -93,7 +96,7 @@ function TreeItem({ file }: { file: TreeFile }) {
       </span>
       <span className={styles.treeItemName}>{file.path}</span>
       <span className={styles.treeItemDiff}>{t.pr.fileDiff(file.additions, file.deletions)}</span>
-    </Link>
+    </a>
   );
 }
 
