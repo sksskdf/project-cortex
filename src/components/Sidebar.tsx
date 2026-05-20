@@ -213,7 +213,7 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
   ];
 
   const utilityItems: ReadonlyArray<NavItem> = [
-    { href: '/settings', label: t.nav.settings, icon: settingsIcon, comingSoon: true },
+    { href: '/settings', label: t.nav.settings, icon: settingsIcon },
     { href: '/help', label: t.nav.help, icon: helpIcon, comingSoon: true },
   ];
 

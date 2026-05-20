@@ -13,6 +13,7 @@ import { budgetDiff } from './diff-budget';
 import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
 import { env } from './env';
 import { getPRDiff } from './github';
+import { getSettings } from './settings';
 import {
   buildPreReviewTriagePrompt,
   buildPreReviewUserPrompt,
@@ -62,9 +63,13 @@ function isSimpleByTriage(t: z.infer<typeof triageResultSchema>): boolean {
 export type AnalyzeResult =
   | { kind: 'cached'; row: PreReviewRow }
   | { kind: 'analyzed'; row: PreReviewRow }
-  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' };
+  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' | 'ai-disabled' };
 
 export async function analyzePR(prId: number): Promise<AnalyzeResult> {
+  // 안전망 — settings.aiEnabled=false 면 호출 자체 차단 (Anthropic 크레딧 0).
+  // 호출처가 sync.ts safeAnalyze 하나뿐이지만 미래의 호출 누락 대비.
+  if (!getSettings().aiEnabled) return { kind: 'skipped', reason: 'ai-disabled' };
+
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
 

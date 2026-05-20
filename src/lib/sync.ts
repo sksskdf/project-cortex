@@ -4,6 +4,7 @@ import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
 import { analyzePR } from './pre-review';
+import { getSettings } from './settings';
 import { runTriage } from './triage';
 
 // 외부 GitHub webhook 페이로드를 lib/github의 분류 결과로 정규화한 입력.
@@ -56,7 +57,9 @@ function shouldAnalyze(action: WebhookPRAction): boolean {
 // Anthropic 호출 실패가 sync 자체를 막지 않게 try/catch.
 // 실패 시 preReview 가 없으므로 runTriage 가 'no-pre-review' 로 skip — 안전한 폴백.
 // Phase 7 에서 백그라운드 큐로 분리되면 sync 응답 시간 안정화.
+// settings.aiEnabled=false 면 호출 자체를 건너뛰어 Anthropic 크레딧 사용 0.
 async function safeAnalyze(prId: number): Promise<void> {
+  if (!getSettings().aiEnabled) return;
   try {
     await analyzePR(prId);
   } catch (err) {
@@ -76,7 +79,9 @@ async function safeAutoMerge(prId: number): Promise<void> {
 
 // human-review 결정 PR 에 대해 클러스터링 시도. clusterId 가 부여되면 인박스에서
 // 사라지고 클러스터 화면에 묶임. 실패해도 sync 응답에 영향 없음.
+// AI off 면 preReview.changedPaths 가 없어 자카드 계산 무의미 — skip.
 async function safeTryCluster(prId: number): Promise<void> {
+  if (!getSettings().aiEnabled) return;
   try {
     await tryClusterPR(prId);
   } catch (err) {

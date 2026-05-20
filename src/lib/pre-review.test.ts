@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
-import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { appSettings, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { setAnthropic } from './anthropic';
 import { setOctokit } from './github';
 import { analyzePR, extractPaths } from './pre-review';
@@ -34,6 +34,7 @@ beforeEach(() => {
   db.delete(preReviews).run();
   db.delete(prs).run();
   db.delete(projects).run();
+  db.delete(appSettings).run();
 });
 
 afterEach(() => {
@@ -237,6 +238,17 @@ describe('analyzePR', () => {
     await analyzePR(prId);
     const row = db.select().from(preReviews).where(eq(preReviews.prId, prId)).get();
     expect(row?.confidenceTier).toBe('high');
+  });
+
+  it('settings.aiEnabled=false 면 ai-disabled 로 skip — Anthropic 호출 0', async () => {
+    db.insert(appSettings).values({ id: 1, aiEnabled: false }).run();
+    const createMock = vi.fn();
+    setAnthropic({ messages: { create: createMock } } as unknown as Anthropic);
+    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
+
+    const r = await analyzePR(setupPR({}));
+    expect(r).toEqual({ kind: 'skipped', reason: 'ai-disabled' });
+    expect(createMock).not.toHaveBeenCalled();
   });
 });
 
