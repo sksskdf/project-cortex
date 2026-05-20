@@ -9,7 +9,10 @@ import {
   type TreeFile,
   type TreeGroup,
 } from '@/fixtures/pr-detail';
+import { parseUnifiedDiff } from '@/lib/diff-parser';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { getPRDiff } from '@/lib/github';
+import { getSettings } from '@/lib/settings';
 import type { FileBlock, PR, ReasonTone } from '@/lib/types';
 
 export type PRDetailView = {
@@ -22,13 +25,22 @@ export type PRDetailView = {
     additions: number;
     deletions: number;
   };
-  // 실 데이터 출처 — preReview 있으면 'analyzed', 없으면 'fixture'.
-  // UI 가 "샘플 diff" 배너 등으로 활용.
-  source: 'analyzed' | 'fixture';
+  // 실 데이터 출처:
+  // - 'analyzed': preReview 존재 + diff 컬럼 채워짐 (정상 분석)
+  // - 'fetched': preReview 없지만 GitHub 에서 diff 직접 fetch (미분석 PR)
+  // - 'fixture': fetch 도 불가 (installationId 없음, 시드 PR 등) — 샘플 카드.
+  source: 'analyzed' | 'fetched' | 'fixture';
   // PR 상세의 액션 버튼 (머지 / 브랜치 삭제) 노출 조건 결정용.
   isMerged: boolean;
   // head 브랜치가 이미 삭제됐는지 — PR 상세의 '브랜치 삭제' 버튼 비활성화에 사용.
   branchDeleted: boolean;
+  // GitHub merge API 호출 가능 여부 — installationId 있고 머지/닫힘 아님.
+  // 시드 PR 은 false (installationId null). preReview 유무 무관.
+  canMerge: boolean;
+  // 사용자가 PR 상세에서 'AI 분석 요청' 버튼을 누를 수 있는지 — preReview 없고
+  // installation 있고 AI 토글 ON. AI off 면 false (UI 가 disable 표시).
+  canRequestAnalysis: boolean;
+  aiEnabled: boolean;
   // GitHub PR description. null 이면 본문 없음 — UI 가 섹션 자체를 숨김.
   body: string | null;
 };
@@ -237,6 +249,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       preReview: preReviews,
       triage: triageDecisions,
       repoSlug: projects.slug,
+      installationId: projects.installationId,
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
@@ -246,6 +259,13 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     .get();
 
   if (!row) return null;
+
+  const settings = getSettings();
+  const isMerged = row.pr.status === 'merged';
+  const isClosed = row.pr.status === 'closed';
+  // 머지 가능 = installation 있음 + 아직 안 닫힘. preReview 유무 무관.
+  // 시드 PR (installationId null) 만 차단. AI off 여도 사람 직접 머지는 허용.
+  const canMerge = row.installationId !== null && !isMerged && !isClosed;
 
   const confidence = row.preReview?.confidence ?? 0;
   const flags = row.preReview?.flags ?? [];
@@ -268,8 +288,16 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
   };
 
+  const common = {
+    isMerged,
+    branchDeleted: row.pr.branchDeletedAt !== null,
+    canMerge,
+    canRequestAnalysis: !row.preReview && row.installationId !== null && settings.aiEnabled,
+    aiEnabled: settings.aiEnabled,
+    body: row.pr.body,
+  } as const;
+
   // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.
-  // 시드처럼 preReview 만 있고 분석 결과가 비어있으면 fixture 분기로 흘려보냄.
   if (row.preReview && hasUsableDiffData(row.preReview)) {
     const { tree, totalHunks, autoApprovableHunks } = buildTree(row.preReview);
     const realFixture: PRDetailFixture = {
@@ -289,10 +317,40 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
         deletions: row.pr.linesRemoved,
       },
       source: 'analyzed',
-      isMerged: row.pr.status === 'merged',
-      branchDeleted: row.pr.branchDeletedAt !== null,
-      body: row.pr.body,
+      ...common,
     };
+  }
+
+  // 미분석 PR — installation 있으면 GitHub 에서 diff 직접 fetch 해 트리·diff 렌더.
+  // AI 호출 0 (단순 GitHub API). 실패하면 fixture 폴백.
+  if (row.installationId !== null) {
+    try {
+      const [owner, repo] = row.repoSlug.split('/');
+      const diffText = await getPRDiff(row.installationId, { owner, repo }, row.pr.number);
+      const files = parseUnifiedDiff(diffText);
+      const tree = buildTreeFromFiles(files);
+      const fetchedFixture: PRDetailFixture = {
+        aiSummary: notAnalyzedAiSummary(),
+        hunkSummary: { totalHunks: 0, autoApprovableHunks: 0 },
+        tree,
+        files,
+      };
+      return {
+        pr,
+        fixture: fetchedFixture,
+        hunkSummary: {
+          totalHunks: 0,
+          autoApprovableHunks: 0,
+          filesChanged: row.pr.filesChanged,
+          additions: row.pr.linesAdded,
+          deletions: row.pr.linesRemoved,
+        },
+        source: 'fetched',
+        ...common,
+      };
+    } catch (err) {
+      console.error(`getPRDiff failed for PR ${row.pr.id}, falling back to fixture:`, err);
+    }
   }
 
   return {
@@ -306,8 +364,32 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       deletions: row.pr.linesRemoved,
     },
     source: 'fixture',
-    isMerged: row.pr.status === 'merged',
-    branchDeleted: row.pr.branchDeletedAt !== null,
-    body: row.pr.body,
+    ...common,
   };
+}
+
+// 미분석 PR 의 placeholder aiSummary — Anthropic 호출 0.
+function notAnalyzedAiSummary(): PRDetailFixture['aiSummary'] {
+  return {
+    analyzedAgo: '분석 안 됨',
+    summarySegments: [{ text: '이 PR 은 아직 분석되지 않았습니다.' }],
+    checks: [
+      { key: 'tests', value: '미측정', tone: 'warn' },
+      { key: 'coverage', value: '미측정', tone: 'warn' },
+      { key: 'risk', value: '미측정', tone: 'warn' },
+    ],
+  };
+}
+
+// fetched 분기용 — hunkAnnotations 없이 file path 만으로 트리 구성.
+// 모든 파일을 autoApprovable 그룹에 넣음 (분석 안 됐으니 위험도 판정 X).
+function buildTreeFromFiles(files: ReadonlyArray<FileBlock>): ReadonlyArray<TreeGroup> {
+  if (files.length === 0) return [];
+  const treeFiles: TreeFile[] = files.map((f) => ({
+    path: f.path,
+    status: 'ok',
+    additions: f.additions,
+    deletions: f.deletions,
+  }));
+  return [{ groupKey: 'autoApprovable', files: treeFiles }];
 }

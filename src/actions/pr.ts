@@ -11,6 +11,7 @@ import {
   type DeletePRBranchResult,
   type HumanMergeResult,
 } from '@/lib/auto-merge';
+import { analyzePR } from '@/lib/pre-review';
 
 export type PRMergeActionState =
   | { kind: 'idle' }
@@ -106,5 +107,44 @@ function mapDeleteSkipReason(
       return 'fork 또는 다른 레포의 브랜치라 Cortex 가 삭제할 수 없습니다.';
     case 'already-deleted':
       return '이미 삭제된 브랜치입니다.';
+  }
+}
+
+// 사용자가 PR 상세에서 "AI 분석 요청" 버튼을 누른 흐름. AI 토글 ON 인지
+// analyzePR 안에서 다시 확인하므로 race 안전. preReview 없는 PR 만 의미 있음.
+export type PRAnalyzeState =
+  | { kind: 'idle' }
+  | { kind: 'analyzed' }
+  | { kind: 'skipped'; message: string }
+  | { kind: 'error'; message: string };
+
+export async function requestAnalysisAction(viewId: string): Promise<PRAnalyzeState> {
+  const dbId = parsePrId(viewId);
+  if (dbId === null) return { kind: 'error', message: '잘못된 PR ID 입니다.' };
+
+  try {
+    const result = await analyzePR(dbId);
+    revalidatePath(`/pr/${viewId}`);
+    revalidatePath('/inbox');
+    if (result.kind === 'analyzed' || result.kind === 'cached') return { kind: 'analyzed' };
+    return { kind: 'skipped', message: mapAnalyzeSkipReason(result.reason) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'error', message };
+  }
+}
+
+function mapAnalyzeSkipReason(
+  reason: 'no-pr' | 'no-project' | 'no-installation' | 'ai-disabled',
+): string {
+  switch (reason) {
+    case 'no-pr':
+      return 'PR 을 찾을 수 없습니다.';
+    case 'no-project':
+      return '연결된 프로젝트가 없습니다.';
+    case 'no-installation':
+      return 'GitHub App 설치 정보가 없어 분석할 수 없습니다.';
+    case 'ai-disabled':
+      return '설정에서 AI 분석이 비활성화되어 있습니다.';
   }
 }
