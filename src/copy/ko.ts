@@ -56,6 +56,7 @@ export const ko = {
     },
     workload: {
       count: (current: number, capacity: number) => `${current} / ${capacity}`,
+      empty: '진행 중인 에이전트가 없습니다 — 이슈에서 에이전트를 시작하면 여기에 표시됩니다.',
     },
     cluster: {
       bundle: (title: string, count: number) => `${title} · ${count}건이 묶였어요`,

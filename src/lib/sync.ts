@@ -141,6 +141,14 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
     const triage = await runTriage(inserted.id);
     if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
       await safeAutoMerge(inserted.id);
+    } else if (triage.kind === 'skipped' && triage.reason === 'no-pre-review') {
+      // 분석 실패(LLM 오류·API key 누락·rate limit 등) → preReview 없음 → triage skip.
+      // status 가 'open' 으로 남으면 인박스 쿼리(review-needed)에 안 잡혀 사용자 시야에서 사라짐.
+      // 안전 폴백: review-needed 로 띄워서 사람이 처리 가능하게.
+      db.update(prs)
+        .set({ status: 'review-needed', updatedAt: new Date() })
+        .where(eq(prs.id, inserted.id))
+        .run();
     }
     return { kind: 'inserted', prId: inserted.id };
   }
@@ -173,6 +181,17 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
   const triage = await runTriage(existing.id);
   if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
     await safeAutoMerge(existing.id);
+  } else if (
+    triage.kind === 'skipped' &&
+    triage.reason === 'no-pre-review' &&
+    shouldAnalyze(payload.action)
+  ) {
+    // 분석은 시도했지만 실패 — 새 PR 분기와 동일하게 review-needed 로 폴백.
+    // closed/edited 면 shouldAnalyze=false 라 이 분기 안 탐 (이미 끝났거나 diff 변경 없음).
+    db.update(prs)
+      .set({ status: 'review-needed', updatedAt: new Date() })
+      .where(eq(prs.id, existing.id))
+      .run();
   }
 
   return { kind: 'updated', prId: existing.id };
