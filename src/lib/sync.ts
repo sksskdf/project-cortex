@@ -1,8 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { prs, projects, type PRRecord } from '@/db/schema';
+import { preReviews, prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
+import { listCheckRunsForRef } from './github';
 import { analyzePR } from './pre-review';
 import { getSettings } from './settings';
 import { runTriage } from './triage';
@@ -223,4 +224,65 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
   }
 
   return { kind: 'updated', prId: existing.id };
+}
+
+// check_run · check_suite webhook 처리. CI 결과가 완료 (completed) 일 때만 호출.
+// head_sha 로 매칭되는 PR 의 최신 preReview 의 testsPassed 를 갱신하고,
+// 그 결과로 자동 머지가 가능해지면 (passed + 다른 조건 충족) 재트라이아지 + 자동 머지 시도.
+export type CheckSyncResult =
+  | { kind: 'updated'; prId: number; testsPassed: boolean | null }
+  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-pr' | 'no-pre-review' | 'no-installation' };
+
+export async function handleCheckWebhook(payload: {
+  repoSlug: string;
+  installationId: number | null;
+  headSha: string;
+}): Promise<CheckSyncResult> {
+  const project = db
+    .select({ id: projects.id, installationId: projects.installationId, slug: projects.slug })
+    .from(projects)
+    .where(eq(projects.slug, payload.repoSlug))
+    .get();
+  if (!project) return { kind: 'skipped', reason: 'unknown-repo' };
+
+  // head_sha 가 같은 PR 을 찾는다. 같은 SHA 의 PR 이 여러 개일 가능성은 거의 없음 (다른
+  // 브랜치에서 cherry-pick 했어도 squash 머지로 SHA 가 달라짐). 최신 1개 매칭.
+  const pr = db
+    .select({ id: prs.id })
+    .from(prs)
+    .where(and(eq(prs.repoId, project.id), eq(prs.headSha, payload.headSha)))
+    .orderBy(desc(prs.updatedAt))
+    .get();
+  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+
+  const installationId = project.installationId ?? payload.installationId;
+  if (installationId === null) return { kind: 'skipped', reason: 'no-installation' };
+
+  // 같은 SHA 의 가장 최근 preReview 1개만 갱신. webhook 이 분석보다 먼저 도착할 수
+  // 있는데 (드물게 CI 가 빠른 레포) 그 경우 갱신 대상이 없음 — skip 후 analyzePR
+  // 흐름에서 testsPassed 가 한 번에 채워짐.
+  const existing = db
+    .select({ id: preReviews.id })
+    .from(preReviews)
+    .where(and(eq(preReviews.prId, pr.id), eq(preReviews.headSha, payload.headSha)))
+    .get();
+  if (!existing) return { kind: 'skipped', reason: 'no-pre-review' };
+
+  const [owner, repo] = project.slug.split('/');
+  const summary = await listCheckRunsForRef(installationId, { owner, repo }, payload.headSha);
+  const testsPassed: boolean | null =
+    summary.status === 'passed' ? true : summary.status === 'failed' ? false : null;
+
+  db.update(preReviews).set({ testsPassed }).where(eq(preReviews.id, existing.id)).run();
+
+  // 결과가 true 가 되면 자동 머지 후보가 됐을 수 있음 — 재트라이아지 + 시도.
+  // 다른 조건 (confidence·flags) 은 runTriage 가 다시 평가하므로 안전.
+  if (testsPassed === true) {
+    const triage = await runTriage(pr.id);
+    if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
+      await safeAutoMerge(pr.id);
+    }
+  }
+
+  return { kind: 'updated', prId: pr.id, testsPassed };
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mapPullRequestEvent, type GithubPullRequestEventPartial } from './webhook-payload';
+import {
+  mapCheckEvent,
+  mapPullRequestEvent,
+  type GithubCheckEventPartial,
+  type GithubPullRequestEventPartial,
+} from './webhook-payload';
 
 function baseEvent(
   overrides: Partial<GithubPullRequestEventPartial> = {},
@@ -112,5 +117,46 @@ describe('mapPullRequestEvent', () => {
       }),
     );
     expect(result?.pr.authorKind).toBe('agent');
+  });
+});
+
+function baseCheckEvent(overrides: Partial<GithubCheckEventPartial> = {}): GithubCheckEventPartial {
+  return {
+    action: 'completed',
+    check_run: { head_sha: 'sha-xyz' },
+    repository: { name: 'cortex-web', full_name: 'acme/cortex-web' },
+    installation: { id: 999 },
+    ...overrides,
+  };
+}
+
+describe('mapCheckEvent', () => {
+  it('maps completed check_run to payload', () => {
+    const result = mapCheckEvent(baseCheckEvent());
+    expect(result).toEqual({
+      repoSlug: 'acme/cortex-web',
+      installationId: 999,
+      headSha: 'sha-xyz',
+    });
+  });
+
+  it('maps completed check_suite (no check_run block) via check_suite.head_sha', () => {
+    const result = mapCheckEvent(
+      baseCheckEvent({ check_run: undefined, check_suite: { head_sha: 'sha-suite' } }),
+    );
+    expect(result?.headSha).toBe('sha-suite');
+  });
+
+  it('returns null for non-completed action (queued/in_progress)', () => {
+    expect(mapCheckEvent(baseCheckEvent({ action: 'in_progress' }))).toBeNull();
+    expect(mapCheckEvent(baseCheckEvent({ action: 'queued' }))).toBeNull();
+  });
+
+  it('returns null when neither check_run nor check_suite has head_sha', () => {
+    expect(mapCheckEvent(baseCheckEvent({ check_run: undefined }))).toBeNull();
+  });
+
+  it('returns installationId=null when no installation block', () => {
+    expect(mapCheckEvent(baseCheckEvent({ installation: undefined }))?.installationId).toBeNull();
   });
 });

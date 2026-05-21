@@ -1,12 +1,14 @@
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { getPRDetails, mergePR, setOctokit } from './github';
+import { getPRDetails, listCheckRunsForRef, mergePR, setOctokit } from './github';
 
 type PullsMock = { get?: Mock; merge?: Mock };
+type ChecksMock = { listForRef?: Mock };
 
-function makeMockOctokit(pulls: PullsMock = {}): Octokit {
+function makeMockOctokit(pulls: PullsMock = {}, checks: ChecksMock = {}): Octokit {
   return {
     pulls: { get: vi.fn(), merge: vi.fn(), ...pulls },
+    checks: { listForRef: vi.fn(), ...checks },
   } as unknown as Octokit;
 }
 
@@ -153,6 +155,65 @@ describe('getPRDetails', () => {
     );
     const result = await getPRDetails(1, { owner: 'x', repo: 'y' }, 1);
     expect(result.authorKind).toBe('human');
+  });
+});
+
+describe('listCheckRunsForRef', () => {
+  function withRuns(runs: Array<{ status: string; conclusion: string | null }>) {
+    setOctokit(
+      makeMockOctokit(
+        {},
+        {
+          listForRef: vi.fn().mockResolvedValue({ data: { check_runs: runs } }),
+        },
+      ),
+    );
+  }
+
+  it('returns pending when no check runs exist', async () => {
+    withRuns([]);
+    const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
+    expect(result).toEqual({ status: 'pending', total: 0, successCount: 0, failureCount: 0 });
+  });
+
+  it('returns passed when all completed are success', async () => {
+    withRuns([
+      { status: 'completed', conclusion: 'success' },
+      { status: 'completed', conclusion: 'success' },
+    ]);
+    const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
+    expect(result.status).toBe('passed');
+    expect(result.successCount).toBe(2);
+  });
+
+  it('returns failed when any conclusion is failure/cancelled/timed_out/action_required', async () => {
+    withRuns([
+      { status: 'completed', conclusion: 'success' },
+      { status: 'completed', conclusion: 'failure' },
+    ]);
+    const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
+    expect(result.status).toBe('failed');
+    expect(result.failureCount).toBe(1);
+  });
+
+  it('returns pending when at least one is still running and no failures', async () => {
+    withRuns([
+      { status: 'completed', conclusion: 'success' },
+      { status: 'in_progress', conclusion: null },
+    ]);
+    const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
+    expect(result.status).toBe('pending');
+  });
+
+  it('treats neutral/skipped as non-counting (passed if others success)', async () => {
+    withRuns([
+      { status: 'completed', conclusion: 'neutral' },
+      { status: 'completed', conclusion: 'skipped' },
+      { status: 'completed', conclusion: 'success' },
+    ]);
+    const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
+    expect(result.status).toBe('passed');
+    expect(result.successCount).toBe(1);
   });
 });
 

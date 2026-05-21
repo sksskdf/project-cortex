@@ -12,7 +12,7 @@ import { confidenceTier } from './confidence';
 import { budgetDiff } from './diff-budget';
 import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
 import { env } from './env';
-import { getPRDiff } from './github';
+import { getPRDiff, listCheckRunsForRef } from './github';
 import { getSettings } from './settings';
 import {
   buildPreReviewTriagePrompt,
@@ -91,7 +91,23 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   }
 
   const [owner, repo] = project.slug.split('/');
-  const diff = await getPRDiff(project.installationId, { owner, repo }, pr.number);
+  // diff + Check Runs 병렬 — 후자는 LLM 입력에 안 쓰이지만 testsPassed 초기값.
+  // checks 실패는 무시 (네트워크 일시 오류 등) — null 로 두고 webhook 이 나중에 갱신.
+  const [diff, initialChecks] = await Promise.all([
+    getPRDiff(project.installationId, { owner, repo }, pr.number),
+    listCheckRunsForRef(project.installationId, { owner, repo }, pr.headSha).catch((err) => {
+      console.error(`listCheckRunsForRef failed for PR ${prId}, falling back to null:`, err);
+      return null;
+    }),
+  ]);
+  const testsPassedInitial: boolean | null =
+    initialChecks === null
+      ? null
+      : initialChecks.status === 'passed'
+        ? true
+        : initialChecks.status === 'failed'
+          ? false
+          : null;
   const changedPaths = extractPaths(diff);
 
   // Phase 4.5a — diff 토큰 예산 적용. 우선순위 정렬 + lock·generated 본문 제외 +
@@ -168,7 +184,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
           hunkAnnotations,
           summary: triage.summary,
           comments: [],
-          testsPassed: null,
+          testsPassed: testsPassedInitial,
           coverage: null,
         })
         .returning()
@@ -227,7 +243,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
       hunkAnnotations: parsed.hunkAnnotations,
       summary: parsed.summary,
       comments: parsed.comments,
-      testsPassed: null,
+      testsPassed: testsPassedInitial,
       coverage: null,
     })
     .returning()

@@ -7,18 +7,23 @@ import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { setAnthropic } from './anthropic';
 import { setOctokit } from './github';
-import { handlePullRequestWebhook, type WebhookPRPayload } from './sync';
+import { handleCheckWebhook, handlePullRequestWebhook, type WebhookPRPayload } from './sync';
 
 // 디폴트는 머지가 성공한 것처럼 응답 — auto-merge 흐름이 끝까지 가는 테스트가 많아서.
 // 머지 실패를 검증하고 싶으면 본문에서 setOctokit 으로 덮어쓴다.
 function mockOctokitDiff(
   diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;',
   mergeResponse: { merged: boolean; sha: string } = { merged: true, sha: 'merged-sha' },
+  checkRuns: Array<{ status: string; conclusion: string | null }> = [],
 ): Octokit {
   return {
     pulls: {
       get: vi.fn().mockResolvedValue({ data: diff }),
       merge: vi.fn().mockResolvedValue({ data: mergeResponse }),
+    },
+    // analyzePR 가 listCheckRunsForRef 를 호출 — 빈 배열이면 testsPassed=null.
+    checks: {
+      listForRef: vi.fn().mockResolvedValue({ data: { check_runs: checkRuns } }),
     },
   } as unknown as Octokit;
 }
@@ -437,5 +442,102 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     // tryClusterPR 가 blocking-flag 로 skip → 클러스터 형성 안 됨.
     const rows = db.select({ clusterId: prs.clusterId }).from(prs).all();
     expect(rows.every((r) => r.clusterId === null)).toBe(true);
+  });
+});
+
+describe('handleCheckWebhook', () => {
+  it('skips unknown-repo', async () => {
+    const result = await handleCheckWebhook({
+      repoSlug: 'no-such',
+      installationId: 1,
+      headSha: 'sha-x',
+    });
+    expect(result.kind).toBe('skipped');
+    if (result.kind === 'skipped') expect(result.reason).toBe('unknown-repo');
+  });
+
+  it('skips no-pr when no PR matches headSha', async () => {
+    const result = await handleCheckWebhook({
+      repoSlug: 'cortex-web',
+      installationId: 12345,
+      headSha: 'sha-nonexistent',
+    });
+    expect(result.kind).toBe('skipped');
+    if (result.kind === 'skipped') expect(result.reason).toBe('no-pr');
+  });
+
+  it('updates testsPassed=true when checks all passed and triggers re-triage', async () => {
+    // 1) PR + preReview 시드 (analyzePR 로).
+    await handlePullRequestWebhook(basePayload({ headSha: 'sha-pass' }));
+    // 분석 직후엔 testsPassed=null 일 가능성 (mock checks 빈 배열).
+    const pr = db.select().from(prs).where(eq(prs.headSha, 'sha-pass')).get();
+    expect(pr).toBeDefined();
+
+    // 2) Octokit mock 을 'passed' 시나리오로 교체.
+    setOctokit(
+      mockOctokitDiff('', { merged: true, sha: 'merged-sha' }, [
+        { status: 'completed', conclusion: 'success' },
+      ]),
+    );
+
+    // 3) check_run 도착.
+    const result = await handleCheckWebhook({
+      repoSlug: 'cortex-web',
+      installationId: 12345,
+      headSha: 'sha-pass',
+    });
+    expect(result.kind).toBe('updated');
+    if (result.kind === 'updated') expect(result.testsPassed).toBe(true);
+
+    const review = db.select().from(preReviews).where(eq(preReviews.prId, pr!.id)).get();
+    expect(review?.testsPassed).toBe(true);
+  });
+
+  it('updates testsPassed=false when any check failed', async () => {
+    await handlePullRequestWebhook(basePayload({ headSha: 'sha-fail' }));
+    const pr = db.select().from(prs).where(eq(prs.headSha, 'sha-fail')).get();
+
+    setOctokit(
+      mockOctokitDiff('', { merged: true, sha: 'm' }, [
+        { status: 'completed', conclusion: 'failure' },
+      ]),
+    );
+
+    const result = await handleCheckWebhook({
+      repoSlug: 'cortex-web',
+      installationId: 12345,
+      headSha: 'sha-fail',
+    });
+    expect(result.kind).toBe('updated');
+    if (result.kind === 'updated') expect(result.testsPassed).toBe(false);
+    const review = db.select().from(preReviews).where(eq(preReviews.prId, pr!.id)).get();
+    expect(review?.testsPassed).toBe(false);
+  });
+
+  it('skips no-pre-review when PR exists but no preReview row', async () => {
+    // PR 행만 직접 삽입 (handlePullRequestWebhook 우회) — analyzePR 가 안 돌아 preReview 없음.
+    const proj = db.select().from(projects).where(eq(projects.slug, 'cortex-web')).get();
+    db.insert(prs)
+      .values({
+        repoId: proj!.id,
+        number: 7777,
+        title: 'no review',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-no-review',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+      })
+      .run();
+
+    const result = await handleCheckWebhook({
+      repoSlug: 'cortex-web',
+      installationId: 12345,
+      headSha: 'sha-no-review',
+    });
+    expect(result.kind).toBe('skipped');
+    if (result.kind === 'skipped') expect(result.reason).toBe('no-pre-review');
   });
 });
