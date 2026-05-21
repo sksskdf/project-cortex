@@ -1,0 +1,85 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-spacing-6);
+  padding: 0 var(--ds-spacing-4);
+}
+
+.barCol {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  position: relative;
+}
+
+.barStack {
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 2px;
+  overflow: hidden;
+  min-height: 2px;
+}
+
+.barSegment {
+  width: 100%;
+  min-height: 0;
+}
+
+.barValue {
+  position: absolute;
+  top: calc(100% + 2px);
+  font-size: var(--ds-typography-font-size-10);
+  color: var(--ds-color-text-02);
+  font-family: var(--ds-typography-font-family-number);
+}
+
+.axis {
+  display: flex;
+  gap: var(--ds-spacing-6);
+  padding: 0 var(--ds-spacing-4);
+}
+
+.axisLabel {
+  flex: 1;
+  text-align: center;
+  font-size: var(--ds-typography-font-size-10);
+  color: var(--ds-color-text-02);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+}
+
+.empty {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  padding: var(--ds-spacing-12) 0;
+}
+
+.segBlue {
+  background: var(--ds-color-state-info-accent);
+}
+
+.segGreen {
+  background: var(--ds-color-state-success-accent);
+}
+
+.segYellow {
+  background: var(--ds-color-state-warning-accent);
+}
+
+.segGray {
+  background: var(--ds-color-line-02);
+}
+
+.segPurple {
+  background: var(--ds-color-palette-purple-default, #8b5cf6);
+}

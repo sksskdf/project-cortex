@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
 import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
+import { createNotification } from './notifications';
 
 export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
@@ -67,11 +68,13 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
     // 머지된 head 브랜치 자동 삭제 — 실패해도 머지 자체는 성공으로 처리. 사용자가
     // /pr 상세에서 수동 삭제 가능.
     await safeDeleteBranch(prId);
+    safeNotify({ kind: 'auto-merged', prId });
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // race condition — 다른 병렬 호출이 이미 머지 성공한 경우. PR.status='merged' 로
     // 정정 + 'merged' 로 응답. revertToReviewNeeded 호출 안 함 (triage decision 보존).
+    // race 케이스는 첫 호출이 이미 알림을 만들었을 가능성이 높으니 중복 알림 안 만듦.
     if (isRaceMergeError(message)) {
       db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
       await safeDeleteBranch(prId);
@@ -79,6 +82,15 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
       return { kind: 'merged', sha: '' };
     }
     return revertToReviewNeeded(prId, `GitHub 머지 실패: ${message}`);
+  }
+}
+
+// 알림 생성은 best-effort — DB 실패해도 머지 흐름엔 영향 없게.
+function safeNotify(input: Parameters<typeof createNotification>[0]): void {
+  try {
+    createNotification(input);
+  } catch (err) {
+    console.error('알림 생성 실패:', err);
   }
 }
 
@@ -101,6 +113,7 @@ function revertToReviewNeeded(prId: number, reason: string): AutoMergeResult {
     .set({ decision: 'human-review', reason, decidedBy: 'system', decidedAt: new Date() })
     .where(eq(triageDecisions.prId, prId))
     .run();
+  safeNotify({ kind: 'auto-merge-failed', prId, reason });
   return { kind: 'failed', reason };
 }
 

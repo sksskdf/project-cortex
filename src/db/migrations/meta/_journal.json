@@ -64,6 +64,13 @@
       "when": 1779347425365,
       "tag": "0008_cool_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779351080435,
+      "tag": "0009_notifications",
+      "breakpoints": true
     }
   ]
 }

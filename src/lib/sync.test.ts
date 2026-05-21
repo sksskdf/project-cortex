@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { db } from '@/db/client';
-import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { notifications, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { setAnthropic } from './anthropic';
 import { setOctokit } from './github';
 import { handleCheckWebhook, handlePullRequestWebhook, type WebhookPRPayload } from './sync';
@@ -75,6 +75,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  db.delete(notifications).run();
   db.delete(triageDecisions).run();
   db.delete(preReviews).run();
   db.delete(prs).run();

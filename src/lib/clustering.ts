@@ -6,6 +6,7 @@ import { and, eq, gte, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, projects, prs } from '@/db/schema';
 import { deletePRHeadBranch, mergePR } from './github';
+import { createNotification } from './notifications';
 
 // 클러스터링에서 제외해야 하는 차단 플래그 — DOMAIN §4 와 동일.
 // payment-domain 등 강한 위험이 있는 PR 은 개별 검토.
@@ -153,6 +154,13 @@ export async function tryClusterPR(prId: number): Promise<TryClusterResult> {
     .set({ clusterId: newCluster.id, updatedAt: new Date() })
     .where(inArray(prs.id, idsToAssign))
     .run();
+
+  // 새 클러스터가 생긴 시점에만 알림. join 은 기존 클러스터에 추가됐을 뿐이라 노출 X.
+  try {
+    createNotification({ kind: 'cluster-created', clusterId: newCluster.id, size: totalSize });
+  } catch (err) {
+    console.error('알림 생성 실패:', err);
+  }
 
   return { kind: 'clustered', clusterId: newCluster.id, size: totalSize };
 }

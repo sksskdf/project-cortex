@@ -1,0 +1,217 @@
+.page {
+  padding: var(--ds-spacing-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-20);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-22);
+  font-weight: var(--ds-typography-font-weight-bold);
+  letter-spacing: var(--ds-typography-letter-spacing-tight);
+  color: var(--ds-color-text-03-high);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}
+
+.section {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-14);
+}
+
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-15);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.sectionDesc {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.cols2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-spacing-16);
+}
+
+.mergeRateBox {
+  display: flex;
+  gap: var(--ds-spacing-24);
+  align-items: center;
+  padding: var(--ds-spacing-12) 0;
+}
+
+.mergeRateValue {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-spacing-10);
+}
+
+.mergeRatePct {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: 40px;
+  font-weight: var(--ds-typography-font-weight-bold);
+  color: var(--ds-color-text-03-high);
+  line-height: 1;
+}
+
+.mergeRateDelta {
+  font-size: var(--ds-typography-font-size-13);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  font-family: var(--ds-typography-font-family-number);
+}
+
+.deltaUp {
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.deltaDown {
+  color: var(--ds-color-state-error-strong);
+}
+
+.deltaFlat {
+  color: var(--ds-color-text-02);
+}
+
+.mergeRateMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}
+
+.mergeRateBreakdown {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.mergeRateCompare {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.legend {
+  display: flex;
+  gap: var(--ds-spacing-12);
+  flex-wrap: wrap;
+  padding-top: var(--ds-spacing-6);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.empty {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  padding: var(--ds-spacing-12) 0;
+}
+
+.revertList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-2);
+}
+
+.revertRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-8) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.revertRow:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.revertLink {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.revertSlug {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.revertTitle {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.revertStatus {
+  font-size: var(--ds-typography-font-size-11);
+  padding: 2px var(--ds-spacing-8);
+  border-radius: 999px;
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-02);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  white-space: nowrap;
+}
+
+.revertStatus_merged {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.revertStatus_open,
+.revertStatus_auto-mergeable {
+  background: var(--ds-color-soft-blue, var(--ds-color-bg-01));
+  color: var(--ds-color-state-info-strong, var(--ds-color-text-02));
+}
+
+.revertStatus_review-needed {
+  background: var(--ds-color-soft-yellow, var(--ds-color-bg-01));
+  color: var(--ds-color-state-warning-strong, var(--ds-color-text-02));
+}

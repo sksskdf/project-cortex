@@ -4,6 +4,7 @@ import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
 import { listCheckRunsForRef } from './github';
+import { createNotification, isRevertPR } from './notifications';
 import { analyzePR } from './pre-review';
 import { getSettings } from './settings';
 import { runTriage } from './triage';
@@ -164,6 +165,12 @@ export async function handlePullRequestWebhook(
       .values({ ...values, status: computeStatus(payload.action, payload.pr.merged) })
       .returning({ id: prs.id })
       .get();
+    // 새 PR 의 title/body 가 GitHub revert UI 패턴이면 알림 — 사용자가 머지된 변경이
+    // 되돌려졌음을 즉시 알 수 있게. reconcile 흐름에선 과거 PR 까지 모두 알림 폭탄이 될 수
+    // 있어 webhook 진입만.
+    if (source === 'webhook' && isRevertPR({ title: values.title, body: values.body })) {
+      safeNotify({ kind: 'revert-detected', prId: inserted.id });
+    }
     // 새 PR — opened/reopened 면 즉시 분석. 분석 결과(preReview)가 있어야 runTriage 가 결정.
     // 단 reconcile 흐름은 의도적 bypass — Anthropic 크레딧 0 (사용자가 명시 요청 시만 분석).
     if (shouldAnalyze(payload.action) && source !== 'reconcile') {
@@ -272,9 +279,21 @@ export async function handleCheckWebhook(payload: {
   const testsPassed: boolean | null =
     summary.status === 'passed' ? true : summary.status === 'failed' ? false : null;
 
+  // 이전 testsPassed 값 확인 — false → false 같은 멱등 update 시 알림 폭탄 방지.
+  const prevTestsPassed = db
+    .select({ testsPassed: prs.testsPassed })
+    .from(prs)
+    .where(eq(prs.id, pr.id))
+    .get();
+
   // CI 결과는 prs 컬럼에 직접 저장 — AI 분석 (preReview) 없이도 채워짐. AI off
   // 시에도 자동 머지 룰 #4 가 prs.testsPassed 를 읽으므로 정상 동작.
   db.update(prs).set({ testsPassed }).where(eq(prs.id, pr.id)).run();
+
+  // CI 실패가 처음 감지된 시점에만 알림 — 같은 PR 에 여러 check_run 이 완료될 때 중복 방지.
+  if (testsPassed === false && prevTestsPassed?.testsPassed !== false) {
+    safeNotify({ kind: 'ci-failed', prId: pr.id });
+  }
 
   // 결과가 true 가 되면 자동 머지 후보가 됐을 수 있음 — 재트라이아지 + 시도.
   // 다른 조건 (confidence·flags) 은 runTriage 가 다시 평가하므로 안전.
@@ -286,4 +305,12 @@ export async function handleCheckWebhook(payload: {
   }
 
   return { kind: 'updated', prId: pr.id, testsPassed };
+}
+
+function safeNotify(input: Parameters<typeof createNotification>[0]): void {
+  try {
+    createNotification(input);
+  } catch (err) {
+    console.error('알림 생성 실패:', err);
+  }
 }

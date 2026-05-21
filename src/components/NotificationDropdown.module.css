@@ -1,0 +1,200 @@
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.iconBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ds-color-text-02);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s ease;
+}
+
+.iconBtn:hover {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+}
+
+.iconBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ds-color-state-error-accent);
+  color: var(--ds-color-text-on-accent, #fff);
+  font-size: 10px;
+  font-weight: var(--ds-typography-font-weight-bold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ds-typography-font-family-number);
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 360px;
+  max-height: 480px;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ds-spacing-12) var(--ds-spacing-14);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.panelTitle {
+  font-size: var(--ds-typography-font-size-14);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.markAllBtn {
+  background: transparent;
+  border: none;
+  color: var(--ds-color-state-info-accent);
+  font-size: var(--ds-typography-font-size-12);
+  cursor: pointer;
+  padding: var(--ds-spacing-4) var(--ds-spacing-8);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.markAllBtn:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.empty {
+  padding: var(--ds-spacing-24);
+  text-align: center;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.item {
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.itemUnread {
+  background: var(--ds-color-bg-01);
+}
+
+.itemLink {
+  display: flex;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-12) var(--ds-spacing-14);
+  color: inherit;
+  text-decoration: none;
+}
+
+.itemLink:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+}
+
+.dotGreen {
+  background: var(--ds-color-state-success-accent);
+}
+
+.dotRed {
+  background: var(--ds-color-state-error-accent);
+}
+
+.dotYellow {
+  background: var(--ds-color-state-warning-accent);
+}
+
+.dotPurple {
+  background: var(--ds-color-palette-purple-default, #8b5cf6);
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ds-spacing-6);
+}
+
+.itemKind {
+  font-size: var(--ds-typography-font-size-10);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
+}
+
+.itemAge {
+  font-size: var(--ds-typography-font-size-10);
+  color: var(--ds-color-text-02);
+  font-family: var(--ds-typography-font-family-number);
+}
+
+.itemTitle {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemBodyText {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
