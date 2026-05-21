@@ -50,6 +50,8 @@ export type PRDetailView = {
   // GitHub 가 계산한 머지 가능 여부 — 'dirty'(충돌) · 'blocked' · 'unstable' 등.
   // installation 없거나 fetch 실패 시 null — UI 가 표시하지 않음.
   mergeableState: import('@/lib/github').MergeableState | null;
+  // CI 결과 대기 중이라 머지 버튼이 disable 되어야 하는지 — preReview.testsPassed=null.
+  mergeBlockedByCI: boolean;
 };
 
 function parsePrId(viewId: string): number | null {
@@ -321,17 +323,23 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
   // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
   const mergeBlockedByState = mergeableState === 'dirty' || mergeableState === 'blocked';
-  const canMergeEffective = canMerge && !mergeBlockedByState;
+  // CI 결과 대기 중 (분석은 됐는데 testsPassed=null) — 머지 버튼 disable. 시드/미분석
+  // PR (preReview 없음) 은 별도 흐름 (canRequestAnalysis 등) 으로 처리되므로 여기서 차단 X.
+  const mergeBlockedByCI = row.preReview !== null && row.preReview.testsPassed === null;
+  const canMergeEffective = canMerge && !mergeBlockedByState && !mergeBlockedByCI;
+  // 변경 요청은 PR 거절 의사라 CI 대기와 무관 — 머지 차단 (dirty/blocked) 만 따름.
+  const canRequestChangesBase = canMerge && !mergeBlockedByState;
 
   const common = {
     isMerged,
     branchDeleted: row.pr.branchDeletedAt !== null,
     canMerge: canMergeEffective,
-    canRequestChanges: canMergeEffective && (tone === 'alert' || tone === 'warn'),
+    canRequestChanges: canRequestChangesBase && (tone === 'alert' || tone === 'warn'),
     canRequestAnalysis: !row.preReview && row.installationId !== null && settings.aiEnabled,
     aiEnabled: settings.aiEnabled,
     body: row.pr.body,
     mergeableState,
+    mergeBlockedByCI,
   } as const;
 
   // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.

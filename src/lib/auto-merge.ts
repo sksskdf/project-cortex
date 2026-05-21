@@ -22,7 +22,21 @@ export type AutoMergeResult =
   | { kind: 'failed'; reason: string };
 
 // PR 1건에 대한 머지 시도. 호출자는 runTriage 결과 보고 시점을 정한다.
-// 성공: PR.status='merged'. 실패/거부: PR.status='review-needed' + 사유 갱신.
+// 성공: PR.status='merged' (+ 머지된 head 브랜치 자동 삭제). 실패/거부: PR.status='review-needed' + 사유 갱신.
+//
+// race-safe: GitHub 가 같은 PR 의 check_run/check_suite completed 두 webhook 을 거의 동시에
+// 보내면 handleCheckWebhook 가 병렬 두 번 실행 → 둘 다 attemptAutoMerge 호출 → 두 번째가
+// "Merge already in progress" 또는 "Pull Request is not mergeable" 응답하는 케이스.
+// 이런 경우 첫 호출이 성공한 상태라 실패 처리하지 않고 success 로 정정.
+const RACE_ERROR_PATTERNS = [
+  /Merge already in progress/i,
+  /Pull Request is not mergeable/i, // 이미 머지된 PR 은 not mergeable 로 응답되기도 함
+];
+
+function isRaceMergeError(message: string): boolean {
+  return RACE_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
 export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
@@ -50,10 +64,30 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
       return revertToReviewNeeded(prId, 'GitHub 머지 거부 — merged=false 반환.');
     }
     db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
+    // 머지된 head 브랜치 자동 삭제 — 실패해도 머지 자체는 성공으로 처리. 사용자가
+    // /pr 상세에서 수동 삭제 가능.
+    await safeDeleteBranch(prId);
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // race condition — 다른 병렬 호출이 이미 머지 성공한 경우. PR.status='merged' 로
+    // 정정 + 'merged' 로 응답. revertToReviewNeeded 호출 안 함 (triage decision 보존).
+    if (isRaceMergeError(message)) {
+      db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
+      await safeDeleteBranch(prId);
+      // sha 정확히 모르면 빈 문자열 — UI 는 short sha 7자만 쓰므로 빈 문자열도 큰 문제 없음.
+      return { kind: 'merged', sha: '' };
+    }
     return revertToReviewNeeded(prId, `GitHub 머지 실패: ${message}`);
+  }
+}
+
+// 자동 머지 후 head 브랜치 자동 삭제. 실패해도 머지 자체는 영향 없음.
+async function safeDeleteBranch(prId: number): Promise<void> {
+  try {
+    await deleteMergedBranch(prId);
+  } catch (err) {
+    console.error(`자동 브랜치 삭제 실패 (PR ${prId}):`, err);
   }
 }
 

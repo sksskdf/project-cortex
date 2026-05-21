@@ -187,10 +187,12 @@ export const ko = {
       deleteBranch: '브랜치 삭제',
       deletingBranch: '삭제 중…',
       branchAlreadyDeleted: '브랜치 삭제됨',
-      // GitHub mergeable_state 가 'dirty'/'blocked' 일 때 머지 버튼 옆에 표시되는 사유.
+      // GitHub mergeable_state 가 'dirty'/'blocked' 일 때 또는 CI 결과 대기 중일 때
+      // 머지 버튼 옆에 표시되는 사유.
       mergeBlock: {
         conflict: '머지 불가 · base 와 충돌',
         blocked: '머지 불가 · 보호 규칙·필수 리뷰로 차단됨',
+        ciPending: '머지 대기 · CI 결과 도착 후 자동 머지',
       },
       result: {
         merged: (shortSha: string) => `머지 완료 (${shortSha}).`,

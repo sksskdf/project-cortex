@@ -26,6 +26,8 @@ type Props = {
   // GitHub mergeable_state — 'dirty'(충돌) · 'blocked' 면 머지 버튼이 disabled
   // (이미 lib/pr 에서 canMerge 에 반영). UI 가 사유를 사용자에게 명시하기 위해 별도 prop.
   mergeableState: MergeableState | null;
+  // CI 결과 대기 중이라 머지 버튼이 disable 됨 — preReview.testsPassed=null.
+  mergeBlockedByCI: boolean;
 };
 
 type InFlightAction = 'merge' | 'delete' | 'request' | null;
@@ -37,6 +39,7 @@ export function PRActions({
   branchDeleted,
   canRequestChanges,
   mergeableState,
+  mergeBlockedByCI,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
@@ -98,11 +101,12 @@ export function PRActions({
   // optimistic 우선 — 머지 클릭 즉시 delete 버튼이 보이게.
   const showDeleteBranch = optimisticMerged || mergeState.kind === 'merged';
   const mergeDisabled = !canMerge || pending || showDeleteBranch;
-  // GitHub mergeable_state 가 'dirty'/'blocked' 이면 머지 버튼이 disable 된 채로
-  // 사용자가 사유를 알 수 있도록 배지 노출. 'unknown'/'unstable' 은 머지 자체는
-  // 가능해 표시 안 함 (혼란 회피).
-  const mergeBlockNote: string | null =
-    mergeableState === 'dirty'
+  // GitHub mergeable_state 가 'dirty'/'blocked' 이거나 CI 결과 대기 중이면 머지 버튼이
+  // disable 된 채로 사용자가 사유를 알 수 있도록 배지 노출.
+  // 우선순위: dirty > blocked > CI 대기.
+  const mergeBlockNote: string | null = mergeBlockedByCI
+    ? t.pr.actionBar.mergeBlock.ciPending
+    : mergeableState === 'dirty'
       ? t.pr.actionBar.mergeBlock.conflict
       : mergeableState === 'blocked'
         ? t.pr.actionBar.mergeBlock.blocked
