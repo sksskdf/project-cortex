@@ -1,6 +1,7 @@
 import { ko as t } from '@/copy/ko';
 import { AiToggle } from '@/components/AiToggle';
 import { ProjectAutoMergeToggle } from '@/components/ProjectAutoMergeToggle';
+import { ProjectReconcileButton } from '@/components/ProjectReconcileButton';
 import { listAutoMergeProjects } from '@/lib/projects';
 import { getSettings } from '@/lib/settings';
 import styles from './page.module.css';
@@ -53,6 +54,27 @@ export default async function SettingsPage() {
         )}
         <div className={styles.cardHint}>{t.settings.autoMerge.hintCheckSubscription}</div>
       </section>
+
+      {autoMergeProjects.length > 0 && (
+        <section className={styles.card} aria-label={t.settings.reconcile.title}>
+          <div className={styles.cardHead}>
+            <div>
+              <div className={styles.cardTitle}>{t.settings.reconcile.title}</div>
+              <div className={styles.cardDesc}>{t.settings.reconcile.desc}</div>
+            </div>
+          </div>
+          <div className={styles.projectList}>
+            {autoMergeProjects.map((row) => (
+              <div key={row.id} className={styles.projectRow}>
+                <div className={styles.projectMeta}>
+                  <span className={styles.projectSlug}>{row.slug}</span>
+                </div>
+                <ProjectReconcileButton projectId={row.id} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

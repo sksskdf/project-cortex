@@ -412,4 +412,46 @@ describe('dissolveCluster', () => {
     expect(fromAutoMergeable?.status).toBe('review-needed');
     expect(fromAutoMergeable?.clusterId).toBeNull();
   });
+
+  // 사용자가 의도적으로 해체한 PR 은 cooldown 동안 자동 재클러스터링 안 됨.
+  it('cooldown 안 PR 은 tryClusterPR 가 skip(recently-dissolved)', async () => {
+    const repoId = setupProject();
+    const paths = ['x.ts', 'y.ts'];
+    // 해체된 직후 PR 시드 — clusterDissolvedAt=now.
+    const pr = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 99,
+        title: 'recently dissolved',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-99',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 2,
+        status: 'review-needed',
+        clusterDissolvedAt: new Date(),
+      })
+      .returning({ id: prs.id })
+      .get();
+    db.insert(preReviews)
+      .values({
+        prId: pr.id,
+        headSha: 'sha-99',
+        confidence: 80,
+        confidenceTier: 'medium',
+        flags: [],
+        changedPaths: paths,
+      })
+      .run();
+
+    // 후보 PR 도 시드 — 평소면 클러스터됐을 조건.
+    setupPR({ repoId, paths, number: 100 });
+    setupPR({ repoId, paths, number: 101 });
+
+    const r = await tryClusterPR(pr.id);
+    expect(r.kind).toBe('skipped');
+    if (r.kind === 'skipped') expect(r.reason).toBe('recently-dissolved');
+  });
 });

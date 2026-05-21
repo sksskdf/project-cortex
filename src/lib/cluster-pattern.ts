@@ -70,20 +70,56 @@ function derivePatternSourceLabel(first: ClusterMemberRow): string {
   return `#${first.pr.number} ${first.pr.title}`;
 }
 
-// 첫 PR 의 parsedFiles 에서 첫 expanded hunk 의 lines 를 가져온다.
-// parsedFiles 가 비어 있으면 (분석 안 됨) 빈 배열 — 페이지는 빈 배열일 때 섹션을 숨긴다.
+// 클러스터 PR 들의 공통 변경 라인 추출 — 모든 PR 에 동일하게 나타나는 변경 (add/del) 라인.
+// 이전: 첫 PR 의 첫 hunk 만 발췌 (대표성 약함).
+// 개선: 멤버 PR 들의 변경 라인 (text 기준) 교집합. 5개 미만이면 첫 PR fallback.
 function derivePatternLines(members: ReadonlyArray<ClusterMemberRow>): ReadonlyArray<CodeLine> {
-  for (const m of members) {
+  if (members.length === 0) return [];
+
+  // 각 PR 의 변경 라인 (add/del) 텍스트 set 추출. ctx/hunk-head 제외 (실 변경 아님).
+  const perPRLines: Array<Map<string, CodeLine>> = members.map((m) => {
+    const map = new Map<string, CodeLine>();
     const files: ReadonlyArray<FileBlock> = m.preReview?.parsedFiles ?? [];
     for (const f of files) {
       for (const h of f.hunks) {
-        if (h.kind === 'expanded' && h.lines.length > 0) {
-          return h.lines;
+        if (h.kind !== 'expanded') continue;
+        for (const line of h.lines) {
+          if (line.kind === 'add' || line.kind === 'del') {
+            // 같은 라인 (kind+text) 은 한 번만 — map key 로 중복 제거.
+            const key = `${line.kind}:${line.text}`;
+            if (!map.has(key)) map.set(key, line);
+          }
         }
       }
     }
+    return map;
+  });
+
+  // 모든 PR 에 공통으로 있는 라인만 — 첫 PR 기준 교집합.
+  const first = perPRLines[0];
+  const common: CodeLine[] = [];
+  for (const [key, line] of first) {
+    const inAll = perPRLines.every((m) => m.has(key));
+    if (inAll) common.push(line);
   }
-  return [];
+
+  // 공통이 너무 적으면 (< 3) 정보 가치 부족 — 첫 PR 의 첫 hunk 로 폴백.
+  if (common.length < 3) {
+    for (const m of members) {
+      const files: ReadonlyArray<FileBlock> = m.preReview?.parsedFiles ?? [];
+      for (const f of files) {
+        for (const h of f.hunks) {
+          if (h.kind === 'expanded' && h.lines.length > 0) {
+            return h.lines;
+          }
+        }
+      }
+    }
+    return [];
+  }
+
+  // 상한 — 너무 많으면 화면이 길어짐. 첫 20 줄만.
+  return common.slice(0, 20);
 }
 
 // flag-set 별로 그룹핑 → 그룹당 행 1개.
