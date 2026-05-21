@@ -19,68 +19,53 @@
 project-cortex/
 ├── README.md
 ├── AGENTS.md
-├── docs/
-│   ├── ARCHITECTURE.md          ← 이 파일
-│   ├── DESIGN.md
-│   └── CONVENTIONS.md
-├── prototype/                    ← 정적 HTML 프로토타입 (디자인 참고용, 코드 베이스 아님)
-│   └── ...
-├── package.json
-├── tsconfig.json
-├── next.config.mjs
-├── drizzle.config.ts
-├── public/
-│   └── design-system/            ← prototype/design-system/ 그대로 옮김
-│       ├── colors_and_type.css   ← 라이트 토큰 (원본)
-│       ├── dark.css              ← 다크 오버레이 ([data-theme="dark"]로 활성)
-│       ├── lib/lib.css
-│       └── fonts/
+├── docs/                         ← ARCHITECTURE · DESIGN · CONVENTIONS · DOMAIN · ROADMAP
+├── prototype/                    ← 정적 HTML 프로토타입 (디자인 참고용)
+├── package.json · tsconfig.json · next.config.mjs · drizzle.config.ts
+├── public/design-system/         ← Urock CSS (colors_and_type · dark · lib · fonts)
 └── src/
     ├── app/                      ← Next.js App Router (라우트 = 폴더)
-    │   ├── layout.tsx            ← AppShell (Sidebar 공유 — 한 번만 정의)
-    │   ├── globals.css           ← /public/design-system/* import
-    │   ├── page.tsx              ← / → Dashboard
-    │   ├── inbox/page.tsx        ← /inbox
-    │   ├── pr/[id]/page.tsx      ← /pr/1142
-    │   ├── cluster/[id]/page.tsx ← /cluster/i18n-labels
-    │   ├── projects/page.tsx
-    │   ├── agents/page.tsx
-    │   ├── settings/page.tsx
-    │   └── api/                  ← API routes (Webhook 등 외부 호출만)
-    │       └── webhooks/
-    │           ├── github/route.ts
-    │           └── agent/route.ts
-    ├── components/               ← 공유 UI 컴포넌트
-    │   ├── AppShell.tsx          ← 사이드바 + 메인 영역 grid
-    │   ├── Sidebar.tsx           ← 한 곳에만 정의
-    │   ├── Gauge.tsx             ← 신뢰 점수 원형 게이지
-    │   ├── AuthorChip.tsx        ← 에이전트/사람 라벨
-    │   ├── PRRow.tsx             ← 인박스 + 대시보드 공통
-    │   ├── DiffHunk.tsx          ← PR 화면 hunk 단위
-    │   ├── ConfidenceTag.tsx
-    │   └── ...
-    ├── lib/                      ← 비즈니스 로직 (UI 없음)
-    │   ├── types.ts              ← 도메인 타입 (Issue, PR, AgentRun, ...)
-    │   ├── pre-review.ts         ← Anthropic API 호출 + 결과 파싱
-    │   ├── triage.ts             ← 자동 머지 / 사람 검토 / 클러스터 결정 로직
-    │   ├── clustering.ts         ← PR 유사도 계산 + 묶기
-    │   ├── github.ts             ← GitHub API 어댑터
-    │   └── confidence.ts         ← 점수 색·라벨 매핑 한 곳
+    │   ├── layout.tsx            ← AppShell (Sidebar 공유)
+    │   ├── globals.css
+    │   ├── page.tsx              ← / Dashboard
+    │   ├── inbox/page.tsx
+    │   ├── pr/[id]/page.tsx
+    │   ├── cluster/[id]/page.tsx
+    │   ├── clusters/page.tsx     ← 클러스터 인덱스 (#62)
+    │   ├── settings/page.tsx     ← AI 토글 (#61) 등
+    │   └── api/
+    │       ├── webhooks/github/route.ts
+    │       └── events/route.ts   ← SSE — webhook 도착 push (router.refresh)
+    ├── components/               ← UI only (DB·외부 API 직접 호출 금지)
+    │   ├── AppShell.tsx · Sidebar.tsx
+    │   ├── PRRow.tsx · PRActions.tsx · DiffHunk.tsx
+    │   ├── ClusterActions.tsx · Gauge.tsx · AuthorChip.tsx
+    │   ├── AiToggle.tsx · AnalyzeRequestButton.tsx
+    │   └── WebhookListener.tsx   ← SSE 클라이언트 (router.refresh debounce)
+    ├── lib/                      ← 비즈니스 로직 (React import 금지)
+    │   ├── types.ts · confidence.ts · format.ts · queue.ts
+    │   ├── pre-review.ts · diff-budget.ts · diff-parser.ts
+    │   ├── triage.ts · risk-flags.ts · clustering.ts · cluster-pattern.ts
+    │   ├── github.ts · webhook-verify.ts · webhook-payload.ts · sync.ts
+    │   ├── auto-merge.ts         ← attemptHumanMerge · deleteMergedBranch · submitRequestChanges
+    │   ├── inbox.ts · pr.ts · cluster.ts · dashboard.ts
+    │   ├── settings.ts           ← appSettings 단일행 (AI on/off)
+    │   ├── env.ts · events.ts
+    │   └── prompts/pre-review.ts
     ├── db/
     │   ├── schema.ts             ← Drizzle 스키마
-    │   ├── client.ts             ← 단일 DB 핸들
-    │   └── migrations/
-    ├── actions/                  ← Server Actions (UI ↔ lib 연결)
-    │   ├── merge.ts              ← `mergePR(id)`
-    │   ├── triage.ts             ← `markForReview(id)` 등
-    │   └── cluster.ts
-    ├── copy/
-    │   └── ko.ts                 ← 모든 한국어 카피의 단일 출처
-    └── fixtures/                 ← 외부 시스템 대체 데이터 (Phase 3·4·6·7에서 자동 생성으로 대체)
-        ├── dashboard.ts          ← 운영 메트릭 (Phase 7 대체)
-        ├── pr-detail.ts          ← git diff·LLM 요약 (Phase 3·4 대체)
-        └── cluster.ts            ← 클러스터링 분석 (Phase 6 대체)
+    │   ├── client.ts             ← 단일 DB 핸들 + 자동 migrate
+    │   └── migrations/           ← 0000_*.sql … (PR description, branchDeletedAt, app_settings 등)
+    ├── actions/                  ← Server Actions
+    │   ├── pr.ts                 ← mergePRAction · deletePRBranchAction · requestAnalysisAction · requestChangesAction
+    │   ├── cluster.ts            ← mergeClusterAction · dissolveClusterAction
+    │   └── settings.ts           ← toggleAiEnabledAction
+    ├── copy/ko.ts                ← 모든 한국어 카피
+    └── fixtures/                 ← 시드/폴백 데이터 (PR 미분석/installation 없는 경우)
+        ├── dashboard.ts · pr-detail.ts · cluster.ts
 ```
+
+폴더 단위 책임은 §모듈 경계 참조. 실제 디렉토리 트리의 일부만 발췌 — 새 파일은 위 카테고리 중 하나에 매칭되면 그 폴더로.
 
 ## 모듈 경계 (지키면 토큰 절감)
 
@@ -92,14 +77,14 @@ project-cortex/
 
 이 경계가 어긋나기 시작하면 작업당 컨텍스트가 부풀어 오릅니다.
 
-## 데이터 흐름 (대표 시나리오 한 줄씩)
+## 데이터 흐름 (대표 시나리오)
 
 | 시나리오 | 흐름 |
 |---|---|
-| 새 PR 도착 (webhook) | `api/webhooks/github` → `lib/pre-review` → `lib/triage` → DB 저장 (자동 머지면 `lib/github.merge`) |
-| 사용자가 인박스 열기 | `app/inbox/page.tsx` (Server Component) → `lib/queue.list()` → JSX |
-| 사용자가 PR 머지 | `<MergeButton>` → `actions/merge.ts` (`'use server'`) → `lib/github.merge` → revalidate |
-| 클러스터 자동 묶음 (cron/배치) | scheduled job → `lib/clustering` → DB 업데이트 |
+| 새 PR 도착 (webhook) | `api/webhooks/github` → `lib/webhook-verify` (HMAC) → `lib/sync.upsertPR` → `lib/pre-review.analyzePR` (Haiku 1차 + Sonnet 조건부) → `lib/triage.decide` → 자동 머지면 `lib/auto-merge.attemptAutoMerge`. 마지막에 `events.emit('sync')` → SSE 푸시 |
+| 사용자가 인박스 열기 | `app/inbox/page.tsx` (Server Component) → `lib/inbox.listInboxQueue` + `getInboxCategories` → `<PRRow>` 렌더 |
+| 사용자가 PR 머지 | `<PRActions>` → `actions/pr.mergePRAction` → `lib/auto-merge.attemptHumanMerge` → `revalidatePath`. SSE 가 `events` 로 갱신 푸시 |
+| 클러스터 자동 묶음 | `lib/sync.tryClusterPR` (synchronize webhook 처리 중 호출) → `lib/clustering.findOrCreateCluster` |
 
 ## 외부 통합
 
