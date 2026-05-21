@@ -298,12 +298,14 @@ export default async function DashboardPage() {
           <p className={styles.greetingSub}>{t.dashboard.greetingSub(todayReviewCount)}</p>
         </div>
         <div className={styles.headerActions}>
-          {/* 알림 / 에이전트 시작 / 새 이슈는 백엔드 미구현 — disabled. */}
-          {/* 알림: Phase 7 운영(메트릭 + 이벤트). 에이전트 시작·새 이슈: Phase 8 onboarding. */}
+          {/* 알림 / 에이전트 시작 / 새 이슈는 백엔드 미구현 — disabled.
+              알림: Phase 7 운영(메트릭 + 이벤트).
+              에이전트 시작·새 이슈: Phase 13 (Claude CLI 통합) 로 이관 (Decision Log 2026-05-21). */}
           <button
             type="button"
             className={styles.iconBtn}
-            aria-label={t.dashboard.notifications}
+            aria-label={t.dashboard.header.notificationsHint}
+            title={t.dashboard.header.notificationsHint}
             disabled
           >
             <BellIcon />
@@ -311,6 +313,8 @@ export default async function DashboardPage() {
           <button
             type="button"
             className="ds-btn ds-btn--md ds-btn--outlined-basic"
+            aria-label={t.dashboard.header.startAgentHint}
+            title={t.dashboard.header.startAgentHint}
             disabled
             aria-disabled="true"
           >
@@ -322,6 +326,8 @@ export default async function DashboardPage() {
           <button
             type="button"
             className="ds-btn ds-btn--md ds-btn--filled-blue"
+            aria-label={t.dashboard.header.newIssueHint}
+            title={t.dashboard.header.newIssueHint}
             disabled
             aria-disabled="true"
           >

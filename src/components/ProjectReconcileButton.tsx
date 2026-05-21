@@ -1,14 +1,13 @@
 'use client';
 
-// /settings 의 자동 머지 토글 행 옆에 노출되는 'GitHub 와 동기화' 버튼.
-// 사용자가 누르면 reconcileProject 가 octokit.pulls.list 로 open PR 전체 fetch +
-// handlePullRequestWebhook (source='reconcile') 로 upsert. AI 분석 명시 bypass —
-// 크레딧 0.
+// /projects 페이지의 카드 액션 행에서 'GitHub 와 동기화' 버튼.
+// reconcileProject 가 octokit.pulls.list 로 open PR 전체 fetch +
+// handlePullRequestWebhook (source='reconcile') 로 upsert. AI 분석 명시 bypass — 크레딧 0.
 
 import { useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import { reconcileProjectAction, type ReconcileActionState } from '@/actions/settings';
-import styles from '@/app/settings/page.module.css';
+import styles from './ProjectReconcileButton.module.css';
 
 export function ProjectReconcileButton({ projectId }: { projectId: number }) {
   const [pending, startTransition] = useTransition();
@@ -23,7 +22,7 @@ export function ProjectReconcileButton({ projectId }: { projectId: number }) {
   }
 
   return (
-    <>
+    <div className={styles.wrap}>
       <button
         type="button"
         className="ds-btn ds-btn--md ds-btn--outlined-basic"
@@ -36,7 +35,7 @@ export function ProjectReconcileButton({ projectId }: { projectId: number }) {
         </span>
       </button>
       <ReconcileResult state={state} />
-    </>
+    </div>
   );
 }
 

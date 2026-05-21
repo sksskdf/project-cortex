@@ -1,14 +1,11 @@
+import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { AiToggle } from '@/components/AiToggle';
-import { ProjectAutoMergeToggle } from '@/components/ProjectAutoMergeToggle';
-import { ProjectReconcileButton } from '@/components/ProjectReconcileButton';
-import { listAutoMergeProjects } from '@/lib/projects';
 import { getSettings } from '@/lib/settings';
 import styles from './page.module.css';
 
 export default async function SettingsPage() {
   const settings = getSettings();
-  const autoMergeProjects = listAutoMergeProjects();
 
   return (
     <div className={styles.page}>
@@ -36,45 +33,17 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <section className={styles.card} aria-label={t.settings.autoMerge.ariaLabel}>
+      <section className={styles.card} aria-label={t.settings.projectsLink.title}>
         <div className={styles.cardHead}>
           <div>
-            <div className={styles.cardTitle}>{t.settings.autoMerge.title}</div>
-            <div className={styles.cardDesc}>{t.settings.autoMerge.desc}</div>
+            <div className={styles.cardTitle}>{t.settings.projectsLink.title}</div>
+            <div className={styles.cardDesc}>{t.settings.projectsLink.desc}</div>
           </div>
         </div>
-        {autoMergeProjects.length === 0 ? (
-          <div className={styles.cardEmpty}>{t.settings.autoMerge.empty}</div>
-        ) : (
-          <div className={styles.projectList}>
-            {autoMergeProjects.map((row) => (
-              <ProjectAutoMergeToggle key={row.id} row={row} />
-            ))}
-          </div>
-        )}
-        <div className={styles.cardHint}>{t.settings.autoMerge.hintCheckSubscription}</div>
+        <Link href="/projects" className="ds-btn ds-btn--md ds-btn--outlined-basic">
+          <span className="ds-btn__label">{t.settings.projectsLink.cta}</span>
+        </Link>
       </section>
-
-      {autoMergeProjects.length > 0 && (
-        <section className={styles.card} aria-label={t.settings.reconcile.title}>
-          <div className={styles.cardHead}>
-            <div>
-              <div className={styles.cardTitle}>{t.settings.reconcile.title}</div>
-              <div className={styles.cardDesc}>{t.settings.reconcile.desc}</div>
-            </div>
-          </div>
-          <div className={styles.projectList}>
-            {autoMergeProjects.map((row) => (
-              <div key={row.id} className={styles.projectRow}>
-                <div className={styles.projectMeta}>
-                  <span className={styles.projectSlug}>{row.slug}</span>
-                </div>
-                <ProjectReconcileButton projectId={row.id} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

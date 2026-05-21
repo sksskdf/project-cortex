@@ -178,8 +178,9 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
   const pathname = usePathname();
 
   // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
-  // /projects · /agents · /clusters · /reports → Phase 6·8
-  // /settings · /help → 별도 작업
+  // /clusters: Phase 6 — 활성. /projects: Phase 8 — 활성.
+  // /agents: Phase 13 (Claude CLI 통합) 으로 이관 — 준비 중.
+  // /reports: Phase 7 — 준비 중. /help: 최하 우선순위 — 준비 중.
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
     {
@@ -228,7 +229,6 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
         </ul>
       </nav>
 
-      {/* 즐겨찾기 섹션은 Phase 8 onboarding 에서 사용자 선택을 받기 전까지 비활성. */}
       <div className={styles.divider} />
 
       <nav className={styles.section}>
