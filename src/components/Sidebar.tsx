@@ -219,11 +219,6 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
 
   return (
     <aside className={styles.sidebar} aria-label={t.nav.section.workspace}>
-      <div className={styles.brand}>
-        <span className={styles.brandMark} aria-hidden="true" />
-        {t.app.name}
-      </div>
-
       <nav className={styles.section} aria-label={t.nav.section.workspace}>
         <div className={styles.sectionTitle}>{t.nav.section.workspace}</div>
         <ul className={styles.list}>

@@ -313,6 +313,20 @@
   color: var(--ds-color-text-02);
 }
 
+.todoDiff {
+  display: inline-flex;
+  gap: var(--ds-spacing-4);
+  font-family: var(--ds-typography-font-family-number);
+}
+
+.todoDiffPlus {
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.todoDiffMinus {
+  color: var(--ds-color-state-error-strong);
+}
+
 .gauge {
   position: relative;
   width: 36px;

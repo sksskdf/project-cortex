@@ -234,7 +234,10 @@ function TodoRowCard({ row }: { row: PR }) {
         </div>
       </div>
       <div className={styles.todoRight}>
-        <span>{t.dashboard.todoRow.diff(row.additions, row.deletions)}</span>
+        <span className={styles.todoDiff}>
+          <span className={styles.todoDiffPlus}>+{row.additions}</span>
+          <span className={styles.todoDiffMinus}>−{row.deletions}</span>
+        </span>
         <span>{row.ageText}</span>
       </div>
     </Link>
