@@ -62,7 +62,7 @@ export function mapPullRequestEvent(event: GithubPullRequestEventPartial): Webho
       filesChanged: event.pull_request.changed_files,
       merged: event.pull_request.merged,
       authorLogin: login,
-      authorKind: classifyAuthor(login, event.pull_request.user?.type),
+      authorKind: classifyAuthor(login, event.pull_request.user?.type, event.pull_request.body),
       createdAt: new Date(event.pull_request.created_at),
       updatedAt: new Date(event.pull_request.updated_at),
     },

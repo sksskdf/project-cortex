@@ -58,9 +58,19 @@ export type GitHubPRDetails = {
 // 에이전트 계정 식별 — Phase 4에서 정교화. 현재는 휴리스틱.
 const KNOWN_AGENT_LOGINS = new Set(['devin-ai-integration', 'devin', 'codex-bot']);
 
-export function classifyAuthor(login: string, type: string | undefined): 'agent' | 'human' {
+// Claude Code (claude.ai/code) 가 만든 PR 의 description footer 식별자.
+// 사용자 본인 계정으로 push 했어도 body 에 이 marker 가 있으면 'agent' 로 분류.
+// 사용자가 의도적으로 footer 를 지우면 'human' 으로 폴백 — 안전한 디폴트.
+const CLAUDE_CODE_MARKER = /https:\/\/claude\.ai\/code\//i;
+
+export function classifyAuthor(
+  login: string,
+  type: string | undefined,
+  body?: string | null,
+): 'agent' | 'human' {
   if (type?.toLowerCase() === 'bot') return 'agent';
   if (KNOWN_AGENT_LOGINS.has(login.toLowerCase())) return 'agent';
+  if (body && CLAUDE_CODE_MARKER.test(body)) return 'agent';
   return 'human';
 }
 
@@ -83,7 +93,7 @@ export async function getPRDetails(
     state: data.state as 'open' | 'closed',
     merged: data.merged,
     authorLogin: data.user?.login ?? 'unknown',
-    authorKind: classifyAuthor(data.user?.login ?? '', data.user?.type),
+    authorKind: classifyAuthor(data.user?.login ?? '', data.user?.type, data.body),
     linesAdded: data.additions ?? 0,
     linesRemoved: data.deletions ?? 0,
     filesChanged: data.changed_files ?? 0,

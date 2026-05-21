@@ -102,6 +102,58 @@ describe('getPRDetails', () => {
     const result = await getPRDetails(1, { owner: 'x', repo: 'y' }, 1);
     expect(result.authorKind).toBe('agent');
   });
+
+  // claude.ai/code marker — 사용자 본인 계정으로 push 했어도 Claude Code 가
+  // 생성한 PR 이면 agent 로 분류해 자동 머지 후보에 포함.
+  it('classifies as agent when PR body contains claude.ai/code marker', async () => {
+    setOctokit(
+      makeMockOctokit({
+        get: vi.fn().mockResolvedValue({
+          data: {
+            number: 1,
+            title: '',
+            body: '## 변경 요약\n\n어쩌고\n\n---\nhttps://claude.ai/code/session_017xyz\n',
+            head: { sha: 's' },
+            state: 'open',
+            merged: false,
+            user: { login: 'sksskdf', type: 'User' },
+            additions: 0,
+            deletions: 0,
+            changed_files: 0,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        }),
+      }),
+    );
+    const result = await getPRDetails(1, { owner: 'x', repo: 'y' }, 1);
+    expect(result.authorKind).toBe('agent');
+  });
+
+  it('stays human when body lacks the marker', async () => {
+    setOctokit(
+      makeMockOctokit({
+        get: vi.fn().mockResolvedValue({
+          data: {
+            number: 1,
+            title: '',
+            body: '평범한 사람 PR 설명',
+            head: { sha: 's' },
+            state: 'open',
+            merged: false,
+            user: { login: 'sksskdf', type: 'User' },
+            additions: 0,
+            deletions: 0,
+            changed_files: 0,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        }),
+      }),
+    );
+    const result = await getPRDetails(1, { owner: 'x', repo: 'y' }, 1);
+    expect(result.authorKind).toBe('human');
+  });
 });
 
 describe('mergePR', () => {
