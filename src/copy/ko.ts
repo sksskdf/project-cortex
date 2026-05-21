@@ -229,6 +229,20 @@ export const ko = {
         error: (message: string) => `설정 변경 실패: ${message}`,
       },
     },
+    // 프로젝트별 자동 머지 정책 토글 — Phase 8 인테이크 마법사 전 임시 UI.
+    autoMerge: {
+      title: '자동 머지 정책',
+      ariaLabel: '자동 머지 정책',
+      desc: 'GitHub App 이 설치된 프로젝트별로 자동 머지를 켜거나 끕니다. 끄면 모든 PR 이 인박스로 폴백됩니다.',
+      empty:
+        '등록된 프로젝트가 없습니다 — GitHub App 을 레포에 설치하면 첫 webhook 도착 시 자동 등록됩니다.',
+      result: {
+        enabled: (slug: string) => `${slug} 자동 머지를 활성화했습니다.`,
+        disabled: (slug: string) => `${slug} 자동 머지를 비활성화했습니다.`,
+        notFound: '프로젝트를 찾을 수 없거나 GitHub App 설치 정보가 없습니다.',
+        error: (message: string) => `설정 변경 실패: ${message}`,
+      },
+    },
   },
   clustersIndex: {
     title: '클러스터',
