@@ -165,6 +165,72 @@ export async function deletePRHeadBranch(
   return { kind: 'deleted', ref: data.head.ref };
 }
 
+// PR head SHA 의 모든 Check Run 결과 집계. GitHub Actions, 외부 CI (CircleCI 등) 가
+// 모두 check_run 으로 들어옴. 결론은 3분기:
+//   - 'passed'   : 1개 이상 conclusion='success', failure/cancelled 없음.
+//   - 'failed'   : 1개 이상 failure/cancelled/timed_out/action_required.
+//   - 'pending'  : 아직 결과가 안 나옴 (queued/in_progress) — 또는 check run 자체가
+//                  하나도 없음 (CI 미설정 레포 — testsPassed 는 계속 null 유지).
+// neutral/skipped 는 결과 영향 없음 (성공도 실패도 아님).
+export type CheckRunsSummary = {
+  status: 'passed' | 'failed' | 'pending';
+  total: number;
+  successCount: number;
+  failureCount: number;
+};
+
+export async function listCheckRunsForRef(
+  installationId: number,
+  ref: RepoRef,
+  sha: string,
+): Promise<CheckRunsSummary> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.checks.listForRef({
+    owner: ref.owner,
+    repo: ref.repo,
+    ref: sha,
+    per_page: 100,
+  });
+
+  const runs = data.check_runs ?? [];
+  if (runs.length === 0) {
+    return { status: 'pending', total: 0, successCount: 0, failureCount: 0 };
+  }
+
+  let successCount = 0;
+  let failureCount = 0;
+  let stillRunning = false;
+
+  for (const run of runs) {
+    if (run.status !== 'completed') {
+      stillRunning = true;
+      continue;
+    }
+    switch (run.conclusion) {
+      case 'success':
+        successCount += 1;
+        break;
+      case 'failure':
+      case 'cancelled':
+      case 'timed_out':
+      case 'action_required':
+        failureCount += 1;
+        break;
+      // neutral / skipped — 영향 없음.
+      default:
+        break;
+    }
+  }
+
+  let status: CheckRunsSummary['status'];
+  if (failureCount > 0) status = 'failed';
+  else if (stillRunning) status = 'pending';
+  else if (successCount > 0) status = 'passed';
+  else status = 'pending'; // 전부 neutral/skipped — 판단 불가.
+
+  return { status, total: runs.length, successCount, failureCount };
+}
+
 // PR 에 'Request Changes' 리뷰 제출 — 사용자가 PR 상세에서 '변경 요청' 누른 흐름.
 // GitHub 의 REQUEST_CHANGES review 는 PR 을 차단(블록) 상태로 만들어 다른 리뷰어가 dismiss
 // 하거나 작성자가 push 로 갱신할 때까지 머지를 막는다.

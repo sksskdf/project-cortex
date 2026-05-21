@@ -68,3 +68,35 @@ export function mapPullRequestEvent(event: GithubPullRequestEventPartial): Webho
     },
   };
 }
+
+// GitHub check_run / check_suite 이벤트 — 둘 다 head_sha 가 있으면 같은 처리.
+// 'completed' action 만 의미 있음 (queued/in_progress 는 결과 미확정).
+// check_suite 는 여러 run 을 묶지만 우리는 매번 listCheckRunsForRef 로 재집계하므로
+// suite vs run 구분 없음 — 둘 다 같은 mapper.
+export type GithubCheckEventPartial = {
+  action: string;
+  check_run?: { head_sha: string };
+  check_suite?: { head_sha: string };
+  repository: {
+    name: string;
+    full_name: string;
+  };
+  installation?: { id: number };
+};
+
+export type WebhookCheckPayload = {
+  repoSlug: string;
+  installationId: number | null;
+  headSha: string;
+};
+
+export function mapCheckEvent(event: GithubCheckEventPartial): WebhookCheckPayload | null {
+  if (event.action !== 'completed') return null;
+  const headSha = event.check_run?.head_sha ?? event.check_suite?.head_sha;
+  if (!headSha) return null;
+  return {
+    repoSlug: event.repository.full_name,
+    installationId: event.installation?.id ?? null,
+    headSha,
+  };
+}
