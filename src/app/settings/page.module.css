@@ -76,6 +76,42 @@
   gap: var(--ds-spacing-10);
 }
 
+/* 프로젝트별 자동 머지 토글 행 — 한 줄에 slug + 토글 버튼 + 결과 메시지. */
+.projectList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+}
+
+.projectRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-12);
+  padding: var(--ds-spacing-8) 0;
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.projectRow:last-child {
+  border-bottom: none;
+}
+
+.projectMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.projectSlug {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+}
+
+.cardEmpty {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  padding: var(--ds-spacing-12) 0;
+}
+
 .toggleLabel {
   font-size: var(--ds-typography-font-size-13);
   font-weight: var(--ds-typography-font-weight-semibold);
