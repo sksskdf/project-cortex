@@ -66,10 +66,11 @@ export function decideTriage(input: TriageInput): TriageResult {
   if (input.testsPassed === null) {
     return {
       decision: 'human-review',
-      // 사용자 혼동 회피 — GitHub 에는 CI 결과가 있을 수 있지만 Cortex 가 못 받는 상태일 수
-      // 있음 (App 의 Check run 이벤트 미구독 등). 진단 힌트 동봉.
-      reason:
-        'Cortex 가 아직 CI 결과를 받지 못했습니다 — 잠시 후 자동 갱신되거나 GitHub App 의 Check run 이벤트 구독을 확인해 주세요.',
+      // 인박스 한 줄 사유 — 짧게. 분석 직후엔 CI 가 끝나기 전이라 거의 항상 null 이라
+      // 자연스러운 대기. 갱신은 check_run webhook 도착 시 일어남. 만약 GitHub 에 CI
+      // 가 있는데도 영구 null 이면 App 의 Check run 이벤트 구독이 빠졌을 가능성 —
+      // 진단 안내는 /settings 의 자동 머지 정책 섹션 desc 에 별도 노출.
+      reason: 'CI 결과 대기 중 — 사람 검토가 필요합니다.',
     };
   }
 

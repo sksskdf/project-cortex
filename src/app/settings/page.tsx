@@ -51,6 +51,7 @@ export default async function SettingsPage() {
             ))}
           </div>
         )}
+        <div className={styles.cardHint}>{t.settings.autoMerge.hintCheckSubscription}</div>
       </section>
     </div>
   );

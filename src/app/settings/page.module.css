@@ -112,6 +112,15 @@
   padding: var(--ds-spacing-12) 0;
 }
 
+/* 카드 하단 진단 힌트 — CI 구독 안내 등 자주 안 보고 싶은 메시지. */
+.cardHint {
+  margin-top: var(--ds-spacing-12);
+  padding-top: var(--ds-spacing-10);
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
 .toggleLabel {
   font-size: var(--ds-typography-font-size-13);
   font-weight: var(--ds-typography-font-weight-semibold);
