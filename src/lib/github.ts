@@ -251,6 +251,23 @@ export async function requestChangesReview(
   return { id: data.id, submittedAt: data.submitted_at ?? null };
 }
 
+// PR 을 머지 없이 닫음 — '폐기' 의미. 사용자가 머지할 가치 없다고 판단한 PR 에 사용.
+// state='closed' + merged=false 로 들어가 done 카테고리에 'closed' 로 분류됨.
+export async function closePR(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<{ closed: boolean; number: number }> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.update({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+    state: 'closed',
+  });
+  return { closed: data.state === 'closed', number: data.number };
+}
+
 // PR 의 mergeable_state — GitHub 가 계산해 둔 머지 가능 여부.
 // - 'clean'    : 머지 가능 (CI 통과, 충돌 없음, 리뷰 차단 없음)
 // - 'dirty'    : base 와 충돌 발생

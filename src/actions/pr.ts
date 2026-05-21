@@ -7,8 +7,10 @@
 import { revalidatePath } from 'next/cache';
 import {
   attemptHumanMerge,
+  closePullRequest,
   deleteMergedBranch,
   submitRequestChanges,
+  type ClosePRResult,
   type DeletePRBranchResult,
   type HumanMergeResult,
   type RequestChangesResult,
@@ -197,6 +199,50 @@ function mapRequestChangesSkipReason(
       return '연결된 프로젝트가 없습니다.';
     case 'no-installation':
       return 'GitHub App 설치 정보가 없어 리뷰를 보낼 수 없습니다.';
+    case 'already-closed':
+      return '이미 머지되거나 닫힌 PR 입니다.';
+  }
+}
+
+// 사용자가 PR 상세에서 'PR 닫기' 누른 흐름. 머지 없이 폐기 — 테스트용 또는 의미 없어진
+// PR 정리. closePullRequest 가 GitHub API 호출 + DB status='closed' 갱신.
+export type PRCloseState =
+  | { kind: 'idle' }
+  | { kind: 'closed'; number: number }
+  | { kind: 'skipped'; message: string }
+  | { kind: 'error'; message: string };
+
+export async function closePRAction(viewId: string): Promise<PRCloseState> {
+  const dbId = parsePrId(viewId);
+  if (dbId === null) return { kind: 'error', message: '잘못된 PR ID 입니다.' };
+
+  let result: ClosePRResult;
+  try {
+    result = await closePullRequest(dbId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'error', message };
+  }
+
+  revalidatePath(`/pr/${viewId}`);
+  revalidatePath('/inbox');
+  revalidatePath('/');
+
+  if (result.kind === 'closed') return { kind: 'closed', number: result.number };
+  if (result.kind === 'failed') return { kind: 'error', message: result.reason };
+  return { kind: 'skipped', message: mapCloseSkipReason(result.reason) };
+}
+
+function mapCloseSkipReason(
+  reason: 'no-pr' | 'no-project' | 'no-installation' | 'already-closed',
+): string {
+  switch (reason) {
+    case 'no-pr':
+      return 'PR 을 찾을 수 없습니다.';
+    case 'no-project':
+      return '연결된 프로젝트가 없습니다.';
+    case 'no-installation':
+      return 'GitHub App 설치 정보가 없어 닫을 수 없습니다.';
     case 'already-closed':
       return '이미 머지되거나 닫힌 PR 입니다.';
   }

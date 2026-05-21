@@ -5,7 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
-import { deletePRHeadBranch, mergePR, requestChangesReview } from './github';
+import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
 
 export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
@@ -234,5 +234,38 @@ export async function submitRequestChanges(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'failed', reason: `변경 요청 실패: ${message}` };
+  }
+}
+
+// 사용자가 PR 상세에서 'PR 닫기' 누른 흐름 — 머지 안 하고 폐기. 테스트용 PR 또는
+// 의미 없어진 PR 정리. attemptHumanMerge 와 같이 status·triage 검사 우회 (사람 결정 우선).
+// 머지된 PR 은 닫을 수 없음 (이미 끝남). 닫힌 PR 도 멱등 skip.
+export type ClosePRResult =
+  | { kind: 'closed'; number: number }
+  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' | 'already-closed' }
+  | { kind: 'failed'; reason: string };
+
+export async function closePullRequest(prId: number): Promise<ClosePRResult> {
+  const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
+  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  if (pr.status === 'merged' || pr.status === 'closed') {
+    return { kind: 'skipped', reason: 'already-closed' };
+  }
+
+  const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
+  if (!project) return { kind: 'skipped', reason: 'no-project' };
+  if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
+
+  const [owner, repo] = project.slug.split('/');
+  try {
+    const result = await closePR(project.installationId, { owner, repo }, pr.number);
+    if (!result.closed) {
+      return { kind: 'failed', reason: 'GitHub 응답 — closed=false 반환.' };
+    }
+    db.update(prs).set({ status: 'closed', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
+    return { kind: 'closed', number: result.number };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'failed', reason: `PR 닫기 실패: ${message}` };
   }
 }

@@ -63,3 +63,10 @@
   gap: var(--ds-spacing-8);
   justify-content: flex-end;
 }
+
+/* PR 닫기 확인 패널의 안내 문구. */
+.closeConfirmText {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  line-height: var(--ds-typography-line-height-148);
+}

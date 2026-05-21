@@ -187,6 +187,12 @@ export const ko = {
       deleteBranch: '브랜치 삭제',
       deletingBranch: '삭제 중…',
       branchAlreadyDeleted: '브랜치 삭제됨',
+      // PR 닫기 — 머지 안 하고 폐기. 테스트용 PR / 의미 없어진 PR 정리.
+      closePR: 'PR 닫기',
+      closeConfirm:
+        '이 PR 을 머지하지 않고 닫습니다. GitHub 에서도 closed 상태가 됩니다 — 되돌리려면 reopen 필요.',
+      closeConfirmSubmit: '닫기',
+      closing: '닫는 중…',
       // GitHub mergeable_state 가 'dirty'/'blocked' 일 때 또는 CI 결과 대기 중일 때
       // 머지 버튼 옆에 표시되는 사유.
       mergeBlock: {
@@ -202,6 +208,8 @@ export const ko = {
         branchError: (message: string) => `브랜치 삭제 실패: ${message}`,
         requestSubmitted: '변경 요청이 GitHub 에 전송되었습니다.',
         requestError: (message: string) => `변경 요청 실패: ${message}`,
+        closed: (number: number) => `PR #${number} 을 닫았습니다.`,
+        closeError: (message: string) => `PR 닫기 실패: ${message}`,
       },
     },
   },
