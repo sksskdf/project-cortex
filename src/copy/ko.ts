@@ -113,6 +113,7 @@ export const ko = {
     actions: {
       merge: '머지',
       mergeAria: 'PR 머지',
+      mergeBlockedByCI: 'CI 결과 대기 중 — 통과 후 머지 가능',
       close: '닫기',
       closeAria: 'PR 닫기 (폐기)',
       deleteBranch: '브랜치 삭제',

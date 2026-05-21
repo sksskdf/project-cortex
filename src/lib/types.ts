@@ -40,10 +40,13 @@ export type PRGauge = {
 // 인박스 행 / 대시보드 todo 행에서 인라인 액션 버튼 활성화 여부.
 // 머지 시 브랜치 자동 삭제이므로 별도 '브랜치 삭제' 액션 없음.
 export type PRRowActionState = {
-  // 머지 버튼 활성 가능 — installation 있음 + 머지/닫힘 아님. 머지 성공 시 브랜치 자동 삭제.
+  // 머지 버튼 활성 가능 — installation 있음 + 머지/닫힘 아님 + CI 통과 (또는 CI 없는 레포).
+  // 머지 성공 시 브랜치 자동 삭제.
   canMerge: boolean;
   // PR 닫기 버튼 활성 가능 — installation 있음 + 머지/닫힘 아님.
   canClose: boolean;
+  // CI 결과 대기 중이라 머지가 막혔는지 — disabled 사유 노출용. canMerge=false 의 부분 집합.
+  mergeBlockedByCI?: boolean;
 };
 
 export type PR = {

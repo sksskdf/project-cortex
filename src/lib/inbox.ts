@@ -5,14 +5,27 @@ import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } f
 import { orderInbox } from '@/lib/queue';
 import type { PR, PRRowActionState, ReasonTone, SidebarCounts } from '@/lib/types';
 
-// 행 인라인 액션 활성 여부 — installation 있고 적절한 status 일 때만 노출.
+// 행 인라인 액션 활성 여부 — installation 있고 적절한 status + CI 통과/없음 일 때만 머지 활성.
 // 머지 성공 시 브랜치 자동 삭제이므로 별도 '브랜치 삭제' 액션 없음.
-export function deriveRowActions(status: string, installationId: number | null): PRRowActionState {
+// testsPassed: null=CI 결과 미수신 (대기 중), false=실패 → 머지 막음. true 또는 CI 없는 레포면 통과.
+// mergeable_state (dirty/blocked) 는 인박스 행에서 모름 — DB 캐시 없음, GitHub API 호출은 행마다
+// 호출하기엔 무거움. CI 가드만으로 가장 흔한 클릭 시 실패 케이스 차단. 충돌 PR 은 클릭 시
+// GitHub 에러 메시지로 안내됨 (의도적 단순화).
+export function deriveRowActions(
+  status: string,
+  installationId: number | null,
+  testsPassed: boolean | null,
+): PRRowActionState {
   const hasInstall = installationId !== null;
   const active = !['merged', 'closed'].includes(status);
+  // installation 없는 시드 PR 은 CI 자체가 없으므로 testsPassed 가드 무관 — canMerge=false 로 어차피 막힘.
+  // installation 있는 경우 testsPassed === null/false 면 머지 막음.
+  const ciOk = !hasInstall || testsPassed === true;
   return {
-    canMerge: hasInstall && active,
+    canMerge: hasInstall && active && ciOk,
     canClose: hasInstall && active,
+    // ciPending: PR 상세의 mergeBlockedByCI 와 같은 신호 — UI 가 disabled 사유 노출에 사용.
+    mergeBlockedByCI: hasInstall && active && !ciOk,
   };
 }
 
@@ -179,8 +192,8 @@ export async function listInboxQueue(
         value: confidence,
         tier: gaugeTierFromConfidence(confidence),
       },
-      // 행 인라인 액션 활성 여부 — installation 있고 적절한 status 일 때만.
-      actions: deriveRowActions(row.pr.status, row.installationId),
+      // 행 인라인 액션 활성 여부 — installation 있고 적절한 status + CI 통과일 때만.
+      actions: deriveRowActions(row.pr.status, row.installationId, row.pr.testsPassed),
     };
     return { item, flags };
   });

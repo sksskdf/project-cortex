@@ -106,14 +106,16 @@ export function PRActions({
   const mergeDisabled = !canMerge || pending || isMergedView;
   // GitHub mergeable_state 가 'dirty'/'blocked' 이거나 CI 결과 대기 중이면 머지 버튼이
   // disable 된 채로 사용자가 사유를 알 수 있도록 배지 노출.
-  // 우선순위: dirty > blocked > CI 대기.
-  const mergeBlockNote: string | null = mergeBlockedByCI
-    ? t.pr.actionBar.mergeBlock.ciPending
-    : mergeableState === 'dirty'
+  // 우선순위: dirty > blocked > CI 대기. 충돌·차단은 사용자 조치가 필요하지만 CI 대기는
+  // 시간 지나면 풀리므로 더 강한 사유를 먼저 노출.
+  const mergeBlockNote: string | null =
+    mergeableState === 'dirty'
       ? t.pr.actionBar.mergeBlock.conflict
       : mergeableState === 'blocked'
         ? t.pr.actionBar.mergeBlock.blocked
-        : null;
+        : mergeBlockedByCI
+          ? t.pr.actionBar.mergeBlock.ciPending
+          : null;
   // 위험 분류 PR 이 아니면 버튼을 렌더 안 함 (canRequestChanges=false).
   // 렌더하는 경우엔 pending/머지됨 외에는 항상 활성.
   const requestDisabled = pending || optimisticMerged;
