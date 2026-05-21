@@ -12,9 +12,11 @@ Issue ──┬─→ AgentRun ──→ PR ──→ PreReview ──→ Triage
         │                       └────────────────────┴─→ Cluster (optional)
         │                                                    │
         └────────────────────────────────────────────────────┴─→ MergeEvent
+
+AppSettings (단일 행 — 글로벌 토글)
 ```
 
-객체 6개로 끝납니다. 더 늘리지 마세요.
+도메인 객체는 6개 + 글로벌 AppSettings. 새 객체를 늘리기 전 기존에 흡수 가능한지 검토.
 
 ---
 
@@ -63,6 +65,7 @@ Issue ──┬─→ AgentRun ──→ PR ──→ PreReview ──→ Triage
 | `repoId` | int (FK) | |
 | `number` | int | GitHub의 PR 번호 |
 | `title` | string | |
+| `body` | text? | GitHub PR description. 빈 본문 가능 — UI 가 섹션 자체 숨김 |
 | `authorKind` | `'agent' \| 'human'` | |
 | `authorId` | string | |
 | `headSha` | string | 사전 리뷰 캐시 키 |
@@ -70,7 +73,8 @@ Issue ──┬─→ AgentRun ──→ PR ──→ PreReview ──→ Triage
 | `filesChanged` | int | |
 | `status` | `'open' \| 'review-needed' \| 'auto-mergeable' \| 'merged' \| 'closed'` | |
 | `clusterId` | int (FK, nullable) | 묶이면 set |
-| `createdAt`, `updatedAt` | timestamp | |
+| `branchDeletedAt` | timestamp? | head 브랜치 삭제 시점. PR 상세의 '브랜치 삭제' 버튼 멱등성 |
+| `createdAt`, `updatedAt` | timestamp | `updatedAt` 은 synchronize webhook 마다 갱신 (인박스 ageText 의 원천) |
 
 **상태 전이**:
 ```
@@ -94,11 +98,13 @@ open
 | `confidence` | int | 0–100 |
 | `confidenceTier` | `'critical' \| 'low' \| 'medium' \| 'high'` | 점수→티어 매핑 |
 | `flags` | json | 위험 플래그 배열 (`['payment-domain', 'low-coverage', ...]`) |
+| `changedPaths` | json | 변경된 파일 경로 배열 — 클러스터링 자카드 유사도 입력 |
 | `hunkAnnotations` | json | hunk별 `'auto' \| 'review'` + 사유 |
-| `summary` | text | 사람 노출용 한국어 요약 |
-| `comments` | json | 인라인 코멘트 (path, line, body) |
-| `testsPassed` | bool? | null이면 미실행 |
-| `coverage` | float? | null이면 미측정 |
+| `summary` | text? | 사람 노출용 한국어 요약 |
+| `comments` | json? | 인라인 코멘트 (path, line, body) |
+| `parsedFiles` | json? | diff 파싱 결과 (FileBlock[]) — UI 트리/diff 렌더 입력 |
+| `testsPassed` | bool? | null이면 미실행. Phase 4 백로그 — Check Runs API 로 채울 예정 |
+| `coverage` | float? | null이면 미측정. Phase 4 백로그 |
 | `analyzedAt` | timestamp | |
 
 **캐시 룰**: `(prId, headSha)` 유니크. 새 커밋이 오면 새 PreReview가 만들어지고 이전 것은 보존.
@@ -142,6 +148,15 @@ open
 | `clusterId` | int (FK, nullable) | 클러스터 일괄 머지면 set |
 | `revertedAt` | timestamp? | 사후 revert 추적 |
 | `mergedAt` | timestamp | |
+
+### AppSettings
+> 단일 행 (id=1) 의 글로벌 설정. 단일 사용자 가정상 워크스페이스/유저별 설정은 비-목표.
+
+| 필드 | 타입 | 메모 |
+|---|---|---|
+| `id` | int (PK, 항상 1) | |
+| `aiEnabled` | bool | false 면 Anthropic 호출 전부 skip (사전 리뷰·triage·클러스터링). 크레딧 차단 스위치 |
+| `updatedAt` | timestamp | |
 
 ---
 
