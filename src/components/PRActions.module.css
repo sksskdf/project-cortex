@@ -1,3 +1,9 @@
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+}
+
 .row {
   display: flex;
   gap: var(--ds-spacing-8);
@@ -20,4 +26,40 @@
 .resultError {
   background: var(--ds-color-soft-red);
   color: var(--ds-color-state-error-strong);
+}
+
+/* 변경 요청 확장 패널 — 사유 입력 textarea + 보내기/취소 */
+.requestPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-12);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+}
+
+.requestTextarea {
+  width: 100%;
+  min-height: 72px;
+  padding: var(--ds-spacing-10) var(--ds-spacing-12);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  color: var(--ds-color-text-03-high);
+  font-family: inherit;
+  font-size: var(--ds-typography-font-size-13);
+  line-height: var(--ds-typography-line-height-148);
+  resize: vertical;
+}
+
+.requestTextarea:focus {
+  outline: none;
+  border-color: var(--ds-color-secondary-01);
+}
+
+.requestActions {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  justify-content: flex-end;
 }

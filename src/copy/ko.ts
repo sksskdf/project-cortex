@@ -160,6 +160,11 @@ export const ko = {
       summary: (autoApprovable: number, total: number) =>
         `총 ${total} hunk 중 ${autoApprovable}개는 자동 승인 가능합니다.`,
       requestChanges: '변경 요청',
+      requestPlaceholder:
+        '어떤 부분을 수정해야 할지 짧게 적어주세요. 비워두면 일반 안내 문구가 전송됩니다.',
+      requestSubmit: '변경 요청 보내기',
+      requestSending: '보내는 중…',
+      requestCancel: '취소',
       autoApprove: '자동 승인 가능 항목만 머지',
       mergeAll: '전체 머지',
       merging: '머지 중…',
@@ -172,6 +177,8 @@ export const ko = {
         branchDeleted: (ref: string) => `브랜치 삭제됨: ${ref}.`,
         branchSkipped: (message: string) => message,
         branchError: (message: string) => `브랜치 삭제 실패: ${message}`,
+        requestSubmitted: '변경 요청이 GitHub 에 전송되었습니다.',
+        requestError: (message: string) => `변경 요청 실패: ${message}`,
       },
     },
   },
