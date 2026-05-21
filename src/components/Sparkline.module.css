@@ -1,0 +1,44 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-4);
+}
+
+.svg {
+  width: 100%;
+  display: block;
+}
+
+.line {
+  fill: none;
+  stroke: var(--ds-color-state-info-accent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.dot {
+  fill: var(--ds-color-state-info-accent);
+  stroke: var(--ds-color-bg-00);
+  stroke-width: 0.6;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--ds-typography-font-size-10);
+  color: var(--ds-color-text-02);
+  padding: 0 var(--ds-spacing-4);
+}
+
+.axisLabel {
+  flex: 1;
+  text-align: center;
+}
+
+.empty {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  padding: var(--ds-spacing-12) 0;
+}

@@ -173,6 +173,25 @@ export const appSettings = sqliteTable('app_settings', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
+// 헤더 알림 드롭다운에 노출되는 이벤트 로그. 자동 머지 성공·실패, CI 실패, 새 클러스터,
+// revert 감지 등 사용자가 즉시 알아야 하는 이벤트만 row 로 적재. 만성적 상태 (인박스 카운트
+// 등) 는 별개 — 인박스는 prs.status 로 직접 집계.
+export const notifications = sqliteTable('notifications', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  kind: text('kind', {
+    enum: ['auto-merged', 'auto-merge-failed', 'ci-failed', 'cluster-created', 'revert-detected'],
+  }).notNull(),
+  // 관련 객체 — 클릭 시 이동할 라우트를 라이브러리에서 도출. 모두 nullable.
+  prId: integer('pr_id').references(() => prs.id),
+  clusterId: integer('cluster_id').references(() => clusters.id),
+  projectId: integer('project_id').references(() => projects.id),
+  title: text('title').notNull(),
+  body: text('body'),
+  // null 이면 unread. 사용자가 드롭다운 열거나 명시 클릭 시 채워짐.
+  readAt: integer('read_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type IssueRow = typeof issues.$inferSelect;
 export type AgentRunRow = typeof agentRuns.$inferSelect;
@@ -181,3 +200,4 @@ export type PreReviewRow = typeof preReviews.$inferSelect;
 export type TriageDecisionRow = typeof triageDecisions.$inferSelect;
 export type ClusterRow = typeof clusters.$inferSelect;
 export type AppSettingsRow = typeof appSettings.$inferSelect;
+export type NotificationRow = typeof notifications.$inferSelect;

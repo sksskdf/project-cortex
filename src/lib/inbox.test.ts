@@ -2,7 +2,43 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { listInboxQueue, type InboxCategoryId } from './inbox';
+import { deriveRowActions, listInboxQueue, type InboxCategoryId } from './inbox';
+
+describe('deriveRowActions', () => {
+  it('installation 없는 시드 PR — 모두 비활성', () => {
+    const r = deriveRowActions('review-needed', null, null);
+    expect(r.canMerge).toBe(false);
+    expect(r.canClose).toBe(false);
+    expect(r.mergeBlockedByCI).toBeFalsy();
+  });
+
+  it('CI 통과 + 활성 — 머지/닫기 모두 가능', () => {
+    const r = deriveRowActions('review-needed', 123, true);
+    expect(r.canMerge).toBe(true);
+    expect(r.canClose).toBe(true);
+    expect(r.mergeBlockedByCI).toBe(false);
+  });
+
+  it('CI 대기 (testsPassed=null) — 머지 차단, 닫기 가능, mergeBlockedByCI=true', () => {
+    const r = deriveRowActions('review-needed', 123, null);
+    expect(r.canMerge).toBe(false);
+    expect(r.canClose).toBe(true);
+    expect(r.mergeBlockedByCI).toBe(true);
+  });
+
+  it('CI 실패 (testsPassed=false) — 머지 차단, 닫기 가능', () => {
+    const r = deriveRowActions('review-needed', 123, false);
+    expect(r.canMerge).toBe(false);
+    expect(r.canClose).toBe(true);
+    expect(r.mergeBlockedByCI).toBe(true);
+  });
+
+  it('이미 머지된 PR — 둘 다 비활성', () => {
+    const r = deriveRowActions('merged', 123, true);
+    expect(r.canMerge).toBe(false);
+    expect(r.canClose).toBe(false);
+  });
+});
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });

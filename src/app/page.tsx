@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
-import { AgentFaceIcon, AlertIcon, BellIcon, CheckIcon, InfoIcon } from '@/components/icons';
+import { AgentFaceIcon, AlertIcon, CheckIcon, InfoIcon } from '@/components/icons';
+import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { PRRowInlineActions } from '@/components/PRRowInlineActions';
 import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
 import { currentUser } from '@/lib/config';
@@ -10,6 +11,7 @@ import {
   getRecentMerges,
   getTodayRows,
 } from '@/lib/dashboard';
+import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
 import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
 import styles from './page.module.css';
 
@@ -287,6 +289,8 @@ export default async function DashboardPage() {
     getRecentMerges(5),
     getDashboardClusters(),
   ]);
+  const notifications = listRecentNotifications();
+  const unreadCount = unreadNotificationCount();
   const todayReviewCount = dashboardStats.pendingReview.value;
   const weekAutoMergedCount = dashboardStats.autoMergedThisWeek.value;
 
@@ -298,18 +302,9 @@ export default async function DashboardPage() {
           <p className={styles.greetingSub}>{t.dashboard.greetingSub(todayReviewCount)}</p>
         </div>
         <div className={styles.headerActions}>
-          {/* 알림 / 에이전트 시작 / 새 이슈는 백엔드 미구현 — disabled.
-              알림: Phase 7 운영(메트릭 + 이벤트).
-              에이전트 시작·새 이슈: Phase 13 (Claude CLI 통합) 로 이관 (Decision Log 2026-05-21). */}
-          <button
-            type="button"
-            className={styles.iconBtn}
-            aria-label={t.dashboard.header.notificationsHint}
-            title={t.dashboard.header.notificationsHint}
-            disabled
-          >
-            <BellIcon />
-          </button>
+          {/* 알림은 Phase 7 활성화 — NotificationDropdown 가 자체 BellIcon + 카운트 배지 렌더.
+              에이전트 시작 · 새 이슈는 Phase 13 (Claude CLI 통합) 으로 이관 (Decision Log 2026-05-21) — disabled 유지. */}
+          <NotificationDropdown notifications={notifications} unreadCount={unreadCount} />
           <button
             type="button"
             className="ds-btn ds-btn--md ds-btn--outlined-basic"

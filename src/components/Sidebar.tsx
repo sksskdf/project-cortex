@@ -210,7 +210,7 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       icon: clustersIcon,
       count: counts.clusters,
     },
-    { href: '/reports', label: t.nav.reports, icon: reportsIcon, comingSoon: true },
+    { href: '/reports', label: t.nav.reports, icon: reportsIcon },
   ];
 
   const utilityItems: ReadonlyArray<NavItem> = [

@@ -41,23 +41,34 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
     });
   }
 
+  // CI 대기로 머지 막혔지만 닫기는 가능 — 버튼은 disabled 로 그려서 사유 안내.
+  const mergeBlockedByCI = actions.mergeBlockedByCI === true;
+  const showMerge = actions.canMerge || mergeBlockedByCI;
+
   // 액션 하나도 못 쓰면 컴포넌트 자체 안 그림.
-  if (!actions.canMerge && !actions.canClose) return null;
+  if (!showMerge && !actions.canClose) return null;
 
   const hidden = optimisticHidden && errorMsg === null;
   if (hidden) return <span className={styles.placeholder} aria-hidden="true" />;
 
   return (
     <span className={styles.group} onClick={(e) => e.stopPropagation()}>
-      {actions.canMerge && (
+      {showMerge && (
         <button
           type="button"
           className="ds-btn ds-btn--sm ds-btn--filled-blue"
-          disabled={pending}
+          disabled={pending || !actions.canMerge}
           aria-busy={pending}
-          aria-label={t.row.actions.mergeAria}
-          title={t.row.actions.mergeAria}
-          onClick={(e) => runAction(() => mergePRAction(viewId), e)}
+          aria-label={mergeBlockedByCI ? t.row.actions.mergeBlockedByCI : t.row.actions.mergeAria}
+          title={mergeBlockedByCI ? t.row.actions.mergeBlockedByCI : t.row.actions.mergeAria}
+          onClick={(e) => {
+            if (!actions.canMerge) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+            runAction(() => mergePRAction(viewId), e);
+          }}
         >
           <span className="ds-btn__label">{t.row.actions.merge}</span>
         </button>

@@ -113,6 +113,7 @@ export const ko = {
     actions: {
       merge: '머지',
       mergeAria: 'PR 머지',
+      mergeBlockedByCI: 'CI 결과 대기 중 — 통과 후 머지 가능',
       close: '닫기',
       closeAria: 'PR 닫기 (폐기)',
       deleteBranch: '브랜치 삭제',
@@ -263,6 +264,59 @@ export const ko = {
         closed: (number: number) => `PR #${number} 을 닫았습니다.`,
         closeError: (message: string) => `PR 닫기 실패: ${message}`,
       },
+    },
+  },
+  // Phase 7 — /reports 페이지 (운영 메트릭 시각화).
+  reports: {
+    title: '보고서',
+    subtitle: '최근 7일 자동 머지율 · 인입량 · 신뢰 점수 추이 · revert 감지.',
+    section: {
+      mergeRate: '자동 머지율',
+      mergeRateDesc: '머지된 PR 중 Cortex 가 정책 기반으로 자동 머지한 비율.',
+      dailyIncoming: '일별 PR 인입',
+      dailyIncomingDesc: '새로 도착한 PR 수 (최근 7일).',
+      dailyMerges: '일별 머지 추이',
+      dailyMergesDesc: '자동(파랑) · 수동(노랑) · 외부(회색) 합계 (최근 7일).',
+      avgConfidence: '평균 신뢰 점수 추이',
+      avgConfidenceDesc: 'AI 분석된 PR 의 평균 신뢰 점수 (일별, 최근 7일).',
+      reverts: 'Revert 감지',
+      revertsDesc:
+        '제목이 "Revert " 로 시작하는 PR — GitHub revert UI 로 만들어진 케이스. 자동 머지가 잘못된 변경을 머지했을 가능성 신호.',
+    },
+    mergeRate: {
+      compareTo: (prev: number) => `지난 주 ${prev}%`,
+      total: (auto: number, total: number) => `자동 ${auto} / 전체 ${total}건 머지`,
+      breakdown: (auto: number, human: number, github: number) =>
+        `자동 ${auto} · 수동 ${human} · 외부 ${github}`,
+    },
+    legend: {
+      auto: '자동',
+      human: '수동',
+      github: '외부',
+    },
+    revertEmpty: '감지된 revert 가 없습니다.',
+    revertStatus: {
+      merged: '머지됨',
+      open: '열림',
+      'review-needed': '검토 필요',
+      'auto-mergeable': '머지 가능',
+      closed: '닫힘',
+    },
+  },
+  // Phase 7 — 헤더 알림 드롭다운. 이벤트별 라벨/포맷.
+  notifications: {
+    title: '알림',
+    open: '알림 열기',
+    empty: '새 알림이 없습니다.',
+    markAllRead: '모두 읽음',
+    markAllReadAria: '알림을 모두 읽음으로 표시',
+    unreadBadge: (n: number) => (n > 99 ? '99+' : `${n}`),
+    kindLabel: {
+      'auto-merged': '자동 머지',
+      'auto-merge-failed': '자동 머지 실패',
+      'ci-failed': 'CI 실패',
+      'cluster-created': '새 클러스터',
+      'revert-detected': 'Revert 감지',
     },
   },
   settings: {
