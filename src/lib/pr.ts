@@ -37,6 +37,10 @@ export type PRDetailView = {
   // GitHub merge API 호출 가능 여부 — installationId 있고 머지/닫힘 아님.
   // 시드 PR 은 false (installationId null). preReview 유무 무관.
   canMerge: boolean;
+  // 변경 요청 가능 여부 — canMerge && 위험 분류 (reason.tone === alert/warn).
+  // Cortex 는 AI 가 만든 코드의 게이트키퍼: 신뢰도가 높은 PR 은 그냥 머지하면 됨.
+  // 사람의 거절 의사 (REQUEST_CHANGES) 는 위험 PR 에서만 의미 있음.
+  canRequestChanges: boolean;
   // 사용자가 PR 상세에서 'AI 분석 요청' 버튼을 누를 수 있는지 — preReview 없고
   // installation 있고 AI 토글 ON. AI off 면 false (UI 가 disable 표시).
   canRequestAnalysis: boolean;
@@ -292,6 +296,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     isMerged,
     branchDeleted: row.pr.branchDeletedAt !== null,
     canMerge,
+    canRequestChanges: canMerge && (tone === 'alert' || tone === 'warn'),
     canRequestAnalysis: !row.preReview && row.installationId !== null && settings.aiEnabled,
     aiEnabled: settings.aiEnabled,
     body: row.pr.body,

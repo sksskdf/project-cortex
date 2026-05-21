@@ -18,9 +18,13 @@ type Props = {
   isMerged: boolean;
   // 서버에서 받은 영속 상태 — head 브랜치가 이미 삭제된 경우 버튼 비활성화.
   branchDeleted: boolean;
+  // 위험 분류 (reason.tone alert/warn) PR 에서만 true. false 면 변경 요청
+  // 버튼 자체를 렌더하지 않음 — Cortex 는 AI 코드의 게이트키퍼라 신뢰도 높은
+  // PR 까지 사람의 거절 의사를 push 할 필요가 없음.
+  canRequestChanges: boolean;
 };
 
-export function PRActions({ viewId, canMerge, isMerged, branchDeleted }: Props) {
+export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canRequestChanges }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
   const [branchState, setBranchState] = useState<PRBranchDeleteState>({ kind: 'idle' });
@@ -62,23 +66,25 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted }: Props) 
   // 그동안의 transient 상태 표시는 mergeState.kind === 'merged' 로 처리.
   const showDeleteBranch = isMerged || mergeState.kind === 'merged';
   const mergeDisabled = !canMerge || pending || showDeleteBranch;
-  // 변경 요청은 GitHub 머지 못 하는 PR (시드) 도 의미 있을 수 있지만, 현 흐름은
-  // installation 있을 때만 — canMerge 와 같은 조건 재사용.
-  const requestDisabled = !canMerge || pending || isMerged;
+  // 위험 분류 PR 이 아니면 버튼을 렌더 안 함 (canRequestChanges=false).
+  // 렌더하는 경우엔 pending/머지됨 외에는 항상 활성.
+  const requestDisabled = pending || isMerged;
 
   return (
     <div className={styles.column}>
       <div className={styles.row}>
-        <button
-          type="button"
-          className="ds-btn ds-btn--md ds-btn--outlined-red"
-          onClick={() => setRequestOpen((v) => !v)}
-          disabled={requestDisabled}
-          aria-disabled={requestDisabled}
-          aria-expanded={requestOpen}
-        >
-          <span className="ds-btn__label">{t.pr.actionBar.requestChanges}</span>
-        </button>
+        {canRequestChanges && (
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--outlined-red"
+            onClick={() => setRequestOpen((v) => !v)}
+            disabled={requestDisabled}
+            aria-disabled={requestDisabled}
+            aria-expanded={requestOpen}
+          >
+            <span className="ds-btn__label">{t.pr.actionBar.requestChanges}</span>
+          </button>
+        )}
         {/* 자동 승인 가능 항목만 머지 — hunk 선택 흐름 미구현. */}
         <button
           type="button"
@@ -124,7 +130,7 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted }: Props) 
           requestState={requestState}
         />
       </div>
-      {requestOpen && (
+      {canRequestChanges && requestOpen && (
         <div className={styles.requestPanel}>
           <textarea
             className={styles.requestTextarea}

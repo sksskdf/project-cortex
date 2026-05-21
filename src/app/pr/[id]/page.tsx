@@ -140,6 +140,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     isMerged,
     branchDeleted,
     canMerge,
+    canRequestChanges,
     canRequestAnalysis,
     aiEnabled,
     body,
@@ -318,11 +319,13 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <div className={styles.actionBarRight}>
             {/* canMerge = installationId 있고 머지/닫힘 아님. preReview/AI 토글 무관. */}
+            {/* canRequestChanges = canMerge + 위험 분류 (reason.tone alert/warn). */}
             <PRActions
               viewId={pr.id}
               canMerge={canMerge}
               isMerged={isMerged}
               branchDeleted={branchDeleted}
+              canRequestChanges={canRequestChanges}
             />
           </div>
         </div>

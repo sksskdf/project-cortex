@@ -177,4 +177,45 @@ describe('getPRDetail', () => {
     expect(checks.find((c) => c.key === 'tests')?.value).toBe('미측정');
     expect(checks.find((c) => c.key === 'coverage')?.value).toBe('미측정');
   });
+
+  // 변경 요청 가능 여부 게이팅 — Cortex 는 AI 코드의 게이트키퍼라 위험 분류된
+  // PR (reason.tone alert/warn) 에서만 사람의 거절 의사가 의미 있음.
+  it('canRequestChanges is true on alert PR (blocking flag)', async () => {
+    const id = setup({
+      withPreReview: true,
+      withTriage: true,
+      confidence: 92,
+      flags: ['payment-domain'],
+    });
+    const view = await getPRDetail(id);
+    expect(view?.canRequestChanges).toBe(true);
+  });
+
+  it('canRequestChanges is true on warn PR (confidence < 70)', async () => {
+    const id = setup({
+      withPreReview: true,
+      withTriage: true,
+      confidence: 55,
+      flags: [],
+    });
+    const view = await getPRDetail(id);
+    expect(view?.canRequestChanges).toBe(true);
+  });
+
+  it('canRequestChanges is false on safe PR (high confidence, no flags)', async () => {
+    const id = setup({
+      withPreReview: true,
+      withTriage: true,
+      confidence: 95,
+      flags: [],
+    });
+    const view = await getPRDetail(id);
+    expect(view?.canRequestChanges).toBe(false);
+  });
+
+  it('canRequestChanges is false when triage missing (tone falls back to info)', async () => {
+    const id = setup({ withPreReview: true, confidence: 30, flags: ['migration'] });
+    const view = await getPRDetail(id);
+    expect(view?.canRequestChanges).toBe(false);
+  });
 });
