@@ -79,7 +79,7 @@
 .markAllBtn {
   background: transparent;
   border: none;
-  color: var(--ds-color-state-info-accent);
+  color: var(--ds-color-secondary-01);
   font-size: var(--ds-typography-font-size-12);
   cursor: pointer;
   padding: var(--ds-spacing-4) var(--ds-spacing-8);
@@ -146,7 +146,7 @@
 }
 
 .dotYellow {
-  background: var(--ds-color-state-warning-accent);
+  background: var(--ds-color-state-warning-base);
 }
 
 .dotPurple {

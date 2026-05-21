@@ -146,6 +146,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     body,
     mergeableState,
     mergeBlockedByCI,
+    testsPassed,
     reviews,
   } = view;
   const detail = { ...fixture, hunkSummary };
@@ -362,6 +363,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
               canRequestChanges={canRequestChanges}
               mergeableState={mergeableState}
               mergeBlockedByCI={mergeBlockedByCI}
+              testsPassed={testsPassed}
             />
           </div>
         </div>

@@ -23,9 +23,11 @@ export type DailyIncomingPoint = { date: string; count: number };
 export type DailyMergePoint = { date: string; auto: number; human: number; github: number };
 export type DailyConfidencePoint = { date: string; avg: number | null };
 
-const COLOR_BLUE = 'var(--ds-color-state-info-accent)';
-const COLOR_YELLOW = 'var(--ds-color-state-warning-accent)';
-const COLOR_GRAY = 'var(--ds-color-line-02)';
+// dark.css 에 실재하는 토큰만 사용. SVG fill 속성에 var() 가 일부 브라우저에서
+// 무시되어 검정 fallback 되는 케이스 회피 — 디자인 토큰이 정의된 색만 신뢰.
+const COLOR_BLUE = 'var(--ds-color-secondary-01)'; // brand blue #93b0f8
+const COLOR_YELLOW = 'var(--ds-color-state-warning-base)'; // #ffc60a
+const COLOR_GRAY = 'var(--ds-color-primary-05)'; // #9aa0c2 — 외부 머지용 중간 톤
 const COLOR_AXIS = 'var(--ds-color-text-02)';
 const COLOR_GRID = 'var(--ds-color-line-02)';
 
