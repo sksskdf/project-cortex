@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { preReviews, prs, projects, type PRRecord } from '@/db/schema';
+import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
 import { listCheckRunsForRef } from './github';
@@ -231,7 +231,7 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
 // 그 결과로 자동 머지가 가능해지면 (passed + 다른 조건 충족) 재트라이아지 + 자동 머지 시도.
 export type CheckSyncResult =
   | { kind: 'updated'; prId: number; testsPassed: boolean | null }
-  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-pr' | 'no-pre-review' | 'no-installation' };
+  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-pr' | 'no-installation' };
 
 export async function handleCheckWebhook(payload: {
   repoSlug: string;
@@ -258,22 +258,14 @@ export async function handleCheckWebhook(payload: {
   const installationId = project.installationId ?? payload.installationId;
   if (installationId === null) return { kind: 'skipped', reason: 'no-installation' };
 
-  // 같은 SHA 의 가장 최근 preReview 1개만 갱신. webhook 이 분석보다 먼저 도착할 수
-  // 있는데 (드물게 CI 가 빠른 레포) 그 경우 갱신 대상이 없음 — skip 후 analyzePR
-  // 흐름에서 testsPassed 가 한 번에 채워짐.
-  const existing = db
-    .select({ id: preReviews.id })
-    .from(preReviews)
-    .where(and(eq(preReviews.prId, pr.id), eq(preReviews.headSha, payload.headSha)))
-    .get();
-  if (!existing) return { kind: 'skipped', reason: 'no-pre-review' };
-
   const [owner, repo] = project.slug.split('/');
   const summary = await listCheckRunsForRef(installationId, { owner, repo }, payload.headSha);
   const testsPassed: boolean | null =
     summary.status === 'passed' ? true : summary.status === 'failed' ? false : null;
 
-  db.update(preReviews).set({ testsPassed }).where(eq(preReviews.id, existing.id)).run();
+  // CI 결과는 prs 컬럼에 직접 저장 — AI 분석 (preReview) 없이도 채워짐. AI off
+  // 시에도 자동 머지 룰 #4 가 prs.testsPassed 를 읽으므로 정상 동작.
+  db.update(prs).set({ testsPassed }).where(eq(prs.id, pr.id)).run();
 
   // 결과가 true 가 되면 자동 머지 후보가 됐을 수 있음 — 재트라이아지 + 시도.
   // 다른 조건 (confidence·flags) 은 runTriage 가 다시 평가하므로 안전.

@@ -91,7 +91,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   }
 
   const [owner, repo] = project.slug.split('/');
-  // diff + Check Runs 병렬 — 후자는 LLM 입력에 안 쓰이지만 testsPassed 초기값.
+  // diff + Check Runs 병렬 — 후자는 LLM 입력에 안 쓰이지만 prs.testsPassed 초기값.
   // checks 실패는 무시 (네트워크 일시 오류 등) — null 로 두고 webhook 이 나중에 갱신.
   const [diff, initialChecks] = await Promise.all([
     getPRDiff(project.installationId, { owner, repo }, pr.number),
@@ -108,6 +108,11 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
         : initialChecks.status === 'failed'
           ? false
           : null;
+  // CI 결과는 prs 컬럼에 저장. 이미 webhook 으로 갱신됐을 수 있으니 (race) 덮어쓰지
+  // 말고 prs.testsPassed 가 null 일 때만 채움.
+  if (testsPassedInitial !== null && pr.testsPassed === null) {
+    db.update(prs).set({ testsPassed: testsPassedInitial }).where(eq(prs.id, prId)).run();
+  }
   const changedPaths = extractPaths(diff);
 
   // Phase 4.5a — diff 토큰 예산 적용. 우선순위 정렬 + lock·generated 본문 제외 +
@@ -184,7 +189,9 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
           hunkAnnotations,
           summary: triage.summary,
           comments: [],
-          testsPassed: testsPassedInitial,
+          // testsPassed 는 prs 컬럼으로 이동 (마이그레이션 0007). preReview 의 컬럼은
+          // legacy 호환 위해 schema 에 남았지만 새로 저장 안 함.
+          testsPassed: null,
           coverage: null,
         })
         .returning()
@@ -243,7 +250,8 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
       hunkAnnotations: parsed.hunkAnnotations,
       summary: parsed.summary,
       comments: parsed.comments,
-      testsPassed: testsPassedInitial,
+      // testsPassed 는 prs 컬럼으로 이동 (위 분기와 동일). preReview 는 legacy 컬럼.
+      testsPassed: null,
       coverage: null,
     })
     .returning()

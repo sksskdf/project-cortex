@@ -120,7 +120,9 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
     authorKind: pr.authorKind,
     confidence: preReview.confidence,
     flags: preReview.flags,
-    testsPassed: preReview.testsPassed,
+    // testsPassed 는 PR.testsPassed 로 이동 (AI off 와 무관하게 CI 결과 채워짐).
+    // preReview.testsPassed 는 legacy — 마이그레이션 0007 후엔 안 읽음.
+    testsPassed: pr.testsPassed,
     autoMergeEnabled: project.autoMergeEnabled,
   });
 

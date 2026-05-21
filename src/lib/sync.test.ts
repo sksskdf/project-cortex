@@ -273,8 +273,8 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     const opened = await handlePullRequestWebhook(basePayload());
     const prId = (opened as { kind: 'inserted'; prId: number }).prId;
 
-    // CI 결과 동기화 시뮬레이션 — Phase 5+ 에서 자동화될 작업.
-    db.update(preReviews).set({ testsPassed: true }).where(eq(preReviews.prId, prId)).run();
+    // CI 결과 동기화 시뮬레이션 — handleCheckWebhook 이 prs.testsPassed 갱신.
+    db.update(prs).set({ testsPassed: true }).where(eq(prs.id, prId)).run();
 
     // 같은 SHA 로 synchronize → analyzePR 캐시 hit → runTriage → safeAutoMerge.
     await handlePullRequestWebhook({ ...basePayload(), action: 'synchronize' });
@@ -299,7 +299,7 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     );
     const opened = await handlePullRequestWebhook(basePayload());
     const prId = (opened as { kind: 'inserted'; prId: number }).prId;
-    db.update(preReviews).set({ testsPassed: true }).where(eq(preReviews.prId, prId)).run();
+    db.update(prs).set({ testsPassed: true }).where(eq(prs.id, prId)).run();
 
     await handlePullRequestWebhook({ ...basePayload(), action: 'synchronize' });
 
@@ -466,10 +466,9 @@ describe('handleCheckWebhook', () => {
     if (result.kind === 'skipped') expect(result.reason).toBe('no-pr');
   });
 
-  it('updates testsPassed=true when checks all passed and triggers re-triage', async () => {
-    // 1) PR + preReview 시드 (analyzePR 로).
+  it('updates prs.testsPassed=true when checks all passed and triggers re-triage', async () => {
+    // 1) PR 시드 (handlePullRequestWebhook → analyzePR).
     await handlePullRequestWebhook(basePayload({ headSha: 'sha-pass' }));
-    // 분석 직후엔 testsPassed=null 일 가능성 (mock checks 빈 배열).
     const pr = db.select().from(prs).where(eq(prs.headSha, 'sha-pass')).get();
     expect(pr).toBeDefined();
 
@@ -489,11 +488,12 @@ describe('handleCheckWebhook', () => {
     expect(result.kind).toBe('updated');
     if (result.kind === 'updated') expect(result.testsPassed).toBe(true);
 
-    const review = db.select().from(preReviews).where(eq(preReviews.prId, pr!.id)).get();
-    expect(review?.testsPassed).toBe(true);
+    // CI 결과는 prs 컬럼에 저장 — preReview 와 무관.
+    const updated = db.select().from(prs).where(eq(prs.id, pr!.id)).get();
+    expect(updated?.testsPassed).toBe(true);
   });
 
-  it('updates testsPassed=false when any check failed', async () => {
+  it('updates prs.testsPassed=false when any check failed', async () => {
     await handlePullRequestWebhook(basePayload({ headSha: 'sha-fail' }));
     const pr = db.select().from(prs).where(eq(prs.headSha, 'sha-fail')).get();
 
@@ -510,14 +510,16 @@ describe('handleCheckWebhook', () => {
     });
     expect(result.kind).toBe('updated');
     if (result.kind === 'updated') expect(result.testsPassed).toBe(false);
-    const review = db.select().from(preReviews).where(eq(preReviews.prId, pr!.id)).get();
-    expect(review?.testsPassed).toBe(false);
+    const updated = db.select().from(prs).where(eq(prs.id, pr!.id)).get();
+    expect(updated?.testsPassed).toBe(false);
   });
 
-  it('skips no-pre-review when PR exists but no preReview row', async () => {
-    // PR 행만 직접 삽입 (handlePullRequestWebhook 우회) — analyzePR 가 안 돌아 preReview 없음.
+  // AI off 시나리오 — preReview 없어도 prs.testsPassed 채워져야 함.
+  // (이전엔 no-pre-review skip 이었지만 testsPassed 분리 후 PR 만 있어도 OK).
+  it('updates prs.testsPassed even when no preReview exists (AI off scenario)', async () => {
     const proj = db.select().from(projects).where(eq(projects.slug, 'cortex-web')).get();
-    db.insert(prs)
+    const inserted = db
+      .insert(prs)
       .values({
         repoId: proj!.id,
         number: 7777,
@@ -530,14 +532,22 @@ describe('handleCheckWebhook', () => {
         filesChanged: 1,
         status: 'review-needed',
       })
-      .run();
+      .returning({ id: prs.id })
+      .get();
+
+    setOctokit(
+      mockOctokitDiff('', { merged: true, sha: 'm' }, [
+        { status: 'completed', conclusion: 'success' },
+      ]),
+    );
 
     const result = await handleCheckWebhook({
       repoSlug: 'cortex-web',
       installationId: 12345,
       headSha: 'sha-no-review',
     });
-    expect(result.kind).toBe('skipped');
-    if (result.kind === 'skipped') expect(result.reason).toBe('no-pre-review');
+    expect(result.kind).toBe('updated');
+    const updated = db.select().from(prs).where(eq(prs.id, inserted.id)).get();
+    expect(updated?.testsPassed).toBe(true);
   });
 });
