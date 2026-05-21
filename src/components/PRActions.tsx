@@ -3,10 +3,12 @@
 import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import {
+  closePRAction,
   deletePRBranchAction,
   mergePRAction,
   requestChangesAction,
   type PRBranchDeleteState,
+  type PRCloseState,
   type PRMergeActionState,
   type PRRequestChangesState,
 } from '@/actions/pr';
@@ -30,7 +32,7 @@ type Props = {
   mergeBlockedByCI: boolean;
 };
 
-type InFlightAction = 'merge' | 'delete' | 'request' | null;
+type InFlightAction = 'merge' | 'delete' | 'request' | 'close' | null;
 
 export function PRActions({
   viewId,
@@ -45,9 +47,12 @@ export function PRActions({
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
   const [branchState, setBranchState] = useState<PRBranchDeleteState>({ kind: 'idle' });
   const [requestState, setRequestState] = useState<PRRequestChangesState>({ kind: 'idle' });
+  const [closeState, setCloseState] = useState<PRCloseState>({ kind: 'idle' });
   // 변경 요청 textarea 토글. 클릭 즉시 전송하지 않고 사유 입력을 받음.
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestBody, setRequestBody] = useState('');
+  // PR 닫기 확인 패널 토글 — 'PR 닫기' 1차 클릭 → 확인 메시지 + 닫기/취소.
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [inFlight, setInFlight] = useState<InFlightAction>(null);
   // 머지·브랜치 삭제 클릭 즉시 다음 상태로 시각 swap — server action 의 revalidatePath
   // 가 도착하기 전 sales window 에서 'pending ? 머지 중 : ...' 같은 잘못된 라벨이
@@ -94,6 +99,19 @@ export function PRActions({
       if (next.kind === 'submitted') {
         setRequestOpen(false);
         setRequestBody('');
+      }
+    });
+  }
+
+  function runClose() {
+    setCloseState({ kind: 'idle' });
+    setInFlight('close');
+    startTransition(async () => {
+      const next = await closePRAction(viewId);
+      setCloseState(next);
+      setInFlight(null);
+      if (next.kind === 'closed') {
+        setCloseConfirmOpen(false);
       }
     });
   }
@@ -180,10 +198,24 @@ export function PRActions({
             )}
           </>
         )}
+        {/* PR 닫기 (폐기) — 머지 안 하고 폐기할 PR 정리용. 머지 가능 상태 (= 아직 안
+           머지) 일 때만 노출. 머지된 PR 은 closeable 아님. */}
+        {!showDeleteBranch && canMerge && (
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--outlined-basic"
+            onClick={() => setCloseConfirmOpen((v) => !v)}
+            disabled={pending}
+            aria-expanded={closeConfirmOpen}
+          >
+            <span className="ds-btn__label">{t.pr.actionBar.closePR}</span>
+          </button>
+        )}
         <PRActionResult
           mergeState={mergeState}
           branchState={branchState}
           requestState={requestState}
+          closeState={closeState}
         />
       </div>
       {canRequestChanges && requestOpen && (
@@ -221,6 +253,32 @@ export function PRActions({
           </div>
         </div>
       )}
+      {closeConfirmOpen && canMerge && (
+        <div className={styles.requestPanel}>
+          <div className={styles.closeConfirmText}>{t.pr.actionBar.closeConfirm}</div>
+          <div className={styles.requestActions}>
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--outlined-basic"
+              onClick={() => setCloseConfirmOpen(false)}
+              disabled={pending}
+            >
+              <span className="ds-btn__label">{t.pr.actionBar.requestCancel}</span>
+            </button>
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--filled-red"
+              onClick={runClose}
+              disabled={pending}
+              aria-busy={inFlight === 'close'}
+            >
+              <span className="ds-btn__label">
+                {inFlight === 'close' ? t.pr.actionBar.closing : t.pr.actionBar.closeConfirmSubmit}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -229,11 +287,27 @@ function PRActionResult({
   mergeState,
   branchState,
   requestState,
+  closeState,
 }: {
   mergeState: PRMergeActionState;
   branchState: PRBranchDeleteState;
   requestState: PRRequestChangesState;
+  closeState: PRCloseState;
 }) {
+  if (closeState.kind === 'closed') {
+    return (
+      <div className={`${styles.result} ${styles.resultSuccess}`} role="status" aria-live="polite">
+        {t.pr.actionBar.result.closed(closeState.number)}
+      </div>
+    );
+  }
+  if (closeState.kind === 'skipped' || closeState.kind === 'error') {
+    return (
+      <div className={`${styles.result} ${styles.resultError}`} role="alert">
+        {t.pr.actionBar.result.closeError(closeState.message)}
+      </div>
+    );
+  }
   if (requestState.kind === 'submitted') {
     return (
       <div className={`${styles.result} ${styles.resultSuccess}`} role="status" aria-live="polite">
