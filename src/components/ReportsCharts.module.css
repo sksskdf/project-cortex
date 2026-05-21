@@ -1,0 +1,57 @@
+.chartWrap {
+  width: 100%;
+}
+
+.tooltip {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  padding: var(--ds-spacing-8) var(--ds-spacing-10);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.tooltipLabel {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  font-family: var(--ds-typography-font-family-number);
+  margin-bottom: 2px;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.tooltipSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.tooltipName {
+  color: var(--ds-color-text-02);
+  flex: 1;
+}
+
+.tooltipValue {
+  font-family: var(--ds-typography-font-family-number);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.tooltipTotal {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+  padding-top: 4px;
+  margin-top: 2px;
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  font-family: var(--ds-typography-font-family-number);
+}

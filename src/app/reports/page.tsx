@@ -1,56 +1,27 @@
 // Phase 7 — /reports 페이지.
 // 운영 메트릭 시각화: 자동 머지율 / 일별 인입 / 일별 머지 추이 / 평균 신뢰 점수 / revert 감지.
-// chart 라이브러리 없이 SVG 직접 (MiniBarChart · Sparkline).
+// 차트는 Recharts (가장 보편적 React 차트 라이브러리). client component 로 분리.
 
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
-import { MiniBarChart, type MiniBarChartItem } from '@/components/MiniBarChart';
-import { Sparkline } from '@/components/Sparkline';
-import miniBarStyles from '@/components/MiniBarChart.module.css';
+import {
+  AvgConfidenceChart,
+  DailyIncomingChart,
+  DailyMergeChart,
+} from '@/components/ReportsCharts';
 import { getReportsData } from '@/lib/reports';
 import styles from './page.module.css';
 
 type RevertStatus = keyof typeof t.reports.revertStatus;
-
-function shortDate(iso: string): string {
-  // 'YYYY-MM-DD' → 'M/D'.
-  const [, m, d] = iso.split('-');
-  return `${Number(m)}/${Number(d)}`;
-}
 
 export default function ReportsPage() {
   const data = getReportsData();
   const { mergeRate, prevMergeRate, dailyIncoming, dailyMerges, dailyAvgConfidence, reverts } =
     data;
 
-  const incomingItems: MiniBarChartItem[] = dailyIncoming.map((d) => ({
-    label: shortDate(d.date),
-    segments: [{ value: d.count, className: miniBarStyles.segBlue }],
-    total: d.count,
-  }));
-
-  const mergeItems: MiniBarChartItem[] = dailyMerges.map((d) => ({
-    label: shortDate(d.date),
-    segments: [
-      { value: d.auto, className: miniBarStyles.segBlue },
-      { value: d.human, className: miniBarStyles.segYellow },
-      { value: d.github, className: miniBarStyles.segGray },
-    ],
-    total: d.auto + d.human + d.github,
-  }));
-
-  const confidencePoints = dailyAvgConfidence.map((d) => ({
-    label: shortDate(d.date),
-    value: d.avg,
-  }));
-
   const delta = mergeRate.autoMergeRate - prevMergeRate.autoMergeRate;
   const deltaText =
-    delta > 0
-      ? `▲ ${delta}%p`
-      : delta < 0
-        ? `▼ ${Math.abs(delta)}%p`
-        : `· ±0%p`;
+    delta > 0 ? `▲ ${delta}%p` : delta < 0 ? `▼ ${Math.abs(delta)}%p` : `· ±0%p`;
   const deltaClass = delta > 0 ? styles.deltaUp : delta < 0 ? styles.deltaDown : styles.deltaFlat;
 
   return (
@@ -71,9 +42,7 @@ export default function ReportsPage() {
             <span className={`${styles.mergeRateDelta} ${deltaClass}`}>{deltaText}</span>
           </div>
           <div className={styles.mergeRateMeta}>
-            <div>
-              {t.reports.mergeRate.total(mergeRate.autoCount, mergeRate.totalMerged)}
-            </div>
+            <div>{t.reports.mergeRate.total(mergeRate.autoCount, mergeRate.totalMerged)}</div>
             <div className={styles.mergeRateBreakdown}>
               {t.reports.mergeRate.breakdown(
                 mergeRate.autoCount,
@@ -94,7 +63,7 @@ export default function ReportsPage() {
             <h2 className={styles.sectionTitle}>{t.reports.section.dailyIncoming}</h2>
             <p className={styles.sectionDesc}>{t.reports.section.dailyIncomingDesc}</p>
           </div>
-          <MiniBarChart items={incomingItems} ariaLabel={t.reports.section.dailyIncoming} />
+          <DailyIncomingChart points={dailyIncoming} />
         </section>
 
         <section className={styles.section} aria-label={t.reports.section.dailyMerges}>
@@ -102,21 +71,7 @@ export default function ReportsPage() {
             <h2 className={styles.sectionTitle}>{t.reports.section.dailyMerges}</h2>
             <p className={styles.sectionDesc}>{t.reports.section.dailyMergesDesc}</p>
           </div>
-          <MiniBarChart items={mergeItems} ariaLabel={t.reports.section.dailyMerges} />
-          <div className={styles.legend}>
-            <span className={styles.legendItem}>
-              <span className={`${styles.legendSwatch} ${miniBarStyles.segBlue}`} aria-hidden />
-              {t.reports.legend.auto}
-            </span>
-            <span className={styles.legendItem}>
-              <span className={`${styles.legendSwatch} ${miniBarStyles.segYellow}`} aria-hidden />
-              {t.reports.legend.human}
-            </span>
-            <span className={styles.legendItem}>
-              <span className={`${styles.legendSwatch} ${miniBarStyles.segGray}`} aria-hidden />
-              {t.reports.legend.github}
-            </span>
-          </div>
+          <DailyMergeChart points={dailyMerges} />
         </section>
       </div>
 
@@ -125,7 +80,7 @@ export default function ReportsPage() {
           <h2 className={styles.sectionTitle}>{t.reports.section.avgConfidence}</h2>
           <p className={styles.sectionDesc}>{t.reports.section.avgConfidenceDesc}</p>
         </div>
-        <Sparkline points={confidencePoints} ariaLabel={t.reports.section.avgConfidence} />
+        <AvgConfidenceChart points={dailyAvgConfidence} />
       </section>
 
       <section className={styles.section} aria-label={t.reports.section.reverts}>
@@ -149,7 +104,9 @@ export default function ReportsPage() {
                     </span>
                     <span className={styles.revertTitle}>{r.title}</span>
                   </Link>
-                  <span className={`${styles.revertStatus} ${styles[`revertStatus_${statusKey}`] ?? ''}`}>
+                  <span
+                    className={`${styles.revertStatus} ${styles[`revertStatus_${statusKey}`] ?? ''}`}
+                  >
                     {t.reports.revertStatus[statusKey]}
                   </span>
                 </li>
