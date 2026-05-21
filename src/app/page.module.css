@@ -433,32 +433,35 @@
 }
 
 /* 머지 종류별 작은 배지 — 자동/수동/외부 구분. .feedDot 대체로 사용. */
+/* 머지 종류 배지 — 작은 dot + 라벨 형태로 가볍게. 이전 pill 디자인이 너무 무거웠음. */
 .feedKind {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  padding: 2px var(--ds-spacing-6);
-  border-radius: 999px;
-  font-size: var(--ds-typography-font-size-11);
+  gap: var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-12);
   font-weight: var(--ds-typography-font-weight-semibold);
-  letter-spacing: var(--ds-typography-letter-spacing-wide);
   margin-top: 2px;
   flex-shrink: 0;
 }
 
+.feedKind::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
 .feedKind_auto {
-  background: var(--ds-color-soft-green);
   color: var(--ds-color-state-success-text-dark);
 }
 
 .feedKind_human {
-  background: var(--ds-color-soft-blue);
-  color: var(--ds-color-secondary-07);
+  color: var(--ds-color-secondary-01);
 }
 
 .feedKind_github {
-  background: var(--ds-color-bg-01);
   color: var(--ds-color-text-02);
 }
 

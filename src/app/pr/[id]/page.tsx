@@ -147,6 +147,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     body,
     mergeableState,
     mergeBlockedByCI,
+    reviews,
   } = view;
   const detail = { ...fixture, hunkSummary };
   const bodyText = body?.trim() ?? '';
@@ -255,6 +256,36 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
             <h2 className={styles.bodyCardTitle}>{t.pr.body.title}</h2>
             <div className={styles.bodyContent}>
               <Markdown>{bodyText}</Markdown>
+            </div>
+          </section>
+        )}
+
+        {reviews.length > 0 && (
+          <section className={styles.bodyCard} aria-label={t.pr.reviews.ariaLabel}>
+            <h2 className={styles.bodyCardTitle}>{t.pr.reviews.title}</h2>
+            <div className={styles.reviewsList}>
+              {reviews.map((r) => (
+                <article key={r.id} className={styles.reviewItem}>
+                  <header className={styles.reviewHead}>
+                    <span
+                      className={`${styles.reviewState} ${styles[`reviewState_${r.state}`] ?? ''}`}
+                    >
+                      {t.pr.reviews.stateLabel[r.state] ?? r.state}
+                    </span>
+                    <span className={styles.reviewAuthor}>{r.authorLogin}</span>
+                    {r.submittedAt && (
+                      <time className={styles.reviewTime} dateTime={r.submittedAt}>
+                        {new Date(r.submittedAt).toLocaleString('ko-KR', { hour12: false })}
+                      </time>
+                    )}
+                  </header>
+                  {r.body && (
+                    <div className={styles.reviewBody}>
+                      <Markdown>{r.body}</Markdown>
+                    </div>
+                  )}
+                </article>
+              ))}
             </div>
           </section>
         )}

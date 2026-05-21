@@ -11,7 +11,12 @@ import {
 } from '@/fixtures/pr-detail';
 import { parseUnifiedDiff } from '@/lib/diff-parser';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
-import { getPRDiff, getPRMergeableState } from '@/lib/github';
+import {
+  getPRDiff,
+  getPRMergeableState,
+  listPullReviews,
+  type PRReviewSummary,
+} from '@/lib/github';
 import { getSettings } from '@/lib/settings';
 import type { FileBlock, PR, ReasonTone } from '@/lib/types';
 
@@ -52,6 +57,9 @@ export type PRDetailView = {
   mergeableState: import('@/lib/github').MergeableState | null;
   // CI 결과 대기 중이라 머지 버튼이 disable 되어야 하는지 — preReview.testsPassed=null.
   mergeBlockedByCI: boolean;
+  // GitHub 의 PR 리뷰 이력 — 사용자가 보낸 변경 요청·승인·코멘트 시간순. installation
+  // 없거나 fetch 실패 시 빈 배열. UI 가 비어있으면 섹션 자체 숨김.
+  reviews: ReadonlyArray<PRReviewSummary>;
 };
 
 function parsePrId(viewId: string): number | null {
@@ -306,20 +314,22 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
   };
 
-  // mergeable_state — installation 있고 아직 안 끝난 PR 만 GitHub 에 묻는다.
-  // fetch 실패는 무시 (null) — UI 가 표시 안 함. GitHub 가 계산 중이면 'unknown'.
+  // mergeable_state + reviews — installation 있는 PR 만 GitHub 에 묻는다. 둘 다 fetch
+  // 실패는 무시 (null/빈배열) — UI 가 표시 안 함. 병렬로 가져와 latency 절약.
   let mergeableState: Awaited<ReturnType<typeof getPRMergeableState>> | null = null;
-  if (row.installationId !== null && !isMerged && !isClosed) {
-    try {
-      const [owner, repo] = row.repoSlug.split('/');
-      mergeableState = await getPRMergeableState(
-        row.installationId,
-        { owner, repo },
-        row.pr.number,
-      );
-    } catch (err) {
-      console.error(`getPRMergeableState failed for PR ${row.pr.id}:`, err);
-    }
+  let reviews: PRReviewSummary[] = [];
+  if (row.installationId !== null) {
+    const [owner, repo] = row.repoSlug.split('/');
+    const [stateResult, reviewsResult] = await Promise.allSettled([
+      !isMerged && !isClosed
+        ? getPRMergeableState(row.installationId, { owner, repo }, row.pr.number)
+        : Promise.resolve(null),
+      listPullReviews(row.installationId, { owner, repo }, row.pr.number),
+    ]);
+    if (stateResult.status === 'fulfilled') mergeableState = stateResult.value;
+    else console.error(`getPRMergeableState failed for PR ${row.pr.id}:`, stateResult.reason);
+    if (reviewsResult.status === 'fulfilled') reviews = reviewsResult.value;
+    else console.error(`listPullReviews failed for PR ${row.pr.id}:`, reviewsResult.reason);
   }
   // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
   // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
@@ -341,6 +351,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     body: row.pr.body,
     mergeableState,
     mergeBlockedByCI,
+    reviews,
   } as const;
 
   // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.
