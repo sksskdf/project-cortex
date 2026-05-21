@@ -251,6 +251,66 @@ export async function requestChangesReview(
   return { id: data.id, submittedAt: data.submitted_at ?? null };
 }
 
+// 등록된 레포의 open PR 목록 — reconcile 흐름에서 다운타임 중 놓친 PR 복구용.
+// state='open' 만 가져옴 (closed/merged 는 webhook 으로 받았어야 함, 복구 의미 적음).
+export type PRListItem = {
+  number: number;
+  title: string;
+  body: string | null;
+  headSha: string;
+  state: 'open' | 'closed';
+  merged: boolean;
+  authorLogin: string;
+  authorType: string | undefined;
+  authorBody: string | null;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export async function listOpenPullRequests(
+  installationId: number,
+  ref: RepoRef,
+): Promise<PRListItem[]> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const all: PRListItem[] = [];
+  let page = 1;
+  while (true) {
+    const { data } = await octokit.pulls.list({
+      owner: ref.owner,
+      repo: ref.repo,
+      state: 'open',
+      per_page: 100,
+      page,
+    });
+    if (data.length === 0) break;
+    for (const pr of data) {
+      all.push({
+        number: pr.number,
+        title: pr.title,
+        body: pr.body ?? null,
+        headSha: pr.head.sha,
+        state: pr.state as 'open' | 'closed',
+        merged: false, // open PR 만 fetch — 무조건 false.
+        authorLogin: pr.user?.login ?? 'unknown',
+        authorType: pr.user?.type,
+        // pulls.list 는 body 가 짧게 잘려 올 수 있지만 marker 검사에는 충분 (footer).
+        authorBody: pr.body ?? null,
+        additions: 0, // list endpoint 는 stats 미포함 — 0 으로 두고 다음 sync 시 갱신.
+        deletions: 0,
+        changedFiles: 0,
+        createdAt: new Date(pr.created_at),
+        updatedAt: new Date(pr.updated_at),
+      });
+    }
+    if (data.length < 100) break;
+    page += 1;
+  }
+  return all;
+}
+
 // PR 의 리뷰 목록 — 사용자가 보낸 변경 요청 (REQUEST_CHANGES) · 승인 (APPROVED) ·
 // 코멘트 (COMMENTED) 모두 시간순 정렬해 반환. PR 상세에 이력으로 노출하기 위해.
 // dismissed 된 리뷰는 'DISMISSED' state 로 들어옴.

@@ -30,6 +30,7 @@ export const ko = {
     stat: {
       pendingReview: '검토 대기',
       autoMergedThisWeek: '이번 주 자동 머지',
+      humanMergedThisWeek: '이번 주 수동 머지',
       agentsRunning: '에이전트 진행 중',
       avgConfidence: '평균 신뢰 점수',
       runningNow: '지금 실행 중',
@@ -262,6 +263,17 @@ export const ko = {
       },
     },
     // 프로젝트별 자동 머지 정책 토글 — Phase 8 인테이크 마법사 전 임시 UI.
+    reconcile: {
+      title: 'GitHub 와 동기화',
+      desc: 'GitHub 에 열려 있는 PR 중 Cortex 에 안 들어온 것 (다운타임 / 첫 onboard 등) 일괄 fetch. AI 분석은 자동 안 함 — 크레딧 0. PR 상세에서 "AI 분석 요청" 으로 명시 실행 가능.',
+      button: 'GitHub 와 동기화',
+      pending: '동기화 중…',
+      result: {
+        reconciled: (slug: string, total: number, inserted: number, updated: number) =>
+          `${slug} — 총 ${total}건 (신규 ${inserted} · 갱신 ${updated}). AI 분석은 안 했어요.`,
+        error: (message: string) => `동기화 실패: ${message}`,
+      },
+    },
     autoMerge: {
       title: '자동 머지 정책',
       ariaLabel: '자동 머지 정책',

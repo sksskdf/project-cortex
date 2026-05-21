@@ -72,6 +72,10 @@ export const prs = sqliteTable('prs', {
   // head 브랜치가 머지 후 삭제된 시점. null 이면 미삭제. PR 상세의 '브랜치 삭제'
   // 버튼이 두 번째 진입 시에도 비활성화될 수 있도록 영속 기록.
   branchDeletedAt: integer('branch_deleted_at', { mode: 'timestamp' }),
+  // 마지막으로 클러스터에서 해체된 시점. null 이면 한 번도 해체된 적 없음.
+  // tryClusterPR 가 cooldown 기간 안에 있는 PR 은 자동 클러스터링에서 제외 — 사용자가
+  // 의도적으로 해체한 PR 이 곧바로 다시 묶이지 않게.
+  clusterDissolvedAt: integer('cluster_dissolved_at', { mode: 'timestamp' }),
   // GitHub CI 결과 (Check Runs API 집계). null 이면 미수신/CI 미설정 — AI 분석 여부와
   // 무관 (preReview 없어도 채워질 수 있게 PR 에 직접 묶음). handleCheckWebhook 가
   // check_run/check_suite completed 시점에 갱신.

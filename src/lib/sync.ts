@@ -90,7 +90,14 @@ async function safeTryCluster(prId: number): Promise<void> {
   }
 }
 
-export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promise<SyncResult> {
+// reconcile 흐름 (수동 동기화) 은 AI 분석 명시 bypass — 크레딧 0. webhook 흐름은
+// 기본 동작 (analyzePR + triage + autoMerge) 유지.
+export type SyncSource = 'webhook' | 'reconcile';
+
+export async function handlePullRequestWebhook(
+  payload: WebhookPRPayload,
+  source: SyncSource = 'webhook',
+): Promise<SyncResult> {
   let project = db
     .select({ id: projects.id, installationId: projects.installationId })
     .from(projects)
@@ -158,7 +165,8 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
       .returning({ id: prs.id })
       .get();
     // 새 PR — opened/reopened 면 즉시 분석. 분석 결과(preReview)가 있어야 runTriage 가 결정.
-    if (shouldAnalyze(payload.action)) {
+    // 단 reconcile 흐름은 의도적 bypass — Anthropic 크레딧 0 (사용자가 명시 요청 시만 분석).
+    if (shouldAnalyze(payload.action) && source !== 'reconcile') {
       await safeAnalyze(inserted.id);
     }
     const triage = await runTriage(inserted.id);
@@ -201,7 +209,8 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
 
   // synchronize 면 새 headSha 기준으로 재분석 필요 — analyzePR 의 (prId, headSha)
   // 캐시가 자동으로 새 행을 만든다. opened/reopened 도 마찬가지 (이미 PR 이 있을 때 재오픈).
-  if (shouldAnalyze(payload.action)) {
+  // reconcile 은 분석 bypass.
+  if (shouldAnalyze(payload.action) && source !== 'reconcile') {
     await safeAnalyze(existing.id);
   }
   // closed/merged면 runTriage가 status로 skip — 안전.

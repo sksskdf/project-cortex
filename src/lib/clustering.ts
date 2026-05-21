@@ -23,6 +23,10 @@ export const SIMILARITY_THRESHOLD = 0.85;
 export const MIN_CLUSTER_SIZE = 3;
 // 후보 검색 시간 윈도우 (밀리초) — ROADMAP DoD: 24시간.
 export const CLUSTER_WINDOW_MS = 24 * 60 * 60 * 1000;
+// 해체된 PR 의 재클러스터링 cooldown — dissolveCluster 후 같은 PR 들이 곧바로 다시
+// 자동 묶이지 않도록. 사용자 의도 ('해체') 존중. 사용자가 명시적으로 다시 묶고 싶으면
+// cooldown 기간 후 새 webhook (synchronize) 도착 시 다시 검사됨.
+export const RECLUSTER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 export function jaccardSimilarity(a: ReadonlyArray<string>, b: ReadonlyArray<string>): number {
   if (a.length === 0 && b.length === 0) return 0;
@@ -43,7 +47,13 @@ export type TryClusterResult =
   | { kind: 'joined'; clusterId: number; size: number }
   | {
       kind: 'skipped';
-      reason: 'no-pr' | 'no-pre-review' | 'blocking-flag' | 'already-clustered' | 'no-similar-prs';
+      reason:
+        | 'no-pr'
+        | 'no-pre-review'
+        | 'blocking-flag'
+        | 'already-clustered'
+        | 'no-similar-prs'
+        | 'recently-dissolved';
     };
 
 // PR 1건에 대해 클러스터 자동 시도. 멱등 — 이미 클러스터된 PR 은 skip.
@@ -52,6 +62,17 @@ export async function tryClusterPR(prId: number): Promise<TryClusterResult> {
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
   if (pr.clusterId !== null) return { kind: 'skipped', reason: 'already-clustered' };
+
+  // 해체 cooldown — 사용자가 의도적으로 해체한 PR 은 일정 기간 자동 재클러스터링 금지.
+  if (pr.clusterDissolvedAt !== null) {
+    const dissolvedMs =
+      pr.clusterDissolvedAt instanceof Date
+        ? pr.clusterDissolvedAt.getTime()
+        : Number(pr.clusterDissolvedAt) * 1000;
+    if (Date.now() - dissolvedMs < RECLUSTER_COOLDOWN_MS) {
+      return { kind: 'skipped', reason: 'recently-dissolved' };
+    }
+  }
 
   const preReview = db
     .select()
@@ -140,9 +161,16 @@ export async function tryClusterPR(prId: number): Promise<TryClusterResult> {
 // 인박스로 되돌리고, merged/closed PR 은 그대로 둔다 (해체로 인해 되살아나면 안 됨).
 // 사람이 cluster 화면에서 "해체" 버튼 눌렀을 때.
 export function dissolveCluster(clusterId: number): { released: number } {
+  // 해체 시점 박제 — tryClusterPR 가 RECLUSTER_COOLDOWN_MS 동안 재클러스터링 금지.
+  const dissolvedAt = new Date();
   const released = db
     .update(prs)
-    .set({ clusterId: null, status: 'review-needed', updatedAt: new Date() })
+    .set({
+      clusterId: null,
+      status: 'review-needed',
+      clusterDissolvedAt: dissolvedAt,
+      updatedAt: dissolvedAt,
+    })
     .where(
       and(
         eq(prs.clusterId, clusterId),
@@ -153,7 +181,7 @@ export function dissolveCluster(clusterId: number): { released: number } {
     .all();
 
   db.update(clusters)
-    .set({ status: 'dissolved', closedAt: new Date() })
+    .set({ status: 'dissolved', closedAt: dissolvedAt })
     .where(eq(clusters.id, clusterId))
     .run();
 

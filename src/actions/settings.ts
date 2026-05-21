@@ -5,6 +5,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { setProjectAutoMerge } from '@/lib/projects';
+import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { setAiEnabled } from '@/lib/settings';
 
 export type SettingsActionState =
@@ -52,4 +53,54 @@ export async function toggleProjectAutoMergeAction(
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', message };
   }
+}
+
+// 사용자가 /settings 의 'GitHub 와 동기화' 버튼 누른 흐름. listOpenPullRequests + upsert.
+// AI 분석 명시 bypass — 크레딧 0. 사용자가 PR 상세에서 명시 요청해야 분석.
+export type ReconcileActionState =
+  | { kind: 'idle' }
+  | {
+      kind: 'reconciled';
+      slug: string;
+      total: number;
+      inserted: number;
+      updated: number;
+      skipped: number;
+      failed: number;
+    }
+  | { kind: 'skipped'; message: string }
+  | { kind: 'error'; message: string };
+
+export async function reconcileProjectAction(projectId: number): Promise<ReconcileActionState> {
+  let result: ReconcileResult;
+  try {
+    result = await reconcileProject(projectId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'error', message };
+  }
+
+  revalidatePath('/settings');
+  revalidatePath('/inbox');
+  revalidatePath('/');
+
+  if (result.kind === 'reconciled') {
+    return {
+      kind: 'reconciled',
+      slug: result.slug,
+      total: result.total,
+      inserted: result.inserted,
+      updated: result.updated,
+      skipped: result.skipped,
+      failed: result.failed,
+    };
+  }
+  if (result.kind === 'failed') return { kind: 'error', message: result.reason };
+  return {
+    kind: 'skipped',
+    message:
+      result.reason === 'no-project'
+        ? '프로젝트를 찾을 수 없습니다.'
+        : 'GitHub App 설치 정보가 없습니다.',
+  };
 }

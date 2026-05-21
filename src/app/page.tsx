@@ -371,6 +371,17 @@ export default async function DashboardPage() {
         <div className={styles.stat}>
           <div className={styles.statTop}>
             <span className={`${styles.statIcon} ${styles.statIconYellow}`} aria-hidden="true">
+              <CheckIcon strokeWidth={2} />
+            </span>
+          </div>
+          <div className={styles.statLabel}>{t.dashboard.stat.humanMergedThisWeek}</div>
+          <div className={styles.statValue}>{dashboardStats.humanMergedThisWeek.value}</div>
+          <DeltaBadge delta={dashboardStats.humanMergedThisWeek.delta} />
+        </div>
+
+        <div className={styles.stat}>
+          <div className={styles.statTop}>
+            <span className={`${styles.statIcon} ${styles.statIconYellow}`} aria-hidden="true">
               {boltIcon()}
             </span>
           </div>

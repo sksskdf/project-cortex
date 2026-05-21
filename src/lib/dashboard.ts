@@ -10,6 +10,9 @@ import type { PR, ReasonTone, StatDelta } from '@/lib/types';
 export type DashboardStats = {
   pendingReview: { value: number; delta: StatDelta };
   autoMergedThisWeek: { value: number; delta: StatDelta };
+  // 사용자가 Cortex UI 에서 직접 누른 머지 (attemptHumanMerge — decidedBy='human').
+  // autoMergedThisWeek 의 자동 카운트와 별개로 사람 활동 측정.
+  humanMergedThisWeek: { value: number; delta: StatDelta };
   agentsRunning: { value: number };
   avgConfidence: { value: number; delta: StatDelta };
 };
@@ -110,6 +113,33 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     )
     .get();
 
+  // humanMergedThisWeek — 사용자가 Cortex UI 에서 직접 머지 (decidedBy='human').
+  const humanThisWeek = db
+    .select({ n: count() })
+    .from(prs)
+    .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .where(
+      and(
+        eq(prs.status, 'merged'),
+        gte(prs.updatedAt, weekAgo),
+        eq(triageDecisions.decidedBy, 'human'),
+      ),
+    )
+    .get();
+  const humanLastWeek = db
+    .select({ n: count() })
+    .from(prs)
+    .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .where(
+      and(
+        eq(prs.status, 'merged'),
+        gte(prs.updatedAt, twoWeeksAgo),
+        lt(prs.updatedAt, weekAgo),
+        eq(triageDecisions.decidedBy, 'human'),
+      ),
+    )
+    .get();
+
   // avgConfidence — 분석된 모든 PR 의 평균 (기존). delta 는 이번 7일 vs 지난 7일 분석분.
   const avgConfAll = db
     .select({ a: avg(preReviews.confidence) })
@@ -142,6 +172,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     autoMergedThisWeek: {
       value: mergedThisWeek?.n ?? 0,
       delta: diffToDelta(mergedThisWeek?.n ?? 0, mergedLastWeek?.n ?? 0),
+    },
+    humanMergedThisWeek: {
+      value: humanThisWeek?.n ?? 0,
+      delta: diffToDelta(humanThisWeek?.n ?? 0, humanLastWeek?.n ?? 0),
     },
     agentsRunning: { value: agentsRunning?.n ?? 0 },
     avgConfidence: {

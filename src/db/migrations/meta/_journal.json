@@ -57,6 +57,13 @@
       "when": 1779342427474,
       "tag": "0007_bitter_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779347425365,
+      "tag": "0008_cool_frightful_four",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `prs` ADD `cluster_dissolved_at` integer;
