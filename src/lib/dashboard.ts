@@ -227,7 +227,7 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
       fileCount: row.pr.filesChanged,
       ageText: formatRelativeAge(createdAtMs),
       gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
-      actions: deriveRowActions(row.pr.status, row.installationId, row.pr.branchDeletedAt !== null),
+      actions: deriveRowActions(row.pr.status, row.installationId),
     };
   });
 

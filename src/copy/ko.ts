@@ -207,9 +207,8 @@ export const ko = {
       autoApprove: '자동 승인 가능 항목만 머지',
       mergeAll: '전체 머지',
       merging: '머지 중…',
-      deleteBranch: '브랜치 삭제',
-      deletingBranch: '삭제 중…',
-      branchAlreadyDeleted: '브랜치 삭제됨',
+      // 머지 완료 후 노출 — 머지 = 브랜치 자동 삭제 한 흐름.
+      mergedWithBranchDeleted: '머지 완료 — 브랜치도 자동 삭제했어요.',
       // PR 닫기 — 머지 안 하고 폐기. 테스트용 PR / 의미 없어진 PR 정리.
       closePR: 'PR 닫기',
       closeConfirm:

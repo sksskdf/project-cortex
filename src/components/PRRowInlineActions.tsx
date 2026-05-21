@@ -9,7 +9,7 @@
 
 import { useOptimistic, useState, useTransition, type MouseEvent } from 'react';
 import { ko as t } from '@/copy/ko';
-import { closePRAction, deletePRBranchAction, mergePRAction } from '@/actions/pr';
+import { closePRAction, mergePRAction } from '@/actions/pr';
 import type { PRRowActionState } from '@/lib/types';
 import styles from './PRRowInlineActions.module.css';
 
@@ -34,7 +34,7 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
     startTransition(async () => {
       setOptimisticHidden(true);
       const result = await actionFn();
-      if (result.kind !== 'merged' && result.kind !== 'closed' && result.kind !== 'deleted') {
+      if (result.kind !== 'merged' && result.kind !== 'closed') {
         // 실패면 다시 보이고 에러 노출.
         setErrorMsg(result.message ?? '실패');
       }
@@ -42,7 +42,7 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
   }
 
   // 액션 하나도 못 쓰면 컴포넌트 자체 안 그림.
-  if (!actions.canMerge && !actions.canClose && !actions.canDeleteBranch) return null;
+  if (!actions.canMerge && !actions.canClose) return null;
 
   const hidden = optimisticHidden && errorMsg === null;
   if (hidden) return <span className={styles.placeholder} aria-hidden="true" />;
@@ -52,38 +52,26 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
       {actions.canMerge && (
         <button
           type="button"
-          className={styles.btn}
+          className="ds-btn ds-btn--sm ds-btn--filled-blue"
           disabled={pending}
           aria-busy={pending}
           aria-label={t.row.actions.mergeAria}
           title={t.row.actions.mergeAria}
           onClick={(e) => runAction(() => mergePRAction(viewId), e)}
         >
-          {t.row.actions.merge}
+          <span className="ds-btn__label">{t.row.actions.merge}</span>
         </button>
       )}
       {actions.canClose && (
         <button
           type="button"
-          className={`${styles.btn} ${styles.btnClose}`}
+          className="ds-btn ds-btn--sm ds-btn--outlined-red"
           disabled={pending}
           aria-label={t.row.actions.closeAria}
           title={t.row.actions.closeAria}
           onClick={(e) => runAction(() => closePRAction(viewId), e)}
         >
-          {t.row.actions.close}
-        </button>
-      )}
-      {actions.canDeleteBranch && (
-        <button
-          type="button"
-          className={styles.btn}
-          disabled={pending}
-          aria-label={t.row.actions.deleteBranchAria}
-          title={t.row.actions.deleteBranchAria}
-          onClick={(e) => runAction(() => deletePRBranchAction(viewId), e)}
-        >
-          {t.row.actions.deleteBranch}
+          <span className="ds-btn__label">{t.row.actions.close}</span>
         </button>
       )}
       {errorMsg && (

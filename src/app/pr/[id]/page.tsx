@@ -139,7 +139,6 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     hunkSummary,
     source,
     isMerged,
-    branchDeleted,
     canMerge,
     canRequestChanges,
     canRequestAnalysis,
@@ -360,7 +359,6 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
               viewId={pr.id}
               canMerge={canMerge}
               isMerged={isMerged}
-              branchDeleted={branchDeleted}
               canRequestChanges={canRequestChanges}
               mergeableState={mergeableState}
               mergeBlockedByCI={mergeBlockedByCI}
