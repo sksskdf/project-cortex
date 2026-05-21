@@ -24,6 +24,8 @@ type Props = {
   canRequestChanges: boolean;
 };
 
+type InFlightAction = 'merge' | 'delete' | 'request' | null;
+
 export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canRequestChanges }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
@@ -32,29 +34,39 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
   // 변경 요청 textarea 토글. 클릭 즉시 전송하지 않고 사유 입력을 받음.
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestBody, setRequestBody] = useState('');
+  // useTransition 의 pending 은 어떤 액션이 in-flight 인지 구분 못 함 — 머지 직후
+  // showDeleteBranch=true 가 되는데 pending 도 true 라 delete 버튼이 "삭제 중..." 으로
+  // 잘못 표시되는 버그가 있었음. 어떤 액션인지 별도 추적해 라벨이 섞이지 않게.
+  const [inFlight, setInFlight] = useState<InFlightAction>(null);
 
   function runMerge() {
     setMergeState({ kind: 'idle' });
     setBranchState({ kind: 'idle' });
+    setInFlight('merge');
     startTransition(async () => {
       const next = await mergePRAction(viewId);
       setMergeState(next);
+      setInFlight(null);
     });
   }
 
   function runDeleteBranch() {
     setBranchState({ kind: 'idle' });
+    setInFlight('delete');
     startTransition(async () => {
       const next = await deletePRBranchAction(viewId);
       setBranchState(next);
+      setInFlight(null);
     });
   }
 
   function runRequestChanges() {
     setRequestState({ kind: 'idle' });
+    setInFlight('request');
     startTransition(async () => {
       const next = await requestChangesAction(viewId, requestBody);
       setRequestState(next);
+      setInFlight(null);
       if (next.kind === 'submitted') {
         setRequestOpen(false);
         setRequestBody('');
@@ -100,13 +112,13 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
             className="ds-btn ds-btn--md ds-btn--outlined-basic"
             onClick={runDeleteBranch}
             disabled={branchDeleted || pending || branchState.kind === 'deleted'}
-            aria-busy={pending}
+            aria-busy={inFlight === 'delete'}
             aria-disabled={branchDeleted}
           >
             <span className="ds-btn__label">
               {branchDeleted
                 ? t.pr.actionBar.branchAlreadyDeleted
-                : pending
+                : inFlight === 'delete'
                   ? t.pr.actionBar.deletingBranch
                   : t.pr.actionBar.deleteBranch}
             </span>
@@ -117,10 +129,10 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
             className="ds-btn ds-btn--md ds-btn--filled-blue"
             onClick={runMerge}
             disabled={mergeDisabled}
-            aria-busy={pending}
+            aria-busy={inFlight === 'merge'}
           >
             <span className="ds-btn__label">
-              {pending ? t.pr.actionBar.merging : t.pr.actionBar.mergeAll}
+              {inFlight === 'merge' ? t.pr.actionBar.merging : t.pr.actionBar.mergeAll}
             </span>
           </button>
         )}
@@ -154,10 +166,12 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
               className="ds-btn ds-btn--md ds-btn--filled-red"
               onClick={runRequestChanges}
               disabled={pending}
-              aria-busy={pending}
+              aria-busy={inFlight === 'request'}
             >
               <span className="ds-btn__label">
-                {pending ? t.pr.actionBar.requestSending : t.pr.actionBar.requestSubmit}
+                {inFlight === 'request'
+                  ? t.pr.actionBar.requestSending
+                  : t.pr.actionBar.requestSubmit}
               </span>
             </button>
           </div>

@@ -8,27 +8,13 @@
   height: 100vh;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-spacing-8);
-  padding: var(--ds-spacing-20);
-  font-size: var(--ds-typography-font-size-18);
-  font-weight: var(--ds-typography-font-weight-bold);
-  letter-spacing: var(--ds-typography-letter-spacing-tight);
-  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
-}
-
-.brandMark {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--ds-color-secondary-01);
-  box-shadow: 0 0 0 3px var(--ds-color-secondary-03);
-}
-
 .section {
   padding: var(--ds-spacing-14) var(--ds-spacing-12) var(--ds-spacing-6);
+}
+
+/* 첫 nav 섹션은 사이드바 최상단 — 다른 컨테이너의 padding 없이 살짝 위로 밀어줌. */
+.section:first-of-type {
+  padding-top: var(--ds-spacing-20);
 }
 
 .sectionTitle {
