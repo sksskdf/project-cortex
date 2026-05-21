@@ -130,6 +130,8 @@ describe('handlePullRequestWebhook', () => {
     expect(result.kind).toBe('inserted');
     const project = db.select().from(projects).where(eq(projects.slug, 'new-org/new-repo')).get();
     expect(project?.installationId).toBe(99999);
+    // 자동 onboard 시 autoMergeEnabled=true 디폴트 — App 설치 자체가 자동화 의지의 표명.
+    expect(project?.autoMergeEnabled).toBe(true);
   });
 
   it('updates installationId when it changes for an existing project', async () => {

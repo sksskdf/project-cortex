@@ -100,4 +100,17 @@ describe('mapPullRequestEvent', () => {
     expect(result?.pr.authorLogin).toBe('unknown');
     expect(result?.pr.authorKind).toBe('human');
   });
+
+  it('classifies as agent when body has claude.ai/code marker even with human user', () => {
+    const result = mapPullRequestEvent(
+      baseEvent({
+        pull_request: {
+          ...baseEvent().pull_request,
+          body: '본문\n\nhttps://claude.ai/code/session_017abc',
+          user: { login: 'sksskdf', type: 'User' },
+        },
+      }),
+    );
+    expect(result?.pr.authorKind).toBe('agent');
+  });
 });

@@ -98,6 +98,8 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
 
   // 자동 onboard — App 이 새 레포에 설치되면 첫 webhook 으로 projects 행 자동 생성.
   // installationId 가 있을 때만 (PAT/legacy 페이로드는 unknown-repo 폴백).
+  // autoMergeEnabled=true 디폴트 — App 설치 자체가 자동화 의지의 표명. 끄려면
+  // /settings 또는 SQL 로 명시 (Phase 8 의 인테이크 마법사에서 첫 화면에 토글 노출 예정).
   if (!project && payload.installationId !== null) {
     const inserted = db
       .insert(projects)
@@ -105,6 +107,7 @@ export async function handlePullRequestWebhook(payload: WebhookPRPayload): Promi
         slug: payload.repoSlug,
         name: payload.repoSlug,
         installationId: payload.installationId,
+        autoMergeEnabled: true,
       })
       .returning({ id: projects.id, installationId: projects.installationId })
       .get();
