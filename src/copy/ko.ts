@@ -77,6 +77,17 @@ export const ko = {
       bundle: (title: string, count: number) => `${title} · ${count}건이 묶였어요`,
     },
   },
+  // 인박스 / 대시보드 행 인라인 액션 — PR 상세 안 들어가도 빠르게 머지·닫기·삭제 가능.
+  row: {
+    actions: {
+      merge: '머지',
+      mergeAria: 'PR 머지',
+      close: '닫기',
+      closeAria: 'PR 닫기 (폐기)',
+      deleteBranch: '브랜치 삭제',
+      deleteBranchAria: 'head 브랜치 삭제',
+    },
+  },
   inbox: {
     title: '인박스',
     subtitle: '우선순위 순으로 자동 정렬됩니다. 가장 위에서부터 처리하세요.',

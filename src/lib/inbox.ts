@@ -3,7 +3,24 @@ import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { orderInbox } from '@/lib/queue';
-import type { PR, ReasonTone, SidebarCounts } from '@/lib/types';
+import type { PR, PRRowActionState, ReasonTone, SidebarCounts } from '@/lib/types';
+
+// 행 인라인 액션 활성 여부 — installation 있고 적절한 status 일 때만 노출.
+// dashboard.ts 와 공유 가능하지만 작은 함수라 inbox 에 두고 export.
+export function deriveRowActions(
+  status: string,
+  installationId: number | null,
+  branchDeleted: boolean,
+): PRRowActionState {
+  const hasInstall = installationId !== null;
+  const isMergedStatus = status === 'merged';
+  const isClosedStatus = status === 'closed';
+  return {
+    canMerge: hasInstall && !isMergedStatus && !isClosedStatus,
+    canClose: hasInstall && !isMergedStatus && !isClosedStatus,
+    canDeleteBranch: hasInstall && isMergedStatus && !branchDeleted,
+  };
+}
 
 export type InboxCategoryId =
   | 'all'
@@ -125,6 +142,7 @@ export async function listInboxQueue(
       preReview: preReviews,
       triage: triageDecisions,
       repoSlug: projects.slug,
+      installationId: projects.installationId,
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
@@ -167,6 +185,8 @@ export async function listInboxQueue(
         value: confidence,
         tier: gaugeTierFromConfidence(confidence),
       },
+      // 행 인라인 액션 활성 여부 — installation 있고 적절한 status 일 때만.
+      actions: deriveRowActions(row.pr.status, row.installationId, row.pr.branchDeletedAt !== null),
     };
     return { item, flags };
   });

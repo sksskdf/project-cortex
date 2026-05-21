@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { AgentFaceIcon, AlertIcon, BellIcon, CheckIcon, InfoIcon } from '@/components/icons';
+import { PRRowInlineActions } from '@/components/PRRowInlineActions';
 import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
 import { currentUser } from '@/lib/config';
 import {
@@ -239,6 +240,7 @@ function TodoRowCard({ row }: { row: PR }) {
           <span className={styles.todoDiffMinus}>−{row.deletions}</span>
         </span>
         <span>{row.ageText}</span>
+        {row.actions && <PRRowInlineActions viewId={row.id} actions={row.actions} />}
       </div>
     </Link>
   );

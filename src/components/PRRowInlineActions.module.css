@@ -1,0 +1,57 @@
+/* 인박스/대시보드 행 우측에 노출되는 인라인 액션 버튼 그룹.
+   행의 Link 영역 안에 들어가지만 onClick 으로 navigate 막음. */
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-4);
+  flex-shrink: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px var(--ds-spacing-8);
+  height: 24px;
+  border-radius: var(--ds-border-radius-input);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  background: var(--ds-color-bg-00);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-11);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--ds-color-bg-01);
+  border-color: var(--ds-color-line-04);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 닫기 (destructive) 버튼만 빨강 톤. */
+.btnClose {
+  color: var(--ds-color-state-error-strong);
+}
+
+.btnClose:hover {
+  background: var(--ds-color-soft-red);
+  border-color: var(--ds-color-state-error-strong);
+}
+
+/* 액션 후 행이 사라질 때 같은 폭 유지 (layout shift 회피). */
+.placeholder {
+  display: inline-block;
+  width: 1px;
+  height: 24px;
+}
+
+.error {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-state-error-strong);
+}

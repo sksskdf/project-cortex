@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { agentRuns, clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { clusterNotes } from '@/fixtures/dashboard';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { deriveRowActions } from '@/lib/inbox';
 import { orderInbox } from '@/lib/queue';
 import type { PR, ReasonTone, StatDelta } from '@/lib/types';
 
@@ -160,6 +161,7 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
       preReview: preReviews,
       triage: triageDecisions,
       repoSlug: projects.slug,
+      installationId: projects.installationId,
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
@@ -191,6 +193,7 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
       fileCount: row.pr.filesChanged,
       ageText: formatRelativeAge(createdAtMs),
       gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
+      actions: deriveRowActions(row.pr.status, row.installationId, row.pr.branchDeletedAt !== null),
     };
   });
 
