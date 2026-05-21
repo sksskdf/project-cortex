@@ -109,8 +109,10 @@
 
 .statGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ds-spacing-16);
+  /* 사용자: 한 줄로 — 5개 카드 (검토 대기/자동 머지/수동 머지/에이전트 진행 중/평균
+     신뢰 점수) 한 행에. minmax 로 좁아질 때 자동 줄바꿈도 허용. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--ds-spacing-12);
   margin-bottom: var(--ds-spacing-24);
 }
 
