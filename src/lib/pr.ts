@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import type { PreReviewRow, TriageDecisionRow } from '@/db/schema';
@@ -266,7 +266,8 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
-    .leftJoin(preReviews, eq(preReviews.prId, prs.id))
+    // 최신 SHA 의 preReview 만. 과거 SHA 의 행들이 join 결과를 N배로 만들지 않게.
+    .leftJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(eq(prs.id, dbId))
     .get();

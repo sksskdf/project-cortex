@@ -28,7 +28,7 @@ export async function toggleAiEnabledAction(enabled: boolean): Promise<SettingsA
 // 토글 즉시 DB 반영 → 다음 webhook 부터 triage 룰 #2 통과 가능.
 export type ProjectAutoMergeActionState =
   | { kind: 'idle' }
-  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'updated'; id: number; enabled: boolean; retriagedCount: number }
   | { kind: 'not-found' }
   | { kind: 'error'; message: string };
 
@@ -37,10 +37,17 @@ export async function toggleProjectAutoMergeAction(
   enabled: boolean,
 ): Promise<ProjectAutoMergeActionState> {
   try {
-    const result = setProjectAutoMerge(id, enabled);
+    const result = await setProjectAutoMerge(id, enabled);
     revalidatePath('/settings');
+    revalidatePath('/inbox');
+    revalidatePath('/');
     if (result.kind === 'not-found') return { kind: 'not-found' };
-    return { kind: 'updated', id: result.row.id, enabled: result.row.autoMergeEnabled };
+    return {
+      kind: 'updated',
+      id: result.row.id,
+      enabled: result.row.autoMergeEnabled,
+      retriagedCount: result.retriagedPrIds.length,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', message };

@@ -73,7 +73,7 @@ describe('decideTriage', () => {
   it('human-review when tests not run (null)', () => {
     const r = decideTriage(base({ testsPassed: null }));
     expect(r.decision).toBe('human-review');
-    expect(r.reason).toContain('테스트 결과가 없습니다');
+    expect(r.reason).toContain('CI 결과');
   });
 
   it('human-review when confidence below 90', () => {

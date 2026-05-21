@@ -237,7 +237,10 @@ export const ko = {
       empty:
         '등록된 프로젝트가 없습니다 — GitHub App 을 레포에 설치하면 첫 webhook 도착 시 자동 등록됩니다.',
       result: {
-        enabled: (slug: string) => `${slug} 자동 머지를 활성화했습니다.`,
+        enabled: (slug: string, retriagedCount: number) =>
+          retriagedCount > 0
+            ? `${slug} 자동 머지를 활성화했습니다 — 활성 PR ${retriagedCount}건 재트라이아지.`
+            : `${slug} 자동 머지를 활성화했습니다.`,
         disabled: (slug: string) => `${slug} 자동 머지를 비활성화했습니다.`,
         notFound: '프로젝트를 찾을 수 없거나 GitHub App 설치 정보가 없습니다.',
         error: (message: string) => `설정 변경 실패: ${message}`,

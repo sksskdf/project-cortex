@@ -46,31 +46,33 @@ describe('listAutoMergeProjects', () => {
 });
 
 describe('setProjectAutoMerge', () => {
-  it('updates autoMergeEnabled on installed project', () => {
+  it('updates autoMergeEnabled on installed project', async () => {
     const inserted = db
       .insert(projects)
       .values({ slug: 'a/repo', name: 'A', installationId: 100, autoMergeEnabled: false })
       .returning({ id: projects.id })
       .get();
 
-    const result = setProjectAutoMerge(inserted.id, true);
+    const result = await setProjectAutoMerge(inserted.id, true);
     expect(result.kind).toBe('updated');
     if (result.kind === 'updated') {
       expect(result.row.autoMergeEnabled).toBe(true);
+      // 활성 PR 이 없으므로 재트라이아지 대상도 0.
+      expect(result.retriagedPrIds).toEqual([]);
     }
   });
 
-  it('returns not-found when project missing', () => {
-    expect(setProjectAutoMerge(9999, true).kind).toBe('not-found');
+  it('returns not-found when project missing', async () => {
+    expect((await setProjectAutoMerge(9999, true)).kind).toBe('not-found');
   });
 
-  it('returns not-found for seed projects (installationId null)', () => {
+  it('returns not-found for seed projects (installationId null)', async () => {
     const inserted = db
       .insert(projects)
       .values({ slug: 'seed/demo', name: 'Seed', installationId: null })
       .returning({ id: projects.id })
       .get();
 
-    expect(setProjectAutoMerge(inserted.id, true).kind).toBe('not-found');
+    expect((await setProjectAutoMerge(inserted.id, true)).kind).toBe('not-found');
   });
 });
