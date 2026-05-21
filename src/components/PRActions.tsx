@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import {
   deletePRBranchAction,
@@ -34,16 +34,25 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
   // 변경 요청 textarea 토글. 클릭 즉시 전송하지 않고 사유 입력을 받음.
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestBody, setRequestBody] = useState('');
-  // useTransition 의 pending 은 어떤 액션이 in-flight 인지 구분 못 함 — 머지 직후
-  // showDeleteBranch=true 가 되는데 pending 도 true 라 delete 버튼이 "삭제 중..." 으로
-  // 잘못 표시되는 버그가 있었음. 어떤 액션인지 별도 추적해 라벨이 섞이지 않게.
   const [inFlight, setInFlight] = useState<InFlightAction>(null);
+  // 머지·브랜치 삭제 클릭 즉시 다음 상태로 시각 swap — server action 의 revalidatePath
+  // 가 도착하기 전 sales window 에서 'pending ? 머지 중 : ...' 같은 잘못된 라벨이
+  // 보이지 않도록. 실패 시 transition 종료 + revalidate 되면서 자동 revert.
+  const [optimisticMerged, setOptimisticMerged] = useOptimistic(
+    isMerged,
+    (_current, next: boolean) => next,
+  );
+  const [optimisticBranchDeleted, setOptimisticBranchDeleted] = useOptimistic(
+    branchDeleted,
+    (_current, next: boolean) => next,
+  );
 
   function runMerge() {
     setMergeState({ kind: 'idle' });
     setBranchState({ kind: 'idle' });
     setInFlight('merge');
     startTransition(async () => {
+      setOptimisticMerged(true);
       const next = await mergePRAction(viewId);
       setMergeState(next);
       setInFlight(null);
@@ -54,6 +63,7 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
     setBranchState({ kind: 'idle' });
     setInFlight('delete');
     startTransition(async () => {
+      setOptimisticBranchDeleted(true);
       const next = await deletePRBranchAction(viewId);
       setBranchState(next);
       setInFlight(null);
@@ -74,13 +84,12 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
     });
   }
 
-  // 머지 직후엔 revalidatePath 로 page 가 새로 fetch 되면서 isMerged 가 true 가 됨.
-  // 그동안의 transient 상태 표시는 mergeState.kind === 'merged' 로 처리.
-  const showDeleteBranch = isMerged || mergeState.kind === 'merged';
+  // optimistic 우선 — 머지 클릭 즉시 delete 버튼이 보이게.
+  const showDeleteBranch = optimisticMerged || mergeState.kind === 'merged';
   const mergeDisabled = !canMerge || pending || showDeleteBranch;
   // 위험 분류 PR 이 아니면 버튼을 렌더 안 함 (canRequestChanges=false).
   // 렌더하는 경우엔 pending/머지됨 외에는 항상 활성.
-  const requestDisabled = pending || isMerged;
+  const requestDisabled = pending || optimisticMerged;
 
   return (
     <div className={styles.column}>
@@ -111,12 +120,12 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
             type="button"
             className="ds-btn ds-btn--md ds-btn--outlined-basic"
             onClick={runDeleteBranch}
-            disabled={branchDeleted || pending || branchState.kind === 'deleted'}
+            disabled={optimisticBranchDeleted || pending || branchState.kind === 'deleted'}
             aria-busy={inFlight === 'delete'}
-            aria-disabled={branchDeleted}
+            aria-disabled={optimisticBranchDeleted}
           >
             <span className="ds-btn__label">
-              {branchDeleted
+              {optimisticBranchDeleted
                 ? t.pr.actionBar.branchAlreadyDeleted
                 : inFlight === 'delete'
                   ? t.pr.actionBar.deletingBranch

@@ -171,16 +171,22 @@ function parseCategory(raw: string | string[] | undefined): InboxCategoryId {
     : 'all';
 }
 
+function parseSearch(raw: string | string[] | undefined): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return (value ?? '').slice(0, 100);
+}
+
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string | string[] }>;
+  searchParams: Promise<{ category?: string | string[]; q?: string | string[] }>;
 }) {
   const params = await searchParams;
   const activeCategory = parseCategory(params.category);
+  const searchQuery = parseSearch(params.q);
 
   const [inboxQueue, inboxCategories, inboxProjects, inboxClusterBanner] = await Promise.all([
-    listInboxQueue(activeCategory),
+    listInboxQueue(activeCategory, searchQuery),
     getInboxCategories(),
     getInboxProjects(),
     getInboxClusterBanner(),
@@ -294,21 +300,26 @@ export default async function InboxPage({
               </button>
             ))}
           </div>
-          {/* 검색은 백엔드 미구현 — disabled. */}
-          <div className={styles.toolbarSearch}>
+          {/* GET form 으로 ?q= 쿼리 전송 → SSR 이 그대로 받아 SQL LIKE 적용.
+              JS 없이 동작하고 URL 공유 가능. category 는 hidden 으로 유지. */}
+          <form className={styles.toolbarSearch} method="get" action="/inbox" role="search">
+            {activeCategory !== 'all' && (
+              <input type="hidden" name="category" value={activeCategory} />
+            )}
             <div className="ds-input ds-input--md ds-input--full-width ds-input--with-icon">
               <input
                 className="ds-input__field"
                 type="text"
+                name="q"
                 placeholder={t.inbox.search.placeholder}
                 aria-label={t.inbox.search.ariaLabel}
-                disabled
+                defaultValue={searchQuery}
               />
               <span className="ds-input__icon" aria-hidden="true">
                 {searchIcon()}
               </span>
             </div>
-          </div>
+          </form>
         </div>
 
         {inboxClusterBanner && (

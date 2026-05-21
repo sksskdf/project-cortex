@@ -354,12 +354,9 @@
   margin: 0 0 var(--ds-spacing-10);
 }
 
+/* Markdown 컴포넌트가 자체 스타일 (.root) 로 폰트/색/줄간격을 처리. 컨테이너만 남김. */
 .bodyContent {
   font-size: var(--ds-typography-font-size-13);
-  color: var(--ds-color-text-03-high);
-  line-height: var(--ds-typography-line-height-148);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .aiCardHead {
