@@ -29,6 +29,9 @@ function setupPR(opts: {
   updatedAt?: Date;
   confidence?: number;
   analyzedAt?: Date;
+  // 머지된 PR 에 대해 자동 머지 카운트에 포함시킬지. 디폴트 true (이전 동작 호환).
+  // false 면 triage decision 안 만듦 → GitHub 외부 머지로 분류.
+  autoMerged?: boolean;
 }) {
   const pr = db
     .insert(prs)
@@ -57,6 +60,17 @@ function setupPR(opts: {
         confidenceTier: 'medium',
         flags: [],
         analyzedAt: opts.analyzedAt,
+      })
+      .run();
+  }
+  // merged 상태인 PR 은 디폴트로 시스템 자동 머지 결정을 기록 — 자동 카운트에 잡힘.
+  if (opts.status === 'merged' && opts.autoMerged !== false) {
+    db.insert(triageDecisions)
+      .values({
+        prId: pr.id,
+        decision: 'auto-merge',
+        reason: 'test auto merge',
+        decidedBy: 'system',
       })
       .run();
   }
@@ -184,5 +198,47 @@ describe('getDashboardStats — 실 delta 계산', () => {
     const s = await getDashboardStats();
     expect(s.pendingReview.delta.direction).toBe('flat');
     expect(s.pendingReview.delta.amount).toBe(0);
+  });
+
+  it('autoMergedThisWeek — 사람 머지/외부 머지는 제외, 시스템 자동만 카운트', async () => {
+    const now = Date.now();
+    const repoId = setupProject();
+    // 자동 머지 1건 (default triage decision = auto + system).
+    setupPR({
+      repoId,
+      number: 1,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    // 사람 머지 1건 — triage decision 은 직접 'human' 으로.
+    const humanId = setupPR({
+      repoId,
+      number: 2,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+      autoMerged: false,
+    });
+    db.insert(triageDecisions)
+      .values({
+        prId: humanId,
+        decision: 'auto-merge',
+        reason: 'user clicked merge',
+        decidedBy: 'human',
+      })
+      .run();
+    // 외부 머지 1건 — triage decision 없음.
+    setupPR({
+      repoId,
+      number: 3,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+      autoMerged: false,
+    });
+
+    const s = await getDashboardStats();
+    expect(s.autoMergedThisWeek.value).toBe(1);
   });
 });

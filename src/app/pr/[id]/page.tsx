@@ -145,6 +145,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     canRequestAnalysis,
     aiEnabled,
     body,
+    mergeableState,
   } = view;
   const detail = { ...fixture, hunkSummary };
   const bodyText = body?.trim() ?? '';
@@ -329,6 +330,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
               isMerged={isMerged}
               branchDeleted={branchDeleted}
               canRequestChanges={canRequestChanges}
+              mergeableState={mergeableState}
             />
           </div>
         </div>

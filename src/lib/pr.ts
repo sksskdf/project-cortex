@@ -11,7 +11,7 @@ import {
 } from '@/fixtures/pr-detail';
 import { parseUnifiedDiff } from '@/lib/diff-parser';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
-import { getPRDiff } from '@/lib/github';
+import { getPRDiff, getPRMergeableState } from '@/lib/github';
 import { getSettings } from '@/lib/settings';
 import type { FileBlock, PR, ReasonTone } from '@/lib/types';
 
@@ -47,6 +47,9 @@ export type PRDetailView = {
   aiEnabled: boolean;
   // GitHub PR description. null 이면 본문 없음 — UI 가 섹션 자체를 숨김.
   body: string | null;
+  // GitHub 가 계산한 머지 가능 여부 — 'dirty'(충돌) · 'blocked' · 'unstable' 등.
+  // installation 없거나 fetch 실패 시 null — UI 가 표시하지 않음.
+  mergeableState: import('@/lib/github').MergeableState | null;
 };
 
 function parsePrId(viewId: string): number | null {
@@ -299,14 +302,35 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
   };
 
+  // mergeable_state — installation 있고 아직 안 끝난 PR 만 GitHub 에 묻는다.
+  // fetch 실패는 무시 (null) — UI 가 표시 안 함. GitHub 가 계산 중이면 'unknown'.
+  let mergeableState: Awaited<ReturnType<typeof getPRMergeableState>> | null = null;
+  if (row.installationId !== null && !isMerged && !isClosed) {
+    try {
+      const [owner, repo] = row.repoSlug.split('/');
+      mergeableState = await getPRMergeableState(
+        row.installationId,
+        { owner, repo },
+        row.pr.number,
+      );
+    } catch (err) {
+      console.error(`getPRMergeableState failed for PR ${row.pr.id}:`, err);
+    }
+  }
+  // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
+  // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
+  const mergeBlockedByState = mergeableState === 'dirty' || mergeableState === 'blocked';
+  const canMergeEffective = canMerge && !mergeBlockedByState;
+
   const common = {
     isMerged,
     branchDeleted: row.pr.branchDeletedAt !== null,
-    canMerge,
-    canRequestChanges: canMerge && (tone === 'alert' || tone === 'warn'),
+    canMerge: canMergeEffective,
+    canRequestChanges: canMergeEffective && (tone === 'alert' || tone === 'warn'),
     canRequestAnalysis: !row.preReview && row.installationId !== null && settings.aiEnabled,
     aiEnabled: settings.aiEnabled,
     body: row.pr.body,
+    mergeableState,
   } as const;
 
   // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.
