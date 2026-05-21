@@ -134,6 +134,9 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
       return { kind: 'failed', reason: 'GitHub 머지 거부 — merged=false 반환.' };
     }
     db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
+    // 머지 = 브랜치 삭제 (자동/사람 모두 동일). 별도 '브랜치 삭제' 액션 흐름 제거 —
+    // 사용자가 두 번 클릭할 필요 없게. fork/cross-repo 는 자동 skip.
+    await safeDeleteBranch(prId);
     // 사람 결정 기록 — 자동 머지 정책과 구분되게 decidedBy='human'.
     const existing = db
       .select({ id: triageDecisions.id })

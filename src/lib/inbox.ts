@@ -6,19 +6,13 @@ import { orderInbox } from '@/lib/queue';
 import type { PR, PRRowActionState, ReasonTone, SidebarCounts } from '@/lib/types';
 
 // 행 인라인 액션 활성 여부 — installation 있고 적절한 status 일 때만 노출.
-// dashboard.ts 와 공유 가능하지만 작은 함수라 inbox 에 두고 export.
-export function deriveRowActions(
-  status: string,
-  installationId: number | null,
-  branchDeleted: boolean,
-): PRRowActionState {
+// 머지 성공 시 브랜치 자동 삭제이므로 별도 '브랜치 삭제' 액션 없음.
+export function deriveRowActions(status: string, installationId: number | null): PRRowActionState {
   const hasInstall = installationId !== null;
-  const isMergedStatus = status === 'merged';
-  const isClosedStatus = status === 'closed';
+  const active = !['merged', 'closed'].includes(status);
   return {
-    canMerge: hasInstall && !isMergedStatus && !isClosedStatus,
-    canClose: hasInstall && !isMergedStatus && !isClosedStatus,
-    canDeleteBranch: hasInstall && isMergedStatus && !branchDeleted,
+    canMerge: hasInstall && active,
+    canClose: hasInstall && active,
   };
 }
 
@@ -186,7 +180,7 @@ export async function listInboxQueue(
         tier: gaugeTierFromConfidence(confidence),
       },
       // 행 인라인 액션 활성 여부 — installation 있고 적절한 status 일 때만.
-      actions: deriveRowActions(row.pr.status, row.installationId, row.pr.branchDeletedAt !== null),
+      actions: deriveRowActions(row.pr.status, row.installationId),
     };
     return { item, flags };
   });

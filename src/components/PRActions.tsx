@@ -4,10 +4,8 @@ import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import {
   closePRAction,
-  deletePRBranchAction,
   mergePRAction,
   requestChangesAction,
-  type PRBranchDeleteState,
   type PRCloseState,
   type PRMergeActionState,
   type PRRequestChangesState,
@@ -19,8 +17,6 @@ type Props = {
   viewId: string;
   canMerge: boolean;
   isMerged: boolean;
-  // 서버에서 받은 영속 상태 — head 브랜치가 이미 삭제된 경우 버튼 비활성화.
-  branchDeleted: boolean;
   // 위험 분류 (reason.tone alert/warn) PR 에서만 true. false 면 변경 요청
   // 버튼 자체를 렌더하지 않음 — Cortex 는 AI 코드의 게이트키퍼라 신뢰도 높은
   // PR 까지 사람의 거절 의사를 push 할 필요가 없음.
@@ -32,20 +28,18 @@ type Props = {
   mergeBlockedByCI: boolean;
 };
 
-type InFlightAction = 'merge' | 'delete' | 'request' | 'close' | null;
+type InFlightAction = 'merge' | 'request' | 'close' | null;
 
 export function PRActions({
   viewId,
   canMerge,
   isMerged,
-  branchDeleted,
   canRequestChanges,
   mergeableState,
   mergeBlockedByCI,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
-  const [branchState, setBranchState] = useState<PRBranchDeleteState>({ kind: 'idle' });
   const [requestState, setRequestState] = useState<PRRequestChangesState>({ kind: 'idle' });
   const [closeState, setCloseState] = useState<PRCloseState>({ kind: 'idle' });
   // 변경 요청 textarea 토글. 클릭 즉시 전송하지 않고 사유 입력을 받음.
@@ -54,24 +48,16 @@ export function PRActions({
   // PR 닫기 확인 패널 토글 — 'PR 닫기' 1차 클릭 → 확인 메시지 + 닫기/취소.
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [inFlight, setInFlight] = useState<InFlightAction>(null);
-  // 머지·브랜치 삭제 클릭 즉시 다음 상태로 시각 swap — server action 의 revalidatePath
-  // 가 도착하기 전 sales window 에서 'pending ? 머지 중 : ...' 같은 잘못된 라벨이
-  // 보이지 않도록. 실패 시 transition 종료 + revalidate 되면서 자동 revert.
+  // 머지 클릭 즉시 isMerged=true 가정 — server action 의 revalidatePath 가 도착하기
+  // 전 잠깐의 stale window 회피. 실패 시 transition 종료 + revalidate 되며 자동 revert.
   const [optimisticMerged, setOptimisticMerged] = useOptimistic(
     isMerged,
     (_current, next: boolean) => next,
   );
-  const [optimisticBranchDeleted, setOptimisticBranchDeleted] = useOptimistic(
-    branchDeleted,
-    (_current, next: boolean) => next,
-  );
 
-  // 액션 시작 시 모든 result state 초기화 — 이전 액션의 결과 메시지가 잔여로 남아
-  // 새 액션의 결과를 가리지 않게. PRActionResult 의 분기는 if 사슬이라 가장 위 분기가
-  // 잡히면 나머지 안 보임.
+  // 액션 시작 시 모든 result state 초기화 — 이전 액션의 결과 메시지 잔여물 제거.
   function resetAllStates() {
     setMergeState({ kind: 'idle' });
-    setBranchState({ kind: 'idle' });
     setRequestState({ kind: 'idle' });
     setCloseState({ kind: 'idle' });
   }
@@ -83,17 +69,6 @@ export function PRActions({
       setOptimisticMerged(true);
       const next = await mergePRAction(viewId);
       setMergeState(next);
-      setInFlight(null);
-    });
-  }
-
-  function runDeleteBranch() {
-    resetAllStates();
-    setInFlight('delete');
-    startTransition(async () => {
-      setOptimisticBranchDeleted(true);
-      const next = await deletePRBranchAction(viewId);
-      setBranchState(next);
       setInFlight(null);
     });
   }
@@ -125,9 +100,10 @@ export function PRActions({
     });
   }
 
-  // optimistic 우선 — 머지 클릭 즉시 delete 버튼이 보이게.
-  const showDeleteBranch = optimisticMerged || mergeState.kind === 'merged';
-  const mergeDisabled = !canMerge || pending || showDeleteBranch;
+  // 머지 = 브랜치 자동 삭제 (자동 머지 / 사람 머지 둘 다). 별도 '브랜치 삭제'
+  // 버튼 흐름 제거. 머지된 후 PR 상세에서는 액션 영역에 안내만 노출.
+  const isMergedView = optimisticMerged || mergeState.kind === 'merged';
+  const mergeDisabled = !canMerge || pending || isMergedView;
   // GitHub mergeable_state 가 'dirty'/'blocked' 이거나 CI 결과 대기 중이면 머지 버튼이
   // disable 된 채로 사용자가 사유를 알 수 있도록 배지 노출.
   // 우선순위: dirty > blocked > CI 대기.
@@ -166,23 +142,15 @@ export function PRActions({
         >
           <span className="ds-btn__label">{t.pr.actionBar.autoApprove}</span>
         </button>
-        {showDeleteBranch ? (
-          <button
-            type="button"
-            className="ds-btn ds-btn--md ds-btn--outlined-basic"
-            onClick={runDeleteBranch}
-            disabled={optimisticBranchDeleted || pending || branchState.kind === 'deleted'}
-            aria-busy={inFlight === 'delete'}
-            aria-disabled={optimisticBranchDeleted}
+        {isMergedView ? (
+          // 머지 완료 — 브랜치 자동 삭제. 별도 액션 버튼 없음.
+          <span
+            className={`${styles.result} ${styles.resultSuccess}`}
+            role="status"
+            aria-live="polite"
           >
-            <span className="ds-btn__label">
-              {optimisticBranchDeleted
-                ? t.pr.actionBar.branchAlreadyDeleted
-                : inFlight === 'delete'
-                  ? t.pr.actionBar.deletingBranch
-                  : t.pr.actionBar.deleteBranch}
-            </span>
-          </button>
+            {t.pr.actionBar.mergedWithBranchDeleted}
+          </span>
         ) : (
           <>
             <button
@@ -209,7 +177,7 @@ export function PRActions({
         )}
         {/* PR 닫기 (폐기) — 머지 안 하고 폐기할 PR 정리용. 머지 가능 상태 (= 아직 안
            머지) 일 때만 노출. 머지된 PR 은 closeable 아님. */}
-        {!showDeleteBranch && canMerge && (
+        {!isMergedView && canMerge && (
           <button
             type="button"
             className="ds-btn ds-btn--md ds-btn--outlined-basic"
@@ -222,7 +190,6 @@ export function PRActions({
         )}
         <PRActionResult
           mergeState={mergeState}
-          branchState={branchState}
           requestState={requestState}
           closeState={closeState}
         />
@@ -294,12 +261,10 @@ export function PRActions({
 
 function PRActionResult({
   mergeState,
-  branchState,
   requestState,
   closeState,
 }: {
   mergeState: PRMergeActionState;
-  branchState: PRBranchDeleteState;
   requestState: PRRequestChangesState;
   closeState: PRCloseState;
 }) {
@@ -328,28 +293,6 @@ function PRActionResult({
     return (
       <div className={`${styles.result} ${styles.resultError}`} role="alert">
         {t.pr.actionBar.result.requestError(requestState.message)}
-      </div>
-    );
-  }
-
-  if (branchState.kind === 'deleted') {
-    return (
-      <div className={`${styles.result} ${styles.resultSuccess}`} role="status" aria-live="polite">
-        {t.pr.actionBar.result.branchDeleted(branchState.ref)}
-      </div>
-    );
-  }
-  if (branchState.kind === 'skipped') {
-    return (
-      <div className={`${styles.result} ${styles.resultError}`} role="alert">
-        {t.pr.actionBar.result.branchSkipped(branchState.message)}
-      </div>
-    );
-  }
-  if (branchState.kind === 'error') {
-    return (
-      <div className={`${styles.result} ${styles.resultError}`} role="alert">
-        {t.pr.actionBar.result.branchError(branchState.message)}
       </div>
     );
   }
