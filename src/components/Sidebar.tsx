@@ -194,7 +194,7 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       label: t.nav.projects,
       icon: projectsIcon,
       count: counts.projects,
-      comingSoon: true,
+      comingSoon: false,
     },
     {
       href: '/agents',

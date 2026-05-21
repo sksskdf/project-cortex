@@ -1,9 +1,9 @@
-// 등록된 프로젝트 (레포) 의 자동 머지 정책 토글. Phase 8 인테이크 마법사가 들어오기 전
-// 임시 settings UI 에서 사용. installation 있는 프로젝트만 토글 대상 (seed 데이터 제외).
+// 등록된 프로젝트 (레포) 의 자동 머지 정책 토글 + Phase 8 의 /projects 화면용 통계.
+// installation 있는 프로젝트만 노출 (seed 데이터 제외).
 
-import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, asc, avg, count, eq, inArray, isNotNull } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { prs, projects } from '@/db/schema';
+import { preReviews, prs, projects } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { runTriage } from './triage';
 
@@ -86,4 +86,70 @@ export async function setProjectAutoMerge(
   }
 
   return { kind: 'updated', row, retriagedPrIds };
+}
+
+// Phase 8 — /projects 화면용 프로젝트 통계.
+// 각 프로젝트 별 PR 카운트 / 머지 카운트 / 평균 신뢰 점수.
+export type ProjectStatsRow = {
+  id: number;
+  slug: string;
+  name: string;
+  installationId: number | null;
+  autoMergeEnabled: boolean;
+  // 활성 PR (open/review-needed/auto-mergeable) — 인박스 + 클러스터 합계.
+  activePRs: number;
+  // 머지된 PR 누적.
+  mergedPRs: number;
+  // 분석된 PR 들의 평균 신뢰 점수 (0 이면 분석된 PR 없음).
+  avgConfidence: number;
+};
+
+export function listProjectsWithStats(): ProjectStatsRow[] {
+  const rows = db
+    .select({
+      id: projects.id,
+      slug: projects.slug,
+      name: projects.name,
+      installationId: projects.installationId,
+      autoMergeEnabled: projects.autoMergeEnabled,
+    })
+    .from(projects)
+    .orderBy(asc(projects.slug))
+    .all();
+
+  return rows.map((r) => {
+    const activeRow = db
+      .select({ n: count() })
+      .from(prs)
+      .where(
+        and(eq(prs.repoId, r.id), inArray(prs.status, ['open', 'review-needed', 'auto-mergeable'])),
+      )
+      .get();
+
+    const mergedRow = db
+      .select({ n: count() })
+      .from(prs)
+      .where(and(eq(prs.repoId, r.id), eq(prs.status, 'merged')))
+      .get();
+
+    // 평균 confidence — 해당 프로젝트의 모든 preReview.
+    // (PR 마다 여러 preReview 가 쌓일 수 있지만 평균이라 영향 적음.)
+    const avgRow = db
+      .select({ a: avg(preReviews.confidence) })
+      .from(preReviews)
+      .innerJoin(prs, eq(preReviews.prId, prs.id))
+      .where(eq(prs.repoId, r.id))
+      .get();
+
+    return {
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      installationId: r.installationId,
+      autoMergeEnabled: r.autoMergeEnabled,
+      activePRs: activeRow?.n ?? 0,
+      mergedPRs: mergedRow?.n ?? 0,
+      avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
+    };
+  });
 }
