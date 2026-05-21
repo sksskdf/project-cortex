@@ -140,7 +140,10 @@ export async function listInboxQueue(
   const decorated: Decorated[] = rows.map((row) => {
     const confidence = row.preReview?.confidence ?? 0;
     const flags = row.preReview?.flags ?? [];
-    const tone: ReasonTone = row.triage ? reasonTone(confidence, flags) : 'info';
+    // 머지/닫힘 PR (done 카테고리) 은 이미 처리 끝났으므로 위험 강조 stripe 표시 안 함 —
+    // 항상 'info' 강제. review-needed 만 reasonTone 로 위험도 표시.
+    const isDone = row.pr.status === 'merged' || row.pr.status === 'closed';
+    const tone: ReasonTone = isDone ? 'info' : row.triage ? reasonTone(confidence, flags) : 'info';
     // ageText 는 "마지막 활동 시점" — 새 push (synchronize webhook) 시 updatedAt
     // 만 갱신되므로 updatedAt 우선. updatedAt 이 어떤 이유로 빈 행은 createdAt 폴백.
     const activityMs = toMs(row.pr.updatedAt) || toMs(row.pr.createdAt);
