@@ -23,6 +23,12 @@ export const ko = {
     notifications: '알림',
     startAgent: '에이전트 시작',
     newIssue: '새 이슈',
+    // 헤더 3 버튼 모두 백엔드 미구현으로 disabled. 어느 Phase 에서 활성화될지 hover/aria 로 알려줌.
+    header: {
+      notificationsHint: '알림 — Phase 7 (운영 메트릭 + 이벤트) 예정',
+      startAgentHint: '에이전트 시작 — Phase 13 (Claude CLI 통합) 예정',
+      newIssueHint: '새 이슈 — Phase 13 (Claude CLI 통합) 예정',
+    },
     principle: {
       title: (count: number) => `이번 주 ${count}건이 자동 머지되었어요`,
       desc: '에이전트가 자신 있는 작업은 자동으로 처리됩니다. 인박스에는 검토가 필요한 것만 올라옵니다.',
@@ -285,10 +291,14 @@ export const ko = {
         error: (message: string) => `설정 변경 실패: ${message}`,
       },
     },
-    // 프로젝트별 자동 머지 정책 토글 — Phase 8 인테이크 마법사 전 임시 UI.
+    // /projects 페이지로 이전된 프로젝트별 토글 안내. 컴포넌트가 result 메시지에 쓰는
+    // reconcile.button / pending / result 와 autoMerge.result 는 그대로 유지.
+    projectsLink: {
+      title: '프로젝트별 설정',
+      desc: '자동 머지 정책 · GitHub 와 동기화는 [프로젝트] 페이지에서 각 레포 카드에 모았습니다.',
+      cta: '프로젝트 페이지로 →',
+    },
     reconcile: {
-      title: 'GitHub 와 동기화',
-      desc: 'GitHub 에 열려 있는 PR 중 Cortex 에 안 들어온 것 (다운타임 / 첫 onboard 등) 일괄 fetch. AI 분석은 자동 안 함 — 크레딧 0. PR 상세에서 "AI 분석 요청" 으로 명시 실행 가능.',
       button: 'GitHub 와 동기화',
       pending: '동기화 중…',
       result: {
@@ -298,14 +308,6 @@ export const ko = {
       },
     },
     autoMerge: {
-      title: '자동 머지 정책',
-      ariaLabel: '자동 머지 정책',
-      desc: 'GitHub App 이 설치된 프로젝트별로 자동 머지를 켜거나 끕니다. 끄면 모든 PR 이 인박스로 폴백됩니다.',
-      // 인박스 사유가 "CI 결과 대기 중" 으로 영구히 머무를 때 사용자가 확인할 진단 힌트.
-      hintCheckSubscription:
-        'CI 결과가 영구히 안 채워지면 GitHub App 의 Check run · Check suite 이벤트 구독을 확인해 주세요.',
-      empty:
-        '등록된 프로젝트가 없습니다 — GitHub App 을 레포에 설치하면 첫 webhook 도착 시 자동 등록됩니다.',
       result: {
         enabled: (slug: string, retriagedCount: number) =>
           retriagedCount > 0
