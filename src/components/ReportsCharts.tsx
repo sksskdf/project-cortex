@@ -39,10 +39,7 @@ type TooltipProps = {
 
 function ChartTooltip({ active, payload, label, totalLabel }: TooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
-  const total = payload.reduce(
-    (sum, p) => sum + (typeof p.value === 'number' ? p.value : 0),
-    0,
-  );
+  const total = payload.reduce((sum, p) => sum + (typeof p.value === 'number' ? p.value : 0), 0);
   return (
     <div className={styles.tooltip}>
       <div className={styles.tooltipLabel}>{label}</div>
@@ -75,9 +72,20 @@ export function DailyIncomingChart({ points }: { points: DailyIncomingPoint[] })
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid stroke={COLOR_GRID} vertical={false} strokeDasharray="3 3" />
           <XAxis dataKey="date" stroke={COLOR_AXIS} fontSize={11} tickLine={false} />
-          <YAxis stroke={COLOR_AXIS} fontSize={11} tickLine={false} allowDecimals={false} width={28} />
+          <YAxis
+            stroke={COLOR_AXIS}
+            fontSize={11}
+            tickLine={false}
+            allowDecimals={false}
+            width={28}
+          />
           <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} content={<ChartTooltip />} />
-          <Bar dataKey="count" name={t.reports.section.dailyIncoming} fill={COLOR_BLUE} radius={[3, 3, 0, 0]} />
+          <Bar
+            dataKey="count"
+            name={t.reports.section.dailyIncoming}
+            fill={COLOR_BLUE}
+            radius={[3, 3, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -97,16 +105,18 @@ export function DailyMergeChart({ points }: { points: DailyMergePoint[] }) {
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid stroke={COLOR_GRID} vertical={false} strokeDasharray="3 3" />
           <XAxis dataKey="date" stroke={COLOR_AXIS} fontSize={11} tickLine={false} />
-          <YAxis stroke={COLOR_AXIS} fontSize={11} tickLine={false} allowDecimals={false} width={28} />
+          <YAxis
+            stroke={COLOR_AXIS}
+            fontSize={11}
+            tickLine={false}
+            allowDecimals={false}
+            width={28}
+          />
           <Tooltip
             cursor={{ fill: 'rgba(255,255,255,0.04)' }}
             content={<ChartTooltip totalLabel="합계" />}
           />
-          <Legend
-            iconType="square"
-            iconSize={10}
-            wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
-          />
+          <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
           <Bar dataKey="auto" name={t.reports.legend.auto} stackId="m" fill={COLOR_BLUE} />
           <Bar dataKey="human" name={t.reports.legend.human} stackId="m" fill={COLOR_YELLOW} />
           <Bar
@@ -131,13 +141,7 @@ export function AvgConfidenceChart({ points }: { points: DailyConfidencePoint[] 
         <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid stroke={COLOR_GRID} vertical={false} strokeDasharray="3 3" />
           <XAxis dataKey="date" stroke={COLOR_AXIS} fontSize={11} tickLine={false} />
-          <YAxis
-            stroke={COLOR_AXIS}
-            fontSize={11}
-            tickLine={false}
-            domain={[0, 100]}
-            width={28}
-          />
+          <YAxis stroke={COLOR_AXIS} fontSize={11} tickLine={false} domain={[0, 100]} width={28} />
           <Tooltip cursor={{ stroke: COLOR_GRID }} content={<ChartTooltip />} />
           <Line
             type="monotone"

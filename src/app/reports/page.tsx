@@ -20,8 +20,7 @@ export default function ReportsPage() {
     data;
 
   const delta = mergeRate.autoMergeRate - prevMergeRate.autoMergeRate;
-  const deltaText =
-    delta > 0 ? `▲ ${delta}%p` : delta < 0 ? `▼ ${Math.abs(delta)}%p` : `· ±0%p`;
+  const deltaText = delta > 0 ? `▲ ${delta}%p` : delta < 0 ? `▼ ${Math.abs(delta)}%p` : `· ±0%p`;
   const deltaClass = delta > 0 ? styles.deltaUp : delta < 0 ? styles.deltaDown : styles.deltaFlat;
 
   return (

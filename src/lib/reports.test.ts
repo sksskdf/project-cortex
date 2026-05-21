@@ -35,14 +35,14 @@ function seedMergedPR(opts: {
 }) {
   const slug = opts.slug ?? 'acme/web';
   // 같은 슬러그 재사용 — 한 테스트에서 여러 PR 을 같은 project 에 묶기 위함.
-  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug)).get();
+  const existing = db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .get();
   const project =
     existing ??
-    db
-      .insert(projects)
-      .values({ slug, name: 'Web' })
-      .returning({ id: projects.id })
-      .get();
+    db.insert(projects).values({ slug, name: 'Web' }).returning({ id: projects.id }).get();
   const now = opts.updatedAt ?? new Date();
   const pr = db
     .insert(prs)

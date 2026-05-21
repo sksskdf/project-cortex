@@ -121,10 +121,7 @@ export function NotificationDropdown({
           ) : (
             <ul className={styles.list}>
               {notifications.map((n) => (
-                <li
-                  key={n.id}
-                  className={`${styles.item} ${!n.read ? styles.itemUnread : ''}`}
-                >
+                <li key={n.id} className={`${styles.item} ${!n.read ? styles.itemUnread : ''}`}>
                   {n.href ? (
                     <Link href={n.href} className={styles.itemLink} onClick={() => setOpen(false)}>
                       <NotificationContent n={n} />
