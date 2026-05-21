@@ -78,6 +78,30 @@ export const ko = {
       bundle: (title: string, count: number) => `${title} · ${count}건이 묶였어요`,
     },
   },
+  // /projects 페이지 (Phase 8) — 등록된 프로젝트 목록 + 통계 + 액션.
+  projects: {
+    title: '프로젝트',
+    subtitle: 'Cortex 가 다루는 GitHub 레포 목록 — 통계 · 자동 머지 · 동기화.',
+    empty: {
+      title: '등록된 프로젝트가 없습니다',
+      desc: 'GitHub App 을 레포에 설치하면 첫 webhook 도착 시 자동으로 등록됩니다.',
+    },
+    section: {
+      active: '활성 (App 설치됨)',
+      seed: '시드 / 데모',
+      seedDesc: 'GitHub installation 이 없어 실 webhook 받지 못합니다 — 화면 확인용.',
+    },
+    stat: {
+      active: '활성 PR',
+      merged: '머지 누적',
+      avgConfidence: '평균 신뢰',
+    },
+    action: {
+      autoMerge: '자동 머지',
+      sync: '동기화',
+    },
+    seedBadge: '시드',
+  },
   // 인박스 / 대시보드 행 인라인 액션 — PR 상세 안 들어가도 빠르게 머지·닫기·삭제 가능.
   row: {
     actions: {
