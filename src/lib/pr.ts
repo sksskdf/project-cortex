@@ -387,7 +387,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       const files = parseUnifiedDiff(diffText);
       const tree = buildTreeFromFiles(files);
       const fetchedFixture: PRDetailFixture = {
-        aiSummary: notAnalyzedAiSummary(),
+        aiSummary: notAnalyzedAiSummary(row.pr.testsPassed),
         hunkSummary: { totalHunks: 0, autoApprovableHunks: 0 },
         tree,
         files,
@@ -425,13 +425,22 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   };
 }
 
-// 미분석 PR 의 placeholder aiSummary — Anthropic 호출 0.
-function notAnalyzedAiSummary(): PRDetailFixture['aiSummary'] {
+// 미분석 PR 의 placeholder aiSummary — Anthropic 호출 0. CI 결과 (testsPassed) 는
+// AI 와 무관하게 채워지므로 prs.testsPassed 가 있으면 그대로 표시. coverage/risk 는
+// LLM 결과라 미측정 유지.
+function notAnalyzedAiSummary(testsPassed: boolean | null): PRDetailFixture['aiSummary'] {
+  const testsCheck: AiCheck =
+    testsPassed === true
+      ? { key: 'tests', value: '통과', tone: 'ok' }
+      : testsPassed === false
+        ? { key: 'tests', value: '실패', tone: 'alert' }
+        : { key: 'tests', value: '미측정', tone: 'warn' };
+
   return {
     analyzedAgo: '분석 안 됨',
     summarySegments: [{ text: '이 PR 은 아직 분석되지 않았습니다.' }],
     checks: [
-      { key: 'tests', value: '미측정', tone: 'warn' },
+      testsCheck,
       { key: 'coverage', value: '미측정', tone: 'warn' },
       { key: 'risk', value: '미측정', tone: 'warn' },
     ],
