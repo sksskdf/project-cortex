@@ -227,4 +227,46 @@ describe('listInboxQueue — 카테고리 필터', () => {
     // open 은 'all' 에는 잡히지만 'done' 엔 없음.
     expect(await listByCategory('all')).toEqual([open]);
   });
+
+  // done 카테고리의 머지/닫힘 PR 은 위험 강조 (warn/alert) stripe 안 띠움 — 이미 처리 끝.
+  it('done — merged/closed PR 의 reason.tone 은 항상 info (위험 stripe 표시 안 함)', async () => {
+    const repoId = setupProject();
+    const merged = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 1,
+        title: 'risky merged PR',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-1',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'merged',
+      })
+      .returning({ id: prs.id })
+      .get();
+    // confidence 낮음 + 위험 플래그까지 — review-needed 였으면 'alert' stripe 발생할 조건.
+    db.insert(preReviews)
+      .values({
+        prId: merged.id,
+        headSha: 'sha-1',
+        confidence: 30,
+        confidenceTier: 'critical',
+        flags: ['payment-domain'],
+      })
+      .run();
+    db.insert(triageDecisions)
+      .values({
+        prId: merged.id,
+        decision: 'human-review',
+        reason: 'risky',
+        decidedBy: 'system',
+      })
+      .run();
+
+    const items = await listInboxQueue('done');
+    expect(items[0]?.reason.tone).toBe('info');
+  });
 });
