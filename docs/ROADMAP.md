@@ -475,6 +475,49 @@ npm run typecheck
 
 ---
 
+## 사이드바·헤더 미구현 항목 (작업 매핑)
+
+### 사이드바 미구현 라우트
+
+| 항목 | Phase | 작업 내용 |
+|---|---|---|
+| `/reports` (보고서) | Phase 7 | 자동 머지율 · revert율 · 신뢰 점수 시계열 메트릭. 대시보드 stat delta(#50) 의 깊은 버전 |
+| `/projects` (프로젝트) | Phase 8 | 인테이크 마법사. 레포 등록 · 자동 머지 토글 · 레포별 메트릭 |
+| `/agents` (에이전트) | Phase 8 후속 | `agent_runs` schema 는 있지만 외부 에이전트 (Devin · Codex) API 통합 필요. Cortex 는 "oversight layer" 라 직접 실행 안 함 — 모니터링 화면만 |
+| `/help` (도움말) | 최하 우선순위 | 단일 사용자(본인) 가정상 시급도 낮음. 통합 후 별도 사용자 입수 시 작성 |
+
+### 헤더 액션 미구현
+
+| 항목 | Phase | 작업 내용 |
+|---|---|---|
+| **알림** (대시보드·인박스) | Phase 7 | `notifications` 테이블 + SSE/poll. 머지·CI 실패·새 클러스터 이벤트 → 토스트 + 배지 |
+| **새 이슈** (대시보드) | Phase 8 부속 | `issues` 테이블 schema 만 있고 사용 없음. Cortex 내부 이슈 발행 → 에이전트 트리거의 시작점. "에이전트 시작" 과 한 묶음 |
+| **에이전트 시작** (대시보드) | Phase 8 후속 | 이슈 받아 외부 에이전트 API 호출, `agent_runs` 기록. 가장 큰 작업 — 외부 의존성·운영 비용 큼 |
+
+ROADMAP §0 의 "Cortex = oversight layer" 원칙상 **에이전트 · 새 이슈 · 에이전트 시작** 은 외부 에이전트 API 통합 의지가 생긴 후 마지막에 진입. 현재는 GitHub PR 만 받는 흐름이 메인.
+
+---
+
+## Phase 10 — 프로젝트별 ROADMAP 추적 (가설)
+
+> Cortex 가 다루는 각 레포의 개발 로드맵을 안에서 기록·진척·시각화.
+
+**배경** — Cortex 가 단일 사용자의 여러 프로젝트 (현재 `dfasee2` · `gofas` 등 6개) 를 다룬다는 가정에서, PR 단위 흐름과 별개로 "이 레포가 어디까지 왔는지" 를 한눈에 보고 싶음. 본 문서 (`docs/ROADMAP.md`) 같은 형태를 각 프로젝트마다 Cortex 안에서 관리.
+
+**산출물 (가설)**
+- `roadmap_phases` · `roadmap_items` 테이블 — projects FK. Phase 이름 + 산출물 + DoD + 상태 (planned/in-progress/done).
+- `/projects/[id]/roadmap` 화면 — Phase 카드 + 각 산출물의 체크박스 + PR 링크.
+- PR 머지 시 관련 산출물 자동 done 처리 (PR description 의 `Closes #PHASE-N` 같은 컨벤션).
+- 메트릭 대시보드 (Phase 7) 와 통합 — Phase 별 평균 완료 시간 · 자동 머지율.
+
+**비-목표**
+- 별도 프로젝트 관리 도구 (Jira · Linear · Asana) 대체 — Cortex 는 git 워크플로우 중심. 무거운 PM 기능은 외부 도구 사용 권장.
+- 다른 사용자에게 공유 (단일 사용자 가정 유지).
+
+**우선순위** — Phase 8 (인테이크 마법사) 후. 6개 레포가 등록되고 첫 실사용 데이터가 쌓인 다음 의미 있음. 그전엔 over-engineer.
+
+---
+
 ## 비-목표 (이번 로드맵 외)
 
 - 모바일 앱

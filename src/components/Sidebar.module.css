@@ -120,11 +120,13 @@
   color: var(--ds-color-secondary-01);
 }
 
+/* 인박스 카운트 배지 — 강한 빨강이 다크 사이드바와 너무 튀어 톤다운. */
 .itemCountAlert {
-  background: var(--ds-color-state-error-strong);
-  color: var(--ds-color-white);
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
   padding: 2px var(--ds-spacing-6);
   border-radius: 999px;
+  font-weight: var(--ds-typography-font-weight-semibold);
 }
 
 .divider {

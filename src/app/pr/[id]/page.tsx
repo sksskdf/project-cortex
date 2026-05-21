@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import { AuthorChip } from '@/components/AuthorChip';
 import { DiffHunk } from '@/components/DiffHunk';
-import { CheckIcon, ChevronLeftIcon, HelpIcon, WarnIcon } from '@/components/icons';
+import { CheckIcon, ChevronLeftIcon, HelpIcon, InfoIcon, WarnIcon } from '@/components/icons';
 import { AnalyzeRequestButton } from '@/components/AnalyzeRequestButton';
 import { PRActions } from '@/components/PRActions';
 import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
@@ -220,12 +220,24 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
 
         {source === 'fixture' && (
           <div className={styles.fixtureBanner} role="note">
-            {t.pr.seedBanner}
+            <span className={styles.fixtureBannerIcon} aria-hidden="true">
+              <InfoIcon />
+            </span>
+            <div className={styles.fixtureBannerBody}>
+              <div className={styles.fixtureBannerTitle}>{t.pr.seedBanner}</div>
+              <div className={styles.fixtureBannerDesc}>{t.pr.seedBannerDesc}</div>
+            </div>
           </div>
         )}
         {source === 'fetched' && (
           <div className={styles.fixtureBanner} role="note">
-            {t.pr.fixtureBanner}
+            <span className={styles.fixtureBannerIcon} aria-hidden="true">
+              <HelpIcon />
+            </span>
+            <div className={styles.fixtureBannerBody}>
+              <div className={styles.fixtureBannerTitle}>{t.pr.fixtureBanner}</div>
+              <div className={styles.fixtureBannerDesc}>{t.pr.fixtureBannerDesc}</div>
+            </div>
             <AnalyzeRequestButton
               viewId={pr.id}
               canRequestAnalysis={canRequestAnalysis}
