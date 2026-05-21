@@ -117,28 +117,6 @@
   color: var(--ds-color-text-02);
 }
 
-.legend {
-  display: flex;
-  gap: var(--ds-spacing-12);
-  flex-wrap: wrap;
-  padding-top: var(--ds-spacing-6);
-}
-
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ds-spacing-6);
-  font-size: var(--ds-typography-font-size-11);
-  color: var(--ds-color-text-02);
-}
-
-.legendSwatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  display: inline-block;
-}
-
 .empty {
   font-size: var(--ds-typography-font-size-13);
   color: var(--ds-color-text-02);
