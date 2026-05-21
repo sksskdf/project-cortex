@@ -154,3 +154,23 @@ export async function deletePRHeadBranch(
   });
   return { kind: 'deleted', ref: data.head.ref };
 }
+
+// PR 에 'Request Changes' 리뷰 제출 — 사용자가 PR 상세에서 '변경 요청' 누른 흐름.
+// GitHub 의 REQUEST_CHANGES review 는 PR 을 차단(블록) 상태로 만들어 다른 리뷰어가 dismiss
+// 하거나 작성자가 push 로 갱신할 때까지 머지를 막는다.
+export async function requestChangesReview(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+  body: string,
+): Promise<{ id: number; submittedAt: string | null }> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.createReview({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+    event: 'REQUEST_CHANGES',
+    body,
+  });
+  return { id: data.id, submittedAt: data.submitted_at ?? null };
+}

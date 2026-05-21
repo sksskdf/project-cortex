@@ -22,10 +22,18 @@ const reasonToneClass: Record<ReasonTone, string> = {
   info: styles.reasonInfo,
 };
 
+// 행 자체 강조 — Cortex 가 위험 분류한 PR 은 좌측 accent + (alert 만) 배경 틴트.
+const rowToneClass: Record<ReasonTone, string> = {
+  alert: styles.rowAlert,
+  warn: styles.rowWarn,
+  info: '',
+};
+
 export function PRRow({ pr, selectable = false }: { pr: PR; selectable?: boolean }) {
   const reasonIcon = pr.reason.tone === 'alert' ? <AlertIcon /> : <InfoIcon />;
+  const rowClass = `${styles.row} ${rowToneClass[pr.reason.tone]}`.trim();
   return (
-    <Link href={`/pr/${pr.id}`} className={styles.row}>
+    <Link href={`/pr/${pr.id}`} className={rowClass}>
       {selectable && <span className={styles.check} aria-hidden="true" />}
       <Gauge value={pr.gauge.value} tier={pr.gauge.tier} />
       <div className={styles.body}>

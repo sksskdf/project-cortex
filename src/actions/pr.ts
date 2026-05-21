@@ -8,8 +8,10 @@ import { revalidatePath } from 'next/cache';
 import {
   attemptHumanMerge,
   deleteMergedBranch,
+  submitRequestChanges,
   type DeletePRBranchResult,
   type HumanMergeResult,
+  type RequestChangesResult,
 } from '@/lib/auto-merge';
 import { analyzePR } from '@/lib/pre-review';
 
@@ -146,5 +148,56 @@ function mapAnalyzeSkipReason(
       return 'GitHub App 설치 정보가 없어 분석할 수 없습니다.';
     case 'ai-disabled':
       return '설정에서 AI 분석이 비활성화되어 있습니다.';
+  }
+}
+
+// 사용자가 PR 상세 '변경 요청' 누른 흐름. body 가 비어있으면 사전 리뷰 summary 가
+// 있을 때 그것을, 없으면 generic 안내 문자열을 사용.
+export type PRRequestChangesState =
+  | { kind: 'idle' }
+  | { kind: 'submitted' }
+  | { kind: 'skipped'; message: string }
+  | { kind: 'error'; message: string };
+
+export async function requestChangesAction(
+  viewId: string,
+  body: string,
+): Promise<PRRequestChangesState> {
+  const dbId = parsePrId(viewId);
+  if (dbId === null) return { kind: 'error', message: '잘못된 PR ID 입니다.' };
+
+  const trimmed = body.trim();
+  const finalBody =
+    trimmed.length > 0
+      ? trimmed
+      : 'Cortex 사용자가 변경 요청을 보냅니다. 사전 리뷰 결과와 자동 분석을 확인해 주세요.';
+
+  let result: RequestChangesResult;
+  try {
+    result = await submitRequestChanges(dbId, finalBody);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'error', message };
+  }
+
+  revalidatePath(`/pr/${viewId}`);
+
+  if (result.kind === 'submitted') return { kind: 'submitted' };
+  if (result.kind === 'failed') return { kind: 'error', message: result.reason };
+  return { kind: 'skipped', message: mapRequestChangesSkipReason(result.reason) };
+}
+
+function mapRequestChangesSkipReason(
+  reason: 'no-pr' | 'no-project' | 'no-installation' | 'already-closed',
+): string {
+  switch (reason) {
+    case 'no-pr':
+      return 'PR 을 찾을 수 없습니다.';
+    case 'no-project':
+      return '연결된 프로젝트가 없습니다.';
+    case 'no-installation':
+      return 'GitHub App 설치 정보가 없어 리뷰를 보낼 수 없습니다.';
+    case 'already-closed':
+      return '이미 머지되거나 닫힌 PR 입니다.';
   }
 }

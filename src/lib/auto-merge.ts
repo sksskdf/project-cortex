@@ -5,7 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
-import { deletePRHeadBranch, mergePR } from './github';
+import { deletePRHeadBranch, mergePR, requestChangesReview } from './github';
 
 export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
@@ -163,5 +163,42 @@ export async function deleteMergedBranch(prId: number): Promise<DeletePRBranchRe
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'failed', reason: `브랜치 삭제 실패: ${message}` };
+  }
+}
+
+// 사용자가 PR 상세에서 '변경 요청' 누른 흐름. GitHub REQUEST_CHANGES 리뷰 제출 →
+// PR 이 차단 상태로 표시되고 작성자에게 알림. PR.status 는 review-needed 유지.
+// body 는 호출자가 제공 (자동 생성된 사전 리뷰 요약 + 사용자 입력).
+export type RequestChangesResult =
+  | { kind: 'submitted'; reviewId: number }
+  | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' | 'already-closed' }
+  | { kind: 'failed'; reason: string };
+
+export async function submitRequestChanges(
+  prId: number,
+  body: string,
+): Promise<RequestChangesResult> {
+  const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
+  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  if (pr.status === 'merged' || pr.status === 'closed') {
+    return { kind: 'skipped', reason: 'already-closed' };
+  }
+
+  const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
+  if (!project) return { kind: 'skipped', reason: 'no-project' };
+  if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
+
+  const [owner, repo] = project.slug.split('/');
+  try {
+    const result = await requestChangesReview(
+      project.installationId,
+      { owner, repo },
+      pr.number,
+      body,
+    );
+    return { kind: 'submitted', reviewId: result.id };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'failed', reason: `변경 요청 실패: ${message}` };
   }
 }

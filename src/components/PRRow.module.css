@@ -4,9 +4,26 @@
   gap: var(--ds-spacing-14);
   padding: var(--ds-spacing-14) var(--ds-spacing-16);
   border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  /* 위험 분류 PR 표시용 좌측 accent stripe. 기본은 투명. */
+  border-left: 3px solid transparent;
   text-decoration: none;
   color: inherit;
   cursor: pointer;
+}
+
+/* 위험으로 분류된 PR — Cortex 가 사람의 개입 (변경 요청 / 거절) 을 권하는 행. */
+.rowAlert {
+  border-left-color: var(--ds-color-state-error-strong);
+  background: var(--ds-color-soft-red);
+}
+
+.rowAlert:hover {
+  background: var(--ds-color-soft-red);
+  filter: brightness(0.98);
+}
+
+.rowWarn {
+  border-left-color: var(--ds-color-state-warning-text-dark);
 }
 
 .row:last-child {
