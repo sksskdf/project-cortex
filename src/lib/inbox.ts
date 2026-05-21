@@ -32,6 +32,13 @@ export type InboxClusterBanner = {
   description: string;
 };
 
+// SQLite 의 timestamp 컬럼은 Drizzle 이 Date 로 변환하지만, 일부 경로에서 number
+// (epoch seconds) 가 그대로 흘러옴 — 두 경우 모두 ms 로 통일.
+function toMs(t: Date | number | null | undefined): number {
+  if (t === null || t === undefined) return 0;
+  return t instanceof Date ? t.getTime() : Number(t) * 1000;
+}
+
 const PROJECT_DOT: Record<string, InboxProject['dot']> = {
   'cortex-web': 'blue',
   'payments-api': 'green',
@@ -121,10 +128,9 @@ export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise
     const confidence = row.preReview?.confidence ?? 0;
     const flags = row.preReview?.flags ?? [];
     const tone: ReasonTone = row.triage ? reasonTone(confidence, flags) : 'info';
-    const createdAtMs =
-      row.pr.createdAt instanceof Date
-        ? row.pr.createdAt.getTime()
-        : Number(row.pr.createdAt) * 1000;
+    // ageText 는 "마지막 활동 시점" — 새 push (synchronize webhook) 시 updatedAt
+    // 만 갱신되므로 updatedAt 우선. updatedAt 이 어떤 이유로 빈 행은 createdAt 폴백.
+    const activityMs = toMs(row.pr.updatedAt) || toMs(row.pr.createdAt);
 
     const item: PR = {
       id: `pr-${row.pr.id}`,
@@ -140,7 +146,7 @@ export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise
       additions: row.pr.linesAdded,
       deletions: row.pr.linesRemoved,
       fileCount: row.pr.filesChanged,
-      ageText: formatRelativeAge(createdAtMs),
+      ageText: formatRelativeAge(activityMs),
       gauge: {
         value: confidence,
         tier: gaugeTierFromConfidence(confidence),

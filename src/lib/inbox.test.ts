@@ -118,6 +118,45 @@ describe('listInboxQueue — 카테고리 필터', () => {
     expect(await listByCategory('done')).toEqual([]);
   });
 
+  // 새 push 들어왔을 때 ageText 가 갱신되는지 — createdAt 대신 updatedAt 우선 사용해야.
+  it('ageText 는 updatedAt 기준 — 새 push 후 "방금 전" 으로 갱신', async () => {
+    const repoId = setupProject();
+    const now = Date.now();
+    // 22분 전에 PR 이 만들어졌지만 방금 새 push 가 들어옴 (updatedAt = now).
+    const pr = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 99,
+        title: 'recently pushed',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-99',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+        createdAt: new Date(now - 22 * 60 * 1000),
+        updatedAt: new Date(now - 10 * 1000),
+      })
+      .returning({ id: prs.id })
+      .get();
+    db.insert(preReviews)
+      .values({
+        prId: pr.id,
+        headSha: 'sha-99',
+        confidence: 80,
+        confidenceTier: 'medium',
+        flags: [],
+      })
+      .run();
+
+    const items = await listInboxQueue('all');
+    const target = items.find((p) => p.id === `pr-${pr.id}`);
+    // formatRelativeAge: <1분 → "방금 전". createdAt 기준이면 "22분 전" 이 됨.
+    expect(target?.ageText).toBe('방금 전');
+  });
+
   it('done — merged/closed PR 만 (review-needed 제외) + clusterId 무관', async () => {
     const repoId = setupProject();
     const open = setupPR({ repoId, number: 1, flags: [] }); // review-needed

@@ -55,6 +55,12 @@ function parsePrId(viewId: string): number | null {
   return Number(match[1]);
 }
 
+// inbox.ts 와 동일 로직 — Drizzle Date 와 raw epoch 둘 다 처리.
+function toMs(t: Date | number | null | undefined): number {
+  if (t === null || t === undefined) return 0;
+  return t instanceof Date ? t.getTime() : Number(t) * 1000;
+}
+
 // 실 preReview 에서 AI summary card 데이터를 만든다 — fixture 형태로 변환.
 function buildAiSummary(
   preReview: PreReviewRow,
@@ -274,8 +280,9 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   const confidence = row.preReview?.confidence ?? 0;
   const flags = row.preReview?.flags ?? [];
   const tone: ReasonTone = row.triage ? reasonTone(confidence, flags) : 'info';
-  const createdAtMs =
-    row.pr.createdAt instanceof Date ? row.pr.createdAt.getTime() : Number(row.pr.createdAt) * 1000;
+  // PR 상세에서도 "마지막 활동 시점" 의미가 더 자연스러움 — synchronize 직후 새로고침
+  // 했을 때 "방금 전" 으로 보이도록 updatedAt 우선.
+  const activityMs = toMs(row.pr.updatedAt) || toMs(row.pr.createdAt);
 
   const pr: PR = {
     id: viewId,
@@ -288,7 +295,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     additions: row.pr.linesAdded,
     deletions: row.pr.linesRemoved,
     fileCount: row.pr.filesChanged,
-    ageText: formatRelativeAge(createdAtMs),
+    ageText: formatRelativeAge(activityMs),
     gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
   };
 
