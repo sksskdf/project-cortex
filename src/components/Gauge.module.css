@@ -4,13 +4,13 @@
 }
 
 .gaugeSm {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
 }
 
 .gaugeMd {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
 }
 
 .svg {
@@ -19,12 +19,15 @@
 
 .track {
   fill: none;
-  stroke: var(--ds-color-line-02);
+  /* 트랙도 살짝 진하게 — 배경과 분리되도록. */
+  stroke: var(--ds-color-line-04);
+  opacity: 0.4;
 }
 
 .bar {
   fill: none;
   stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
 }
 
 .barSuccess {
@@ -55,9 +58,10 @@
 }
 
 .labelSm {
-  font-size: var(--ds-typography-font-size-12);
+  font-size: var(--ds-typography-font-size-13);
 }
 
 .labelMd {
-  font-size: var(--ds-typography-font-size-14);
+  font-size: var(--ds-typography-font-size-16);
+  letter-spacing: var(--ds-typography-letter-spacing-tight);
 }

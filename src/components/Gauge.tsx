@@ -1,9 +1,10 @@
 import type { GaugeTier } from '@/lib/types';
 import styles from './Gauge.module.css';
 
+// 사용자 보고: 게이지가 갑갑해 보임. radius 줄이고 stroke 두껍게 → 시각적 여백 확보.
 const SIZE = {
-  sm: { box: 36, center: 18, radius: 15, strokeWidth: 3 },
-  md: { box: 44, center: 22, radius: 18, strokeWidth: 3.5 },
+  sm: { box: 40, center: 20, radius: 15, strokeWidth: 4 },
+  md: { box: 52, center: 26, radius: 19, strokeWidth: 5 },
 } as const;
 
 const barClass: Record<GaugeTier, string> = {

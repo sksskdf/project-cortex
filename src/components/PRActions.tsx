@@ -66,9 +66,18 @@ export function PRActions({
     (_current, next: boolean) => next,
   );
 
-  function runMerge() {
+  // 액션 시작 시 모든 result state 초기화 — 이전 액션의 결과 메시지가 잔여로 남아
+  // 새 액션의 결과를 가리지 않게. PRActionResult 의 분기는 if 사슬이라 가장 위 분기가
+  // 잡히면 나머지 안 보임.
+  function resetAllStates() {
     setMergeState({ kind: 'idle' });
     setBranchState({ kind: 'idle' });
+    setRequestState({ kind: 'idle' });
+    setCloseState({ kind: 'idle' });
+  }
+
+  function runMerge() {
+    resetAllStates();
     setInFlight('merge');
     startTransition(async () => {
       setOptimisticMerged(true);
@@ -79,7 +88,7 @@ export function PRActions({
   }
 
   function runDeleteBranch() {
-    setBranchState({ kind: 'idle' });
+    resetAllStates();
     setInFlight('delete');
     startTransition(async () => {
       setOptimisticBranchDeleted(true);
@@ -90,7 +99,7 @@ export function PRActions({
   }
 
   function runRequestChanges() {
-    setRequestState({ kind: 'idle' });
+    resetAllStates();
     setInFlight('request');
     startTransition(async () => {
       const next = await requestChangesAction(viewId, requestBody);
@@ -104,7 +113,7 @@ export function PRActions({
   }
 
   function runClose() {
-    setCloseState({ kind: 'idle' });
+    resetAllStates();
     setInFlight('close');
     startTransition(async () => {
       const next = await closePRAction(viewId);

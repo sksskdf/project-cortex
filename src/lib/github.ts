@@ -251,6 +251,38 @@ export async function requestChangesReview(
   return { id: data.id, submittedAt: data.submitted_at ?? null };
 }
 
+// PR 의 리뷰 목록 — 사용자가 보낸 변경 요청 (REQUEST_CHANGES) · 승인 (APPROVED) ·
+// 코멘트 (COMMENTED) 모두 시간순 정렬해 반환. PR 상세에 이력으로 노출하기 위해.
+// dismissed 된 리뷰는 'DISMISSED' state 로 들어옴.
+export type PRReviewSummary = {
+  id: number;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+  body: string;
+  authorLogin: string;
+  submittedAt: string | null;
+};
+
+export async function listPullReviews(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<PRReviewSummary[]> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.listReviews({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+    per_page: 100,
+  });
+  return data.map((r) => ({
+    id: r.id,
+    state: (r.state as PRReviewSummary['state']) ?? 'COMMENTED',
+    body: r.body ?? '',
+    authorLogin: r.user?.login ?? 'unknown',
+    submittedAt: r.submitted_at ?? null,
+  }));
+}
+
 // PR 을 머지 없이 닫음 — '폐기' 의미. 사용자가 머지할 가치 없다고 판단한 PR 에 사용.
 // state='closed' + merged=false 로 들어가 done 카테고리에 'closed' 로 분류됨.
 export async function closePR(

@@ -359,6 +359,78 @@
   font-size: var(--ds-typography-font-size-13);
 }
 
+/* PR 리뷰 이력 섹션 — 변경 요청·승인·코멘트 시간순. */
+.reviewsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+}
+
+.reviewItem {
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  padding: var(--ds-spacing-10) var(--ds-spacing-12);
+}
+
+.reviewHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  margin-bottom: var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.reviewState {
+  padding: 2px var(--ds-spacing-8);
+  border-radius: 999px;
+  font-weight: var(--ds-typography-font-weight-semibold);
+  font-size: var(--ds-typography-font-size-11);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+}
+
+.reviewState_APPROVED {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.reviewState_CHANGES_REQUESTED {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}
+
+.reviewState_COMMENTED {
+  background: var(--ds-color-soft-blue);
+  color: var(--ds-color-secondary-07);
+}
+
+.reviewState_DISMISSED {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-02);
+}
+
+.reviewState_PENDING {
+  background: var(--ds-color-soft-yellow);
+  color: var(--ds-color-state-warning-text-dark);
+}
+
+.reviewAuthor {
+  font-family: var(--ds-typography-font-family-number);
+  color: var(--ds-color-text-03-high);
+  font-weight: var(--ds-typography-font-weight-semibold);
+}
+
+.reviewTime {
+  margin-left: auto;
+  color: var(--ds-color-text-02);
+  font-family: var(--ds-typography-font-family-number);
+}
+
+.reviewBody {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+}
+
 .aiCardHead {
   display: flex;
   align-items: center;

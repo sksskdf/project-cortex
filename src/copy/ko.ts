@@ -120,6 +120,17 @@ export const ko = {
       title: 'PR 설명',
       ariaLabel: 'PR 본문',
     },
+    reviews: {
+      title: '리뷰 이력',
+      ariaLabel: 'PR 리뷰 이력',
+      stateLabel: {
+        APPROVED: '승인',
+        CHANGES_REQUESTED: '변경 요청',
+        COMMENTED: '코멘트',
+        DISMISSED: '취소됨',
+        PENDING: '대기',
+      },
+    },
     aiSummary: {
       title: 'Cortex 사전 리뷰',
       subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',
