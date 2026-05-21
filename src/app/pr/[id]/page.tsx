@@ -5,6 +5,7 @@ import { AuthorChip } from '@/components/AuthorChip';
 import { DiffHunk } from '@/components/DiffHunk';
 import { CheckIcon, ChevronLeftIcon, HelpIcon, InfoIcon, WarnIcon } from '@/components/icons';
 import { AnalyzeRequestButton } from '@/components/AnalyzeRequestButton';
+import { Markdown } from '@/components/Markdown';
 import { PRActions } from '@/components/PRActions';
 import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
 import { getPRDetail } from '@/lib/pr';
@@ -250,7 +251,9 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
         {bodyText.length > 0 && (
           <section className={styles.bodyCard} aria-label={t.pr.body.ariaLabel}>
             <h2 className={styles.bodyCardTitle}>{t.pr.body.title}</h2>
-            <div className={styles.bodyContent}>{bodyText}</div>
+            <div className={styles.bodyContent}>
+              <Markdown>{bodyText}</Markdown>
+            </div>
           </section>
         )}
 

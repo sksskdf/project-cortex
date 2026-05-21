@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, like, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
@@ -99,14 +99,25 @@ function passesCategory(
   }
 }
 
-export async function listInboxQueue(category: InboxCategoryId = 'all'): Promise<PR[]> {
+export async function listInboxQueue(
+  category: InboxCategoryId = 'all',
+  search: string = '',
+): Promise<PR[]> {
   // 카테고리에 따라 SQL where 분기:
   // - done: status IN ('merged','closed'), clusterId 무관 (클러스터로 머지된 PR 도 노출).
   // - 그 외: status='review-needed' + 비-클러스터 (인박스 큐 룰).
-  const whereClause =
+  const baseWhere =
     category === 'done'
       ? inArray(prs.status, ['merged', 'closed'])
       : and(eq(prs.status, 'review-needed'), isNull(prs.clusterId));
+
+  // 검색은 PR 제목 + repo slug 부분 일치 (대소문자 무시 — SQLite 기본 LIKE).
+  // 빈 문자열이면 검색 안 함. 트림 후 빈 것도 동일.
+  const trimmed = search.trim();
+  const whereClause =
+    trimmed.length > 0
+      ? and(baseWhere, or(like(prs.title, `%${trimmed}%`), like(projects.slug, `%${trimmed}%`)))
+      : baseWhere;
 
   const baseQuery = db
     .select({

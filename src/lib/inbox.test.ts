@@ -118,6 +118,35 @@ describe('listInboxQueue — 카테고리 필터', () => {
     expect(await listByCategory('done')).toEqual([]);
   });
 
+  // 검색 — 제목 LIKE 부분 일치.
+  it('search — 제목 부분 일치만 반환', async () => {
+    const repoId = setupProject();
+    setupPR({ repoId, number: 1, flags: [] }); // title="PR 1"
+    setupPR({ repoId, number: 42, flags: [] }); // title="PR 42"
+
+    const items = await listInboxQueue('all', '42');
+    expect(items.map((p) => p.number)).toEqual([42]);
+  });
+
+  it('search — repo slug 부분 일치도 매칭', async () => {
+    const a = setupProject('acme/web');
+    const b = setupProject('foo/api');
+    setupPR({ repoId: a, number: 1, flags: [] });
+    setupPR({ repoId: b, number: 2, flags: [] });
+
+    const items = await listInboxQueue('all', 'acme');
+    expect(items.map((p) => p.repo)).toEqual(['acme/web']);
+  });
+
+  it('search — 빈 문자열은 전체 통과', async () => {
+    const repoId = setupProject();
+    setupPR({ repoId, number: 1, flags: [] });
+    setupPR({ repoId, number: 2, flags: [] });
+
+    const items = await listInboxQueue('all', '   ');
+    expect(items.length).toBe(2);
+  });
+
   // 새 push 들어왔을 때 ageText 가 갱신되는지 — createdAt 대신 updatedAt 우선 사용해야.
   it('ageText 는 updatedAt 기준 — 새 push 후 "방금 전" 으로 갱신', async () => {
     const repoId = setupProject();
