@@ -52,38 +52,38 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
       {actions.canMerge && (
         <button
           type="button"
-          className={styles.btn}
+          className="ds-btn ds-btn--sm ds-btn--filled-blue"
           disabled={pending}
           aria-busy={pending}
           aria-label={t.row.actions.mergeAria}
           title={t.row.actions.mergeAria}
           onClick={(e) => runAction(() => mergePRAction(viewId), e)}
         >
-          {t.row.actions.merge}
+          <span className="ds-btn__label">{t.row.actions.merge}</span>
         </button>
       )}
       {actions.canClose && (
         <button
           type="button"
-          className={`${styles.btn} ${styles.btnClose}`}
+          className="ds-btn ds-btn--sm ds-btn--outlined-red"
           disabled={pending}
           aria-label={t.row.actions.closeAria}
           title={t.row.actions.closeAria}
           onClick={(e) => runAction(() => closePRAction(viewId), e)}
         >
-          {t.row.actions.close}
+          <span className="ds-btn__label">{t.row.actions.close}</span>
         </button>
       )}
       {actions.canDeleteBranch && (
         <button
           type="button"
-          className={styles.btn}
+          className="ds-btn ds-btn--sm ds-btn--outlined-basic"
           disabled={pending}
           aria-label={t.row.actions.deleteBranchAria}
           title={t.row.actions.deleteBranchAria}
           onClick={(e) => runAction(() => deletePRBranchAction(viewId), e)}
         >
-          {t.row.actions.deleteBranch}
+          <span className="ds-btn__label">{t.row.actions.deleteBranch}</span>
         </button>
       )}
       {errorMsg && (
