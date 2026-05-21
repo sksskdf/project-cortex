@@ -234,6 +234,9 @@ export const ko = {
       title: '자동 머지 정책',
       ariaLabel: '자동 머지 정책',
       desc: 'GitHub App 이 설치된 프로젝트별로 자동 머지를 켜거나 끕니다. 끄면 모든 PR 이 인박스로 폴백됩니다.',
+      // 인박스 사유가 "CI 결과 대기 중" 으로 영구히 머무를 때 사용자가 확인할 진단 힌트.
+      hintCheckSubscription:
+        'CI 결과가 영구히 안 채워지면 GitHub App 의 Check run · Check suite 이벤트 구독을 확인해 주세요.',
       empty:
         '등록된 프로젝트가 없습니다 — GitHub App 을 레포에 설치하면 첫 webhook 도착 시 자동 등록됩니다.',
       result: {
