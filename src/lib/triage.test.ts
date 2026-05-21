@@ -144,6 +144,8 @@ describe('runTriage', () => {
         filesChanged: 2,
         status: opts.status ?? 'open',
         clusterId: opts.clusterId ?? null,
+        // testsPassed 는 prs 컬럼으로 이동 (마이그레이션 0007).
+        testsPassed: opts.testsPassed ?? true,
       })
       .returning({ id: prs.id })
       .get();
@@ -155,7 +157,6 @@ describe('runTriage', () => {
         confidence: opts.confidence,
         confidenceTier: opts.confidence >= 90 ? 'high' : 'medium',
         flags: opts.flags ?? [],
-        testsPassed: opts.testsPassed ?? true,
       })
       .run();
 

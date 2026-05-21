@@ -45,6 +45,8 @@ function setup(opts: {
       linesRemoved: 5,
       filesChanged: 3,
       status: 'review-needed',
+      // testsPassed 는 prs 컬럼으로 이동 (마이그레이션 0007).
+      testsPassed: opts.testsPassed ?? null,
     })
     .returning({ id: prs.id })
     .get();
@@ -61,7 +63,6 @@ function setup(opts: {
         hunkAnnotations: opts.hunkAnnotations ?? null,
         summary: opts.summary ?? null,
         comments: opts.comments ?? null,
-        testsPassed: opts.testsPassed ?? null,
         coverage: opts.coverage ?? null,
       })
       .run();

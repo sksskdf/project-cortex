@@ -70,6 +70,7 @@ function toMs(t: Date | number | null | undefined): number {
 function buildAiSummary(
   preReview: PreReviewRow,
   triage: TriageDecisionRow | null,
+  testsPassed: boolean | null,
 ): PRDetailFixture['aiSummary'] {
   const analyzedAtMs =
     preReview.analyzedAt instanceof Date
@@ -85,9 +86,9 @@ function buildAiSummary(
   // 체크 3종 — 테스트·커버리지·위험.
   const checks: AiCheck[] = [];
 
-  if (preReview.testsPassed === true) {
+  if (testsPassed === true) {
     checks.push({ key: 'tests', value: '통과', tone: 'ok' });
-  } else if (preReview.testsPassed === false) {
+  } else if (testsPassed === false) {
     checks.push({ key: 'tests', value: '실패', tone: 'alert' });
   } else {
     checks.push({ key: 'tests', value: '미측정', tone: 'warn' });
@@ -323,9 +324,9 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
   // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
   const mergeBlockedByState = mergeableState === 'dirty' || mergeableState === 'blocked';
-  // CI 결과 대기 중 (분석은 됐는데 testsPassed=null) — 머지 버튼 disable. 시드/미분석
-  // PR (preReview 없음) 은 별도 흐름 (canRequestAnalysis 등) 으로 처리되므로 여기서 차단 X.
-  const mergeBlockedByCI = row.preReview !== null && row.preReview.testsPassed === null;
+  // CI 결과 대기 중 (prs.testsPassed=null) — 머지 버튼 disable. installation 있는
+  // 레포만 CI 가능하므로 시드 PR (installationId=null) 은 자동 제외 (canMerge=false).
+  const mergeBlockedByCI = row.installationId !== null && row.pr.testsPassed === null;
   const canMergeEffective = canMerge && !mergeBlockedByState && !mergeBlockedByCI;
   // 변경 요청은 PR 거절 의사라 CI 대기와 무관 — 머지 차단 (dirty/blocked) 만 따름.
   const canRequestChangesBase = canMerge && !mergeBlockedByState;
@@ -346,7 +347,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   if (row.preReview && hasUsableDiffData(row.preReview)) {
     const { tree, totalHunks, autoApprovableHunks } = buildTree(row.preReview);
     const realFixture: PRDetailFixture = {
-      aiSummary: buildAiSummary(row.preReview, row.triage),
+      aiSummary: buildAiSummary(row.preReview, row.triage, row.pr.testsPassed),
       hunkSummary: { totalHunks, autoApprovableHunks },
       tree,
       files: buildFiles(row.preReview),
