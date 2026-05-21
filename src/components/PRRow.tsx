@@ -4,6 +4,7 @@ import { ko as t } from '@/copy/ko';
 import { AuthorChip } from './AuthorChip';
 import { Gauge } from './Gauge';
 import { AlertIcon, InfoIcon } from './icons';
+import { PRRowInlineActions } from './PRRowInlineActions';
 import styles from './PRRow.module.css';
 
 const tagToneClass: Record<TagTone, string> = {
@@ -72,6 +73,7 @@ export function PRRow({ pr, selectable = false }: { pr: PR; selectable?: boolean
           <span>{pr.ageText}</span>
         </div>
       </div>
+      {pr.actions && <PRRowInlineActions viewId={pr.id} actions={pr.actions} />}
     </Link>
   );
 }
