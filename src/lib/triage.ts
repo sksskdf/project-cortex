@@ -66,7 +66,10 @@ export function decideTriage(input: TriageInput): TriageResult {
   if (input.testsPassed === null) {
     return {
       decision: 'human-review',
-      reason: '테스트 결과가 없습니다 — 사람 검토가 필요합니다.',
+      // 사용자 혼동 회피 — GitHub 에는 CI 결과가 있을 수 있지만 Cortex 가 못 받는 상태일 수
+      // 있음 (App 의 Check run 이벤트 미구독 등). 진단 힌트 동봉.
+      reason:
+        'Cortex 가 아직 CI 결과를 받지 못했습니다 — 잠시 후 자동 갱신되거나 GitHub App 의 Check run 이벤트 구독을 확인해 주세요.',
     };
   }
 

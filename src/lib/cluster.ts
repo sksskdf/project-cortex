@@ -1,4 +1,4 @@
-import { asc, eq, sum } from 'drizzle-orm';
+import { and, asc, eq, sum } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, type ClusterRow } from '@/db/schema';
 import {
@@ -86,7 +86,8 @@ export async function getClusterDetail(viewId: string): Promise<ClusterDetailVie
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
-    .leftJoin(preReviews, eq(preReviews.prId, prs.id))
+    // 최신 SHA 의 preReview 1건만 — 과거 SHA 의 행들로 PR 이 중복되지 않게.
+    .leftJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .where(eq(prs.clusterId, dbId))
     .orderBy(asc(prs.number))
     .all();

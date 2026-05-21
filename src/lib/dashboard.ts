@@ -163,7 +163,8 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
-    .leftJoin(preReviews, eq(preReviews.prId, prs.id))
+    // 최신 SHA 의 preReview 1건만 — 과거 SHA 의 행들로 PR 이 중복되지 않게.
+    .leftJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
     .all();
@@ -209,7 +210,8 @@ export async function getRecentMerges(limit = 5): Promise<ActivityFeedItem[]> {
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
-    .leftJoin(preReviews, eq(preReviews.prId, prs.id))
+    // 최신 SHA 의 preReview 1건만 — 과거 SHA 의 행들로 PR 이 중복되지 않게.
+    .leftJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(eq(prs.status, 'merged'))
     .orderBy(desc(prs.updatedAt))

@@ -256,7 +256,7 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     // testsPassed 가 null (Phase 5 의 CI 통합 전) — runTriage 는 human-review 로 차단.
     const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
     expect(td?.decision).toBe('human-review');
-    expect(td?.reason).toContain('테스트');
+    expect(td?.reason).toContain('CI 결과');
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
   });
 

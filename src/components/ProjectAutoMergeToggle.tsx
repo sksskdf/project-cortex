@@ -57,7 +57,7 @@ function ToggleResult({ state, slug }: { state: ProjectAutoMergeActionState; slu
     return (
       <span className={`${styles.result} ${styles.resultSuccess}`} role="status" aria-live="polite">
         {state.enabled
-          ? t.settings.autoMerge.result.enabled(slug)
+          ? t.settings.autoMerge.result.enabled(slug, state.retriagedCount)
           : t.settings.autoMerge.result.disabled(slug)}
       </span>
     );

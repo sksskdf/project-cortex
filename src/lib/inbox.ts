@@ -128,7 +128,9 @@ export async function listInboxQueue(
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
-    .leftJoin(preReviews, eq(preReviews.prId, prs.id))
+    // 같은 PR 의 과거 SHA 의 preReview 들이 join 결과를 N배로 늘리는 걸 방지 —
+    // 현재 PR.headSha 와 매칭되는 preReview (= 최신) 1건만 join.
+    .leftJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(whereClause);
   // done 은 최근 머지/닫힘 순. 다른 카테고리는 orderInbox 가 후처리 정렬.
