@@ -432,6 +432,36 @@
   background: var(--ds-color-secondary-01);
 }
 
+/* 머지 종류별 작은 배지 — 자동/수동/외부 구분. .feedDot 대체로 사용. */
+.feedKind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 2px var(--ds-spacing-6);
+  border-radius: 999px;
+  font-size: var(--ds-typography-font-size-11);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.feedKind_auto {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.feedKind_human {
+  background: var(--ds-color-soft-blue);
+  color: var(--ds-color-secondary-07);
+}
+
+.feedKind_github {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-02);
+}
+
 .feedBody {
   flex: 1;
   min-width: 0;

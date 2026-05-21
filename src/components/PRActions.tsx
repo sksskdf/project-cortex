@@ -10,6 +10,7 @@ import {
   type PRMergeActionState,
   type PRRequestChangesState,
 } from '@/actions/pr';
+import type { MergeableState } from '@/lib/github';
 import styles from './PRActions.module.css';
 
 type Props = {
@@ -22,11 +23,21 @@ type Props = {
   // 버튼 자체를 렌더하지 않음 — Cortex 는 AI 코드의 게이트키퍼라 신뢰도 높은
   // PR 까지 사람의 거절 의사를 push 할 필요가 없음.
   canRequestChanges: boolean;
+  // GitHub mergeable_state — 'dirty'(충돌) · 'blocked' 면 머지 버튼이 disabled
+  // (이미 lib/pr 에서 canMerge 에 반영). UI 가 사유를 사용자에게 명시하기 위해 별도 prop.
+  mergeableState: MergeableState | null;
 };
 
 type InFlightAction = 'merge' | 'delete' | 'request' | null;
 
-export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canRequestChanges }: Props) {
+export function PRActions({
+  viewId,
+  canMerge,
+  isMerged,
+  branchDeleted,
+  canRequestChanges,
+  mergeableState,
+}: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
   const [branchState, setBranchState] = useState<PRBranchDeleteState>({ kind: 'idle' });
@@ -87,6 +98,15 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
   // optimistic 우선 — 머지 클릭 즉시 delete 버튼이 보이게.
   const showDeleteBranch = optimisticMerged || mergeState.kind === 'merged';
   const mergeDisabled = !canMerge || pending || showDeleteBranch;
+  // GitHub mergeable_state 가 'dirty'/'blocked' 이면 머지 버튼이 disable 된 채로
+  // 사용자가 사유를 알 수 있도록 배지 노출. 'unknown'/'unstable' 은 머지 자체는
+  // 가능해 표시 안 함 (혼란 회피).
+  const mergeBlockNote: string | null =
+    mergeableState === 'dirty'
+      ? t.pr.actionBar.mergeBlock.conflict
+      : mergeableState === 'blocked'
+        ? t.pr.actionBar.mergeBlock.blocked
+        : null;
   // 위험 분류 PR 이 아니면 버튼을 렌더 안 함 (canRequestChanges=false).
   // 렌더하는 경우엔 pending/머지됨 외에는 항상 활성.
   const requestDisabled = pending || optimisticMerged;
@@ -133,17 +153,28 @@ export function PRActions({ viewId, canMerge, isMerged, branchDeleted, canReques
             </span>
           </button>
         ) : (
-          <button
-            type="button"
-            className="ds-btn ds-btn--md ds-btn--filled-blue"
-            onClick={runMerge}
-            disabled={mergeDisabled}
-            aria-busy={inFlight === 'merge'}
-          >
-            <span className="ds-btn__label">
-              {inFlight === 'merge' ? t.pr.actionBar.merging : t.pr.actionBar.mergeAll}
-            </span>
-          </button>
+          <>
+            <button
+              type="button"
+              className="ds-btn ds-btn--md ds-btn--filled-blue"
+              onClick={runMerge}
+              disabled={mergeDisabled}
+              aria-busy={inFlight === 'merge'}
+            >
+              <span className="ds-btn__label">
+                {inFlight === 'merge' ? t.pr.actionBar.merging : t.pr.actionBar.mergeAll}
+              </span>
+            </button>
+            {mergeBlockNote && (
+              <span
+                className={`${styles.result} ${styles.resultError}`}
+                role="status"
+                aria-live="polite"
+              >
+                {mergeBlockNote}
+              </span>
+            )}
+          </>
         )}
         <PRActionResult
           mergeState={mergeState}

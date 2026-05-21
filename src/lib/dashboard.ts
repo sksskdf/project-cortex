@@ -13,6 +13,12 @@ export type DashboardStats = {
   avgConfidence: { value: number; delta: StatDelta };
 };
 
+// 머지 종류 구분:
+// - 'auto'   : Cortex 가 자동 머지 (triage decision=auto-merge + decidedBy=system)
+// - 'human'  : 사용자가 Cortex UI 에서 직접 머지 (attemptHumanMerge — decidedBy=human)
+// - 'github' : Cortex 밖에서 머지된 PR (triage decision 없음, GitHub UI 직접 머지 등)
+export type MergeKind = 'auto' | 'human' | 'github';
+
 export type ActivityFeedItem = {
   id: string;
   agent: string;
@@ -20,6 +26,7 @@ export type ActivityFeedItem = {
   score: number;
   ageText: string;
   repo: string;
+  kind: MergeKind;
 };
 
 export type DashboardClusterSummary = {
@@ -70,17 +77,35 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     )
     .get();
 
-  // autoMergedThisWeek — 이번 7일 merged 행. delta 는 이번 vs 지난 7일.
+  // autoMergedThisWeek — 이번 7일에 Cortex 가 *시스템 자동* 으로 머지한 PR.
+  // 룰: status='merged' + triage_decisions.decision='auto-merge' + decidedBy='system'.
+  // 사람이 Cortex UI 에서 직접 누른 머지 (attemptHumanMerge) 는 decidedBy='human' 이라
+  // 자동 카운트 제외. GitHub UI 에서 직접 머지한 PR 은 triage decision 자체가 없어 자동 제외.
   const mergedThisWeek = db
     .select({ n: count() })
     .from(prs)
-    .where(and(eq(prs.status, 'merged'), gte(prs.updatedAt, weekAgo)))
+    .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .where(
+      and(
+        eq(prs.status, 'merged'),
+        gte(prs.updatedAt, weekAgo),
+        eq(triageDecisions.decision, 'auto-merge'),
+        eq(triageDecisions.decidedBy, 'system'),
+      ),
+    )
     .get();
   const mergedLastWeek = db
     .select({ n: count() })
     .from(prs)
+    .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(
-      and(eq(prs.status, 'merged'), gte(prs.updatedAt, twoWeeksAgo), lt(prs.updatedAt, weekAgo)),
+      and(
+        eq(prs.status, 'merged'),
+        gte(prs.updatedAt, twoWeeksAgo),
+        lt(prs.updatedAt, weekAgo),
+        eq(triageDecisions.decision, 'auto-merge'),
+        eq(triageDecisions.decidedBy, 'system'),
+      ),
     )
     .get();
 
@@ -172,16 +197,20 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
   return orderInbox(items).slice(0, limit);
 }
 
-export async function getRecentAutoMerges(limit = 5): Promise<ActivityFeedItem[]> {
+export async function getRecentMerges(limit = 5): Promise<ActivityFeedItem[]> {
+  // 모든 머지 (자동·사람·외부) — 화면에서 kind 별로 라벨 분리.
+  // 자동 카운트 (autoMergedThisWeek) 와 다르게 여기서는 머지 활동 자체를 보여줌.
   const rows = db
     .select({
       pr: prs,
       preReview: preReviews,
+      triage: triageDecisions,
       repoSlug: projects.slug,
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
     .leftJoin(preReviews, eq(preReviews.prId, prs.id))
+    .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
     .where(eq(prs.status, 'merged'))
     .orderBy(desc(prs.updatedAt))
     .limit(limit)
@@ -192,6 +221,11 @@ export async function getRecentAutoMerges(limit = 5): Promise<ActivityFeedItem[]
       row.pr.updatedAt instanceof Date
         ? row.pr.updatedAt.getTime()
         : Number(row.pr.updatedAt) * 1000;
+    const kind: MergeKind = !row.triage
+      ? 'github'
+      : row.triage.decision === 'auto-merge' && row.triage.decidedBy === 'system'
+        ? 'auto'
+        : 'human';
     return {
       id: `merged-${row.pr.id}`,
       agent: row.pr.authorId,
@@ -199,6 +233,7 @@ export async function getRecentAutoMerges(limit = 5): Promise<ActivityFeedItem[]
       score: row.preReview?.confidence ?? 0,
       ageText: formatRelativeAge(updatedMs),
       repo: row.repoSlug,
+      kind,
     };
   });
 }

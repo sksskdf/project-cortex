@@ -6,7 +6,7 @@ import { currentUser } from '@/lib/config';
 import {
   getDashboardClusters,
   getDashboardStats,
-  getRecentAutoMerges,
+  getRecentMerges,
   getTodayRows,
 } from '@/lib/dashboard';
 import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
@@ -279,10 +279,10 @@ function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkload> }) {
 }
 
 export default async function DashboardPage() {
-  const [dashboardStats, todoRows, recentAutoMerges, dashboardClusters] = await Promise.all([
+  const [dashboardStats, todoRows, recentMerges, dashboardClusters] = await Promise.all([
     getDashboardStats(),
     getTodayRows(3),
-    getRecentAutoMerges(5),
+    getRecentMerges(5),
     getDashboardClusters(),
   ]);
   const todayReviewCount = dashboardStats.pendingReview.value;
@@ -374,10 +374,16 @@ export default async function DashboardPage() {
           </div>
           <div className={styles.statLabel}>{t.dashboard.stat.agentsRunning}</div>
           <div className={styles.statValue}>{dashboardStats.agentsRunning.value}</div>
-          <span className={`${styles.statDelta} ${styles.statDeltaFlat}`}>
-            {runningDotIcon()}
-            {t.dashboard.stat.runningNow}
-          </span>
+          {dashboardStats.agentsRunning.value > 0 ? (
+            <span className={`${styles.statDelta} ${styles.statDeltaFlat}`}>
+              {runningDotIcon()}
+              {t.dashboard.stat.runningNow}
+            </span>
+          ) : (
+            <span className={`${styles.statDelta} ${styles.statDeltaFlat}`}>
+              {t.dashboard.stat.runningIdle}
+            </span>
+          )}
         </div>
 
         <div className={styles.stat}>
@@ -413,18 +419,23 @@ export default async function DashboardPage() {
 
           <section className={styles.section}>
             <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>{t.dashboard.section.recentAutoMerge}</h2>
+              <h2 className={styles.sectionTitle}>{t.dashboard.section.recentMerge}</h2>
               {/* /activity 라우트는 Phase 7 (보고서) 진입 시 활성화. */}
               <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
             </div>
             <div className={styles.feedCard}>
               <div className={styles.feed}>
-                {recentAutoMerges.map((item) => (
+                {recentMerges.map((item) => (
                   <div key={item.id} className={styles.feedItem}>
-                    <span className={styles.feedDot} aria-hidden="true" />
+                    <span
+                      className={`${styles.feedKind} ${styles[`feedKind_${item.kind}`]}`}
+                      aria-hidden="true"
+                    >
+                      {t.dashboard.feed.mergeKindBadge[item.kind]}
+                    </span>
                     <div className={styles.feedBody}>
                       <div className={styles.feedText}>
-                        {t.dashboard.feed.autoMerged(item.agent, item.title, item.score)}
+                        {t.dashboard.feed.merged(item.kind, item.agent, item.title, item.score)}
                       </div>
                       <span className={styles.feedTime}>
                         {item.ageText} · {item.repo}

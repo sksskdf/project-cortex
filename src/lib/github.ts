@@ -184,3 +184,41 @@ export async function requestChangesReview(
   });
   return { id: data.id, submittedAt: data.submitted_at ?? null };
 }
+
+// PR 의 mergeable_state — GitHub 가 계산해 둔 머지 가능 여부.
+// - 'clean'    : 머지 가능 (CI 통과, 충돌 없음, 리뷰 차단 없음)
+// - 'dirty'    : base 와 충돌 발생
+// - 'blocked'  : 보호 규칙·필수 리뷰·REQUEST_CHANGES 등으로 머지 차단
+// - 'unstable' : CI 실패/진행 중. 머지 자체는 가능하지만 위험
+// - 'behind'   : base 가 앞서 있음. 머지는 가능 (squash 면 무관)
+// - 'unknown'  : GitHub 가 아직 계산 중 — 잠시 후 다시 시도 권장
+// 그 외(`has_hooks` 등) 는 'unknown' 으로 폴백.
+export type MergeableState = 'clean' | 'dirty' | 'blocked' | 'unstable' | 'behind' | 'unknown';
+
+function normalizeMergeableState(raw: string | null | undefined): MergeableState {
+  switch (raw) {
+    case 'clean':
+    case 'dirty':
+    case 'blocked':
+    case 'unstable':
+    case 'behind':
+    case 'unknown':
+      return raw;
+    default:
+      return 'unknown';
+  }
+}
+
+export async function getPRMergeableState(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<MergeableState> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.get({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+  });
+  return normalizeMergeableState(data.mergeable_state);
+}

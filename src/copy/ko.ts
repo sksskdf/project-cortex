@@ -33,13 +33,14 @@ export const ko = {
       agentsRunning: '에이전트 진행 중',
       avgConfidence: '평균 신뢰 점수',
       runningNow: '지금 실행 중',
+      runningIdle: '진행 중 에이전트 없음',
       scoreUnit: '점',
       regionAria: '현황',
     },
     section: {
       todo: '지금 처리할 것',
       todoMore: '인박스 전체 보기 →',
-      recentAutoMerge: '최근 자동 머지',
+      recentMerge: '최근 머지',
       recentMore: '전체 활동 →',
       workload: '에이전트 워크로드',
       workloadMore: '전체 보기 →',
@@ -50,8 +51,23 @@ export const ko = {
       diff: (additions: number, deletions: number) => `+${additions} −${deletions}`,
     },
     feed: {
-      autoMerged: (agent: string, title: string, score: number) =>
-        `${agent}이(가) ${title}을(를) 자동 머지했어요 · 신뢰 점수 ${score}`,
+      // 머지 종류별 한 줄 메시지 — kind 가 auto/human/github.
+      merged: (kind: 'auto' | 'human' | 'github', agent: string, title: string, score: number) => {
+        const action =
+          kind === 'auto'
+            ? '자동 머지했어요'
+            : kind === 'human'
+              ? 'Cortex 에서 직접 머지했어요'
+              : 'GitHub 에서 머지됐어요';
+        const trailing = kind === 'github' ? '' : ` · 신뢰 점수 ${score}`;
+        return `${agent}이(가) ${title}을(를) ${action}${trailing}`;
+      },
+      // 작은 배지용 라벨 (kind 별).
+      mergeKindBadge: {
+        auto: '자동',
+        human: '수동',
+        github: '외부',
+      },
     },
     workload: {
       count: (current: number, capacity: number) => `${current} / ${capacity}`,
@@ -171,6 +187,11 @@ export const ko = {
       deleteBranch: '브랜치 삭제',
       deletingBranch: '삭제 중…',
       branchAlreadyDeleted: '브랜치 삭제됨',
+      // GitHub mergeable_state 가 'dirty'/'blocked' 일 때 머지 버튼 옆에 표시되는 사유.
+      mergeBlock: {
+        conflict: '머지 불가 · base 와 충돌',
+        blocked: '머지 불가 · 보호 규칙·필수 리뷰로 차단됨',
+      },
       result: {
         merged: (shortSha: string) => `머지 완료 (${shortSha}).`,
         error: (message: string) => `머지 실패: ${message}`,
