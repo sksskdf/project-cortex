@@ -23,11 +23,15 @@ export type DailyIncomingPoint = { date: string; count: number };
 export type DailyMergePoint = { date: string; auto: number; human: number; github: number };
 export type DailyConfidencePoint = { date: string; avg: number | null };
 
-const COLOR_BLUE = 'var(--ds-color-state-info-accent)';
-const COLOR_YELLOW = 'var(--ds-color-state-warning-accent)';
-const COLOR_GRAY = 'var(--ds-color-line-02)';
-const COLOR_AXIS = 'var(--ds-color-text-02)';
-const COLOR_GRID = 'var(--ds-color-line-02)';
+// 차트 색상 — Recharts 가 SVG fill attribute 에 CSS var() 를 일부 브라우저에서
+// 검정 fallback 으로 처리하는 케이스 회피. dark.css 의 디자인 토큰 값과 동일한 hex 를
+// 직접 사용 (Decision Log 박제). 토큰 동기화 책임은 이 파일 주석에서 유지.
+const COLOR_BLUE = '#93b0f8'; // var(--ds-color-secondary-01) — 자동 머지 (brand blue)
+const COLOR_YELLOW = '#ffc60a'; // var(--ds-color-state-warning-base) — 수동 머지
+const COLOR_GRAY = '#6c728f'; // var(--ds-color-primary-03) — 외부 머지 (다크 배경 가시성 위해 한 단계 진한 그레이)
+const COLOR_AXIS = '#9aa0c2'; // var(--ds-color-text-02) — 축 라벨
+const COLOR_GRID = '#252a45'; // var(--ds-color-line-02) — 격자선
+const COLOR_TOOLTIP_CURSOR = 'rgba(180, 199, 246, 0.06)'; // hover 영역 (다크 배경에 자연스러운 highlight)
 
 // Recharts 의 Tooltip 기본 스타일은 라이트 모드 가정 — 커스텀 컨텐츠로 대체.
 type TooltipProps = {
@@ -79,7 +83,7 @@ export function DailyIncomingChart({ points }: { points: DailyIncomingPoint[] })
             allowDecimals={false}
             width={28}
           />
-          <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} content={<ChartTooltip />} />
+          <Tooltip cursor={{ fill: COLOR_TOOLTIP_CURSOR }} content={<ChartTooltip />} />
           <Bar
             dataKey="count"
             name={t.reports.section.dailyIncoming}
@@ -113,7 +117,7 @@ export function DailyMergeChart({ points }: { points: DailyMergePoint[] }) {
             width={28}
           />
           <Tooltip
-            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            cursor={{ fill: COLOR_TOOLTIP_CURSOR }}
             content={<ChartTooltip totalLabel="합계" />}
           />
           <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />

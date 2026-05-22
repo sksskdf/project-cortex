@@ -24,8 +24,10 @@ type Props = {
   // GitHub mergeable_state — 'dirty'(충돌) · 'blocked' 면 머지 버튼이 disabled
   // (이미 lib/pr 에서 canMerge 에 반영). UI 가 사유를 사용자에게 명시하기 위해 별도 prop.
   mergeableState: MergeableState | null;
-  // CI 결과 대기 중이라 머지 버튼이 disable 됨 — preReview.testsPassed=null.
+  // CI 가 OK 가 아니라 머지 버튼이 disable 됨 — testsPassed null (대기) 또는 false (실패).
   mergeBlockedByCI: boolean;
+  // ciPending vs ciFailed 메시지 분기에 사용. null=대기 / false=실패 / true=통과.
+  testsPassed: boolean | null;
 };
 
 type InFlightAction = 'merge' | 'request' | 'close' | null;
@@ -37,6 +39,7 @@ export function PRActions({
   canRequestChanges,
   mergeableState,
   mergeBlockedByCI,
+  testsPassed,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
@@ -104,18 +107,20 @@ export function PRActions({
   // 버튼 흐름 제거. 머지된 후 PR 상세에서는 액션 영역에 안내만 노출.
   const isMergedView = optimisticMerged || mergeState.kind === 'merged';
   const mergeDisabled = !canMerge || pending || isMergedView;
-  // GitHub mergeable_state 가 'dirty'/'blocked' 이거나 CI 결과 대기 중이면 머지 버튼이
+  // GitHub mergeable_state 가 'dirty'/'blocked' 이거나 CI 가 OK 가 아니면 머지 버튼이
   // disable 된 채로 사용자가 사유를 알 수 있도록 배지 노출.
-  // 우선순위: dirty > blocked > CI 대기. 충돌·차단은 사용자 조치가 필요하지만 CI 대기는
-  // 시간 지나면 풀리므로 더 강한 사유를 먼저 노출.
+  // 우선순위: dirty > blocked > CI 실패 > CI 대기. 충돌·차단·실패는 사용자 조치 필요,
+  // CI 대기는 시간 지나면 풀림.
   const mergeBlockNote: string | null =
     mergeableState === 'dirty'
       ? t.pr.actionBar.mergeBlock.conflict
       : mergeableState === 'blocked'
         ? t.pr.actionBar.mergeBlock.blocked
-        : mergeBlockedByCI
-          ? t.pr.actionBar.mergeBlock.ciPending
-          : null;
+        : mergeBlockedByCI && testsPassed === false
+          ? t.pr.actionBar.mergeBlock.ciFailed
+          : mergeBlockedByCI
+            ? t.pr.actionBar.mergeBlock.ciPending
+            : null;
   // 위험 분류 PR 이 아니면 버튼을 렌더 안 함 (canRequestChanges=false).
   // 렌더하는 경우엔 pending/머지됨 외에는 항상 활성.
   const requestDisabled = pending || optimisticMerged;

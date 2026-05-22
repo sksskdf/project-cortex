@@ -318,6 +318,7 @@ export const ko = {
         conflict: '머지 불가 · base 와 충돌',
         blocked: '머지 불가 · 보호 규칙·필수 리뷰로 차단됨',
         ciPending: '머지 대기 · CI 결과 도착 후 자동 머지',
+        ciFailed: '머지 불가 · CI 실패 — 원인 수정 후 재시도',
       },
       result: {
         merged: (shortSha: string) => `머지 완료 (${shortSha}).`,
