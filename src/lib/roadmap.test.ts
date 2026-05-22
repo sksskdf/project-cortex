@@ -19,6 +19,7 @@ import {
   getProjectRoadmap,
   getPRRoadmapLinks,
   matchAndApplyDoneFromPR,
+  reapplyRoadmapMatchesForProject,
   toggleItemStatus,
   updatePhaseStatus,
 } from './roadmap';
@@ -226,6 +227,45 @@ describe('matchAndApplyDoneFromPR — Closes #PHASE-<key>', () => {
     expect(r.itemsDone).not.toContain(i1.id);
     const item1 = db.select().from(roadmapItems).where(eq(roadmapItems.id, i1.id)).get();
     expect(item1?.doneByPrId).toBe(prFirst); // 첫 PR 유지
+  });
+});
+
+describe('reapplyRoadmapMatchesForProject — backfill', () => {
+  it('머지된 PR 들 일괄 매칭, open PR 은 무시', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '11', title: 'P11' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const i = createItem({ phaseId: p.id, title: 'i1' });
+    if (i.kind !== 'created') throw new Error('setup');
+    // merged PR — body 마커 있음.
+    const mergedPrId = seedPR(projectId, 'Closes #PHASE-11');
+    db.update(prs).set({ status: 'merged' }).where(eq(prs.id, mergedPrId)).run();
+    // open PR — body 마커 있어도 backfill 안 잡힘.
+    const openPrId = seedPR(projectId, 'Closes #PHASE-11');
+    db.update(prs).set({ status: 'open' }).where(eq(prs.id, openPrId)).run();
+
+    const r = reapplyRoadmapMatchesForProject(projectId);
+    expect(r.scanned).toBe(1); // merged 만
+    expect(r.matched).toBe(1);
+    const item = db.select().from(roadmapItems).where(eq(roadmapItems.id, i.id)).get();
+    expect(item?.doneByPrId).toBe(mergedPrId);
+  });
+
+  it('idempotent — 두 번 호출해도 doneByPrId 안 덮어쓰기', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '12', title: 'P12' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const i = createItem({ phaseId: p.id, title: 'i1' });
+    if (i.kind !== 'created') throw new Error('setup');
+    const firstPrId = seedPR(projectId, 'Closes #PHASE-12');
+    db.update(prs).set({ status: 'merged' }).where(eq(prs.id, firstPrId)).run();
+    reapplyRoadmapMatchesForProject(projectId);
+    // 더 뒤에 머지된 같은 phase PR — 이미 first 로 채워졌으니 안 덮어씀.
+    const secondPrId = seedPR(projectId, 'Closes #PHASE-12');
+    db.update(prs).set({ status: 'merged' }).where(eq(prs.id, secondPrId)).run();
+    reapplyRoadmapMatchesForProject(projectId);
+    const item = db.select().from(roadmapItems).where(eq(roadmapItems.id, i.id)).get();
+    expect(item?.doneByPrId).toBe(firstPrId);
   });
 });
 

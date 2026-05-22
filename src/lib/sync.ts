@@ -6,6 +6,7 @@ import { tryClusterPR } from './clustering';
 import { listCheckRunsForRef } from './github';
 import { createNotification, isRevertPR } from './notifications';
 import { analyzePR } from './pre-review';
+import { matchAndApplyDoneFromPR } from './roadmap';
 import { getSettings } from './settings';
 import { runTriage } from './triage';
 
@@ -76,6 +77,17 @@ async function safeAutoMerge(prId: number): Promise<void> {
     await attemptAutoMerge(prId);
   } catch (err) {
     console.error(`attemptAutoMerge unexpected error for PR ${prId}:`, err);
+  }
+}
+
+// PR 머지 시점에 body 의 'Closes #PHASE-<key>' / 'Closes #ITEM-<id>' 매칭으로
+// 로드맵 item 들을 자동 done + doneByPrId 채움. cascade 동작은 lib/roadmap.ts.
+// 실패해도 sync 응답에 영향 없음 (로드맵 매칭은 보조 기능).
+function safeRoadmapMatch(prId: number): void {
+  try {
+    matchAndApplyDoneFromPR(prId);
+  } catch (err) {
+    console.error(`matchAndApplyDoneFromPR failed for PR ${prId}:`, err);
   }
 }
 
@@ -191,6 +203,11 @@ export async function handlePullRequestWebhook(
         .where(eq(prs.id, inserted.id))
         .run();
     }
+    // 새 PR 인데 첫 webhook 이 closed+merged 일 수 있음 (reconcile/늦은 수신).
+    // body 의 Closes 마커가 있으면 로드맵 매칭 발화.
+    if (payload.action === 'closed' && payload.pr.merged) {
+      safeRoadmapMatch(inserted.id);
+    }
     return { kind: 'inserted', prId: inserted.id };
   }
 
@@ -237,6 +254,12 @@ export async function handlePullRequestWebhook(
       .set({ status: 'review-needed', updatedAt: new Date() })
       .where(eq(prs.id, existing.id))
       .run();
+  }
+
+  // 머지 시점에만 로드맵 매칭 발화. open/synchronize 등은 body 변경돼도 미발화 (확정 시점만).
+  // 같은 PR 의 재발화는 lib/roadmap.ts cascade 의 `doneByPrId IS NULL` 가드로 idempotent.
+  if (payload.action === 'closed' && payload.pr.merged) {
+    safeRoadmapMatch(existing.id);
   }
 
   return { kind: 'updated', prId: existing.id };
