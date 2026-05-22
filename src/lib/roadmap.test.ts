@@ -194,6 +194,39 @@ describe('matchAndApplyDoneFromPR — Closes #PHASE-<key>', () => {
     expect(r.phasesDone).toEqual([]);
     expect(r.itemsDone).toEqual([]);
   });
+
+  it('Closes #PHASE-<key> cascade → phase 의 미완료 item 들도 doneByPrId', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '11', title: 'Phase 11' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const i1 = createItem({ phaseId: p.id, title: 'todos 테이블' });
+    const i2 = createItem({ phaseId: p.id, title: '/todos 페이지' });
+    if (i1.kind !== 'created' || i2.kind !== 'created') throw new Error('setup');
+    const prId = seedPR(projectId, 'Closes #PHASE-11');
+    const r = matchAndApplyDoneFromPR(prId);
+    expect(r.phasesDone).toEqual([p.id]);
+    expect(r.itemsDone).toEqual(expect.arrayContaining([i1.id, i2.id]));
+    const item1 = db.select().from(roadmapItems).where(eq(roadmapItems.id, i1.id)).get();
+    expect(item1?.doneByPrId).toBe(prId);
+    expect(item1?.status).toBe('done');
+  });
+
+  it('cascade 가 이미 다른 PR 로 done 된 item 은 건드리지 않음', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '12', title: 'Phase 12' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const i1 = createItem({ phaseId: p.id, title: 'workspaces 테이블' });
+    if (i1.kind !== 'created') throw new Error('setup');
+    // 첫 PR 이 #ITEM-N 으로 명시 매칭.
+    const prFirst = seedPR(projectId, `Closes #ITEM-${i1.id}`);
+    matchAndApplyDoneFromPR(prFirst);
+    // 두 번째 PR 이 같은 phase 를 cascade 매칭 — 기존 doneByPrId 덮어쓰면 안 됨.
+    const prSecond = seedPR(projectId, 'Closes #PHASE-12');
+    const r = matchAndApplyDoneFromPR(prSecond);
+    expect(r.itemsDone).not.toContain(i1.id);
+    const item1 = db.select().from(roadmapItems).where(eq(roadmapItems.id, i1.id)).get();
+    expect(item1?.doneByPrId).toBe(prFirst); // 첫 PR 유지
+  });
 });
 
 describe('getPRRoadmapLinks', () => {
