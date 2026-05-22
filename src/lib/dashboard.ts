@@ -25,6 +25,9 @@ export type MergeKind = 'auto' | 'human' | 'github';
 
 export type ActivityFeedItem = {
   id: string;
+  // PR 상세 라우트 viewId — 사용자 시그널 (2026-05-22): "최근 머지 clickable 하게 해서
+  // PR 로 이동". '/pr/${href}'.
+  href: string;
   agent: string;
   title: string;
   score: number;
@@ -267,6 +270,7 @@ export async function getRecentMerges(limit = 5): Promise<ActivityFeedItem[]> {
         : 'human';
     return {
       id: `merged-${row.pr.id}`,
+      href: `pr-${row.pr.id}`,
       agent: row.pr.authorId,
       title: row.pr.title,
       score: row.preReview?.confidence ?? 0,

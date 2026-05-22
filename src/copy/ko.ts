@@ -53,6 +53,15 @@ export const ko = {
       workloadMore: '전체 보기 →',
       clusters: '묶인 클러스터',
       clustersMore: '클러스터 보기 →',
+      projects: '프로젝트 진척',
+      projectsMore: '프로젝트 전체 →',
+    },
+    projectsWidget: {
+      empty: '등록된 프로젝트가 없습니다.',
+      // 한 행: slug + 진척 + open count.
+      openCount: (n: number) => `남은 ${n}건`,
+      // 모든 phase 완료 또는 phase 없음.
+      noOpen: '진행 항목 없음',
     },
     todoRow: {
       diff: (additions: number, deletions: number) => `+${additions} −${deletions}`,
@@ -112,6 +121,17 @@ export const ko = {
       label: '진척',
       phases: (done: number, total: number) => `Phase ${done} / ${total}`,
       empty: '로드맵 없음',
+    },
+    // 카드 통계 한 줄 — 활성 PR · 머지 누적 · 평균 신뢰.
+    statInline: (active: number, merged: number, confidence: number) =>
+      `활성 ${active} · 머지 ${merged} · 신뢰 ${confidence || '-'}`,
+    drawer: {
+      open: '로드맵 열기',
+      title: '로드맵',
+      close: '닫기',
+      expand: '전체 화면',
+      expandAria: '로드맵 전체 화면으로 이동',
+      empty: '아직 로드맵이 없습니다 — 우측 상단 전체 화면에서 동기화 또는 Phase 추가.',
     },
   },
   // Phase 10 — 프로젝트별 로드맵 화면.
@@ -194,6 +214,10 @@ export const ko = {
       count: (n: number) => `${n}건`,
       // open items 패널의 한 줄: phase key + item title.
       phaseRef: (phaseKey: string) => `PHASE-${phaseKey}`,
+      // Phase 그룹 헤더: 남은 N / 전체 M 또는 모두 완료.
+      openOf: (open: number, total: number) => `${open} / ${total}건 남음`,
+      allDone: '모두 완료',
+      groupEmpty: '이 Phase 의 항목이 없습니다.',
     },
     sourceBadge: {
       git: 'git',

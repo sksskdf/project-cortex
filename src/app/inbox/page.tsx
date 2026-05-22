@@ -147,10 +147,9 @@ function searchIcon() {
 
 // 인박스 자체 흐름과 의미가 다른 카테고리들의 동작:
 // - cluster: /clusters 목록으로 navigate (PR #45 화면이 더 적합).
-// - mentioned: 멘션 데이터 인프라 미구현 — disabled span.
+// - mentioned: PR body 에 @<currentUser.githubLogin> 매칭 (SQL LIKE — review comments 후속).
 // - done: status IN (merged, closed) 별도 SQL 분기. 머지 후 PR 직접 접근.
 function categoryHref(id: InboxCategoryId): string | null {
-  if (id === 'mentioned') return null;
   if (id === 'cluster') return '/clusters';
   if (id === 'all') return '/inbox';
   return `/inbox?category=${id}`;
@@ -161,6 +160,7 @@ const FILTERABLE_CATEGORIES: ReadonlyArray<InboxCategoryId> = [
   'flagged',
   'large',
   'migration',
+  'mentioned',
   'done',
 ];
 

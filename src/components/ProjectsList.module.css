@@ -1,0 +1,98 @@
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: var(--ds-spacing-14);
+}
+
+.card {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-16) var(--ds-spacing-18);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-12);
+}
+
+.cardHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+}
+
+.cardMeta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-spacing-10);
+  min-width: 0;
+}
+
+.cardSlug {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-15);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardName {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.progressInline {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+}
+
+.progressTrack {
+  flex: 1;
+  height: 6px;
+  background: var(--ds-color-bg-01);
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 100px;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--ds-color-secondary-01);
+  transition: width 0.3s ease;
+}
+
+.progressLabel {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-03-high);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.progressMeta {
+  font-weight: var(--ds-typography-font-weight-regular);
+  color: var(--ds-color-text-02);
+}
+
+.statRow {
+  display: flex;
+  align-items: center;
+  padding: var(--ds-spacing-8) 0;
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.statInline {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  flex-wrap: wrap;
+}

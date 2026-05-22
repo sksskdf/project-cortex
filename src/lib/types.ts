@@ -83,6 +83,9 @@ export type CurrentUser = {
   name: string;
   role: string;
   initials: string;
+  // GitHub 로그인 — 인박스의 '나에게 멘션' 카테고리가 PR body / review 본문에
+  // `@<githubLogin>` 매칭에 사용.
+  githubLogin: string;
 };
 
 export type FileStatus = 'ok' | 'warn' | 'alert';

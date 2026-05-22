@@ -48,7 +48,7 @@ export default async function ProjectRoadmapPage({ params }: { params: Promise<{
         </div>
       </header>
 
-      <RoadmapOpenItems items={view.openItems} />
+      <RoadmapOpenItems groups={view.openItemGroups} />
 
       <RoadmapBoard view={view} />
     </div>

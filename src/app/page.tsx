@@ -11,7 +11,9 @@ import {
   getRecentMerges,
   getTodayRows,
 } from '@/lib/dashboard';
+import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
+import { listDashboardProjects } from '@/lib/roadmap';
 import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
 import styles from './page.module.css';
 
@@ -291,6 +293,7 @@ export default async function DashboardPage() {
   ]);
   const notifications = listRecentNotifications();
   const unreadCount = unreadNotificationCount();
+  const dashboardProjects = listDashboardProjects();
   const todayReviewCount = dashboardStats.pendingReview.value;
   const weekAutoMergedCount = dashboardStats.autoMergedThisWeek.value;
 
@@ -440,7 +443,11 @@ export default async function DashboardPage() {
             <div className={styles.feedCard}>
               <div className={styles.feed}>
                 {recentMerges.map((item) => (
-                  <div key={item.id} className={styles.feedItem}>
+                  <Link
+                    key={item.id}
+                    href={`/pr/${item.href}`}
+                    className={`${styles.feedItem} ${styles.clusterLink}`}
+                  >
                     <span
                       className={`${styles.feedKind} ${styles[`feedKind_${item.kind}`]}`}
                       aria-hidden="true"
@@ -455,7 +462,7 @@ export default async function DashboardPage() {
                         {item.ageText} · {item.repo}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -465,8 +472,20 @@ export default async function DashboardPage() {
         <aside>
           <section className={styles.section}>
             <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>{t.dashboard.section.projects}</h2>
+              <Link href="/projects" className={styles.sectionMore}>
+                {t.dashboard.section.projectsMore}
+              </Link>
+            </div>
+            <div className={styles.feedCard}>
+              <DashboardProjectsWidget rows={dashboardProjects} />
+            </div>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.workload}</h2>
-              {/* /agents 라우트는 Phase 8 진입 시 활성화. */}
+              {/* /agents 라우트는 Phase 13 (Claude CLI 통합) 진입 시 활성화. */}
               <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
             </div>
             <WorkloadCard rows={agentWorkloads} />

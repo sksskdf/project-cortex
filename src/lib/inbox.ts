@@ -1,6 +1,7 @@
 import { and, count, desc, eq, inArray, isNull, like, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { currentUser } from '@/lib/config';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { orderInbox } from '@/lib/queue';
 import type { PR, PRRowActionState, ReasonTone, SidebarCounts } from '@/lib/types';
@@ -116,8 +117,11 @@ function passesCategory(
       return raw.flags.includes('large-change');
     case 'migration':
       return raw.flags.includes('migration');
-    case 'cluster':
     case 'mentioned':
+      // PR body 에 @<currentUser.githubLogin> 매칭. PR 검색은 SQL where 단계에서 처리하므로
+      // 여기는 통과 처리만 — 실제 필터는 baseWhere 에서.
+      return true;
+    case 'cluster':
       // 인박스 흐름 밖이라 빈 결과. UI 가 사용하지 않음.
       return false;
   }
@@ -129,11 +133,18 @@ export async function listInboxQueue(
 ): Promise<PR[]> {
   // 카테고리에 따라 SQL where 분기:
   // - done: status IN ('merged','closed'), clusterId 무관 (클러스터로 머지된 PR 도 노출).
+  // - mentioned: PR body 에 @<currentUser.githubLogin> 매칭 (단순 LIKE — review comments 는 후속).
   // - 그 외: status='review-needed' + 비-클러스터 (인박스 큐 룰).
   const baseWhere =
     category === 'done'
       ? inArray(prs.status, ['merged', 'closed'])
-      : and(eq(prs.status, 'review-needed'), isNull(prs.clusterId));
+      : category === 'mentioned'
+        ? and(
+            eq(prs.status, 'review-needed'),
+            isNull(prs.clusterId),
+            like(prs.body, `%@${currentUser.githubLogin}%`),
+          )
+        : and(eq(prs.status, 'review-needed'), isNull(prs.clusterId));
 
   // 검색은 PR 제목 + repo slug 부분 일치 (대소문자 무시 — SQLite 기본 LIKE).
   // 빈 문자열이면 검색 안 함. 트림 후 빈 것도 동일.
@@ -226,13 +237,25 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
     .where(inArray(prs.status, ['merged', 'closed']))
     .get();
 
+  const mentionedPrs = db
+    .select({ n: count() })
+    .from(prs)
+    .where(
+      and(
+        eq(prs.status, 'review-needed'),
+        isNull(prs.clusterId),
+        like(prs.body, `%@${currentUser.githubLogin}%`),
+      ),
+    )
+    .get();
+
   return [
     { id: 'all', count: total },
     { id: 'flagged', count: flagged },
     { id: 'large', count: large },
     { id: 'migration', count: migration },
     { id: 'cluster', count: clusterPrs?.n ?? 0 },
-    { id: 'mentioned', count: 0 },
+    { id: 'mentioned', count: mentionedPrs?.n ?? 0 },
     { id: 'done', count: donePrs?.n ?? 0 },
   ];
 }
