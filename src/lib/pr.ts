@@ -59,8 +59,10 @@ export type PRDetailView = {
   // GitHub 가 계산한 머지 가능 여부 — 'dirty'(충돌) · 'blocked' · 'unstable' 등.
   // installation 없거나 fetch 실패 시 null — UI 가 표시하지 않음.
   mergeableState: import('@/lib/github').MergeableState | null;
-  // CI 결과 대기 중이라 머지 버튼이 disable 되어야 하는지 — preReview.testsPassed=null.
+  // CI 가 OK 가 아니라 머지 버튼이 disable 되어야 하는지 — testsPassed null (대기) 또는 false (실패).
   mergeBlockedByCI: boolean;
+  // PRActions 가 ciPending vs ciFailed 메시지 분기에 사용. null=대기 / false=실패 / true=통과.
+  testsPassed: boolean | null;
   // GitHub 의 PR 리뷰 이력 — 사용자가 보낸 변경 요청·승인·코멘트 시간순. installation
   // 없거나 fetch 실패 시 빈 배열. UI 가 비어있으면 섹션 자체 숨김.
   reviews: ReadonlyArray<PRReviewSummary>;
@@ -338,9 +340,10 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
   // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
   const mergeBlockedByState = mergeableState === 'dirty' || mergeableState === 'blocked';
-  // CI 결과 대기 중 (prs.testsPassed=null) — 머지 버튼 disable. installation 있는
-  // 레포만 CI 가능하므로 시드 PR (installationId=null) 은 자동 제외 (canMerge=false).
-  const mergeBlockedByCI = row.installationId !== null && row.pr.testsPassed === null;
+  // CI 가 OK 가 아닐 때 머지 차단 — 대기 중 (null) 또는 실패 (false) 모두 막음.
+  // installation 있는 레포만 CI 가능하므로 시드 PR (installationId=null) 은 자동 제외.
+  // 인박스/대시보드 행의 deriveRowActions 가드와 일관성 유지.
+  const mergeBlockedByCI = row.installationId !== null && row.pr.testsPassed !== true;
   const canMergeEffective = canMerge && !mergeBlockedByState && !mergeBlockedByCI;
   // 변경 요청은 PR 거절 의사라 CI 대기와 무관 — 머지 차단 (dirty/blocked) 만 따름.
   const canRequestChangesBase = canMerge && !mergeBlockedByState;
@@ -357,6 +360,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     body: row.pr.body,
     mergeableState,
     mergeBlockedByCI,
+    testsPassed: row.pr.testsPassed,
     reviews,
   } as const;
 
