@@ -365,3 +365,19 @@
   font-size: var(--ds-typography-font-size-10);
   letter-spacing: var(--ds-typography-letter-spacing-wide);
 }
+
+.prLink {
+  padding: 2px var(--ds-spacing-8);
+  border-radius: 999px;
+  background: var(--ds-color-soft-blue, var(--ds-color-bg-01));
+  color: var(--ds-color-text-04-primary, var(--ds-color-text-02));
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.prLink:hover {
+  background: var(--ds-color-secondary-01);
+  color: var(--ds-color-bg-00);
+}

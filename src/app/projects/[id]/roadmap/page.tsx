@@ -7,6 +7,7 @@ import { ko as t } from '@/copy/ko';
 import { RoadmapBoard } from '@/components/RoadmapBoard';
 import { RoadmapOpenItems } from '@/components/RoadmapOpenItems';
 import { RoadmapSyncButton } from '@/components/RoadmapSyncButton';
+import { backgroundSyncIfStale } from '@/lib/project-meta';
 import { getProjectRoadmap } from '@/lib/roadmap';
 import styles from './page.module.css';
 
@@ -14,6 +15,11 @@ export default async function ProjectRoadmapPage({ params }: { params: Promise<{
   const { id } = await params;
   const projectId = Number(id);
   if (!Number.isFinite(projectId)) notFound();
+
+  // Phase 10.2 — page-visit stale-while-revalidate. TTL 지났으면 백그라운드 sync 트리거.
+  // 결과는 다음 RSC refresh 에 반영 (현재 응답은 stale 가능). 사용자가 "동기화" 버튼 안
+  // 눌러도 자연 갱신.
+  await backgroundSyncIfStale(projectId);
 
   const view = getProjectRoadmap(projectId);
   if (!view) notFound();

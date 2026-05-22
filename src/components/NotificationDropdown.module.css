@@ -198,3 +198,34 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.panelHeadActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+}
+
+.permBtn {
+  background: transparent;
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  color: var(--ds-color-secondary-01);
+  font-size: var(--ds-typography-font-size-11);
+  cursor: pointer;
+  padding: var(--ds-spacing-4) var(--ds-spacing-8);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.permBtn:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.permGranted {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.permDenied {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-state-error-strong);
+  cursor: help;
+}

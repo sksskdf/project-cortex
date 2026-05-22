@@ -33,10 +33,12 @@ export function ProjectAutoMergeToggle({ row }: { row: ProjectAutoMergeRow }) {
         aria-busy={pending}
         disabled={pending}
         onClick={onToggle}
+        aria-label={t.projects.autoMergeAria(optimisticEnabled)}
+        title={t.projects.autoMergeAria(optimisticEnabled)}
         className={`ds-btn ds-btn--md ${optimisticEnabled ? 'ds-btn--filled-blue' : 'ds-btn--outlined-basic'}`}
       >
         <span className="ds-btn__label">
-          {optimisticEnabled ? t.settings.ai.on : t.settings.ai.off}
+          {t.projects.action.autoMerge} {optimisticEnabled ? t.settings.ai.on : t.settings.ai.off}
         </span>
       </button>
       <ToggleResult state={state} slug={row.slug} />

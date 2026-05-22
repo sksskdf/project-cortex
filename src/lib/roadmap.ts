@@ -18,6 +18,8 @@ export type RoadmapItemView = {
   note: string | null;
   status: RoadmapStatus;
   doneByPrId: number | null;
+  // GitHub PR number — UI 가 '#N' 링크 노출에 사용. doneByPrId 없으면 null.
+  doneByPrNumber: number | null;
   sortOrder: number;
   // Phase 10.1 — data origin + 사용자 수정 마크.
   source: RoadmapSource;
@@ -52,8 +54,17 @@ export type OpenItemView = {
 };
 
 // Phase 10.1 후속 — 남은 작업을 Phase 별로 그룹핑 + 펼치기/접기 위한 구조.
-// 사용자 시그널 (2026-05-22): "남은 작업의 PHASE 별로 클릭했을 때 토글로 펼쳐지면서
-// 상세 내용도 보였으면 좋겠음". phaseGoal + items 모두 한 그룹 안에.
+// 사용자 시그널 (2026-05-22): 헤더는 open count, 펼치면 done 도 함께 (line-through) —
+// 컨텍스트 손실 방지. 항목별 PR# 링크로 머지된 PR 상세 이동.
+export type OpenItemGroupItem = {
+  id: number;
+  title: string;
+  status: RoadmapStatus;
+  doneByPrId: number | null;
+  doneByPrNumber: number | null;
+  source: RoadmapSource;
+};
+
 export type OpenItemGroupView = {
   phaseId: number;
   phaseKey: string;
@@ -64,7 +75,8 @@ export type OpenItemGroupView = {
   // 그룹 내 전체 item 수 — 진척 표시 ('완료 N/M').
   totalCount: number;
   doneCount: number;
-  items: OpenItemView[];
+  // Phase 의 모든 item (done 포함, sortOrder 순서). UI 가 펼쳤을 때 표시.
+  items: OpenItemGroupItem[];
 };
 
 export type ProjectRoadmapView = {
@@ -83,7 +95,7 @@ export type ProjectRoadmapView = {
   doneItems: number;
 };
 
-function rowToItemView(row: RoadmapItemRow): RoadmapItemView {
+function rowToItemView(row: RoadmapItemRow, prNumberById: Map<number, number>): RoadmapItemView {
   return {
     id: row.id,
     phaseId: row.phaseId,
@@ -91,6 +103,7 @@ function rowToItemView(row: RoadmapItemRow): RoadmapItemView {
     note: row.note,
     status: row.status as RoadmapStatus,
     doneByPrId: row.doneByPrId,
+    doneByPrNumber: row.doneByPrId !== null ? (prNumberById.get(row.doneByPrId) ?? null) : null,
     sortOrder: row.sortOrder,
     source: row.source as RoadmapSource,
     overridden: row.sourceOverrideAt !== null,
@@ -131,10 +144,22 @@ export function getProjectRoadmap(projectId: number): ProjectRoadmapView | null 
           .all()
       : [];
 
+  // doneByPrId 매칭되는 PR 의 GitHub number — UI 가 '#N' 링크에 사용.
+  const prIds = itemRows.map((it) => it.doneByPrId).filter((id): id is number => id !== null);
+  const prNumberById = new Map<number, number>();
+  if (prIds.length > 0) {
+    const prRows = db
+      .select({ id: prs.id, number: prs.number })
+      .from(prs)
+      .where(inArray(prs.id, prIds))
+      .all();
+    for (const r of prRows) prNumberById.set(r.id, r.number);
+  }
+
   const itemsByPhase = new Map<number, RoadmapItemView[]>();
   for (const it of itemRows) {
     const list = itemsByPhase.get(it.phaseId) ?? [];
-    list.push(rowToItemView(it));
+    list.push(rowToItemView(it, prNumberById));
     itemsByPhase.set(it.phaseId, list);
   }
 
@@ -181,26 +206,27 @@ export function getProjectRoadmap(projectId: number): ProjectRoadmapView | null 
       })),
   );
 
-  // Phase 별 그룹 — open items 없는 phase 도 포함 (UI 가 진척만 표시하고 펼치면 빈 상태).
-  // phase 순서 유지 (sortOrder + id).
-  const openItemsByPhaseId = new Map<number, OpenItemView[]>();
-  for (const it of openItems) {
-    const list = openItemsByPhaseId.get(it.phaseId) ?? [];
-    list.push(it);
-    openItemsByPhaseId.set(it.phaseId, list);
-  }
+  // Phase 별 그룹 — 헤더는 open count 만, 펼치면 phase 의 모든 item 표시 (done 은
+  // line-through). 사용자 시그널 "이미 진행된 PHASE 의 항목 표시 안 됨" 헷갈림 해결.
   const openItemGroups: OpenItemGroupView[] = phases.map((phase) => {
-    const items = openItemsByPhaseId.get(phase.id) ?? [];
     const doneInPhase = phase.items.filter((i) => i.status === 'done').length;
+    const openInPhase = phase.items.length - doneInPhase;
     return {
       phaseId: phase.id,
       phaseKey: phase.key,
       phaseTitle: phase.title,
       phaseGoal: phase.goal,
-      openCount: items.length,
+      openCount: openInPhase,
       totalCount: phase.items.length,
       doneCount: doneInPhase,
-      items,
+      items: phase.items.map((it) => ({
+        id: it.id,
+        title: it.title,
+        status: it.status,
+        doneByPrId: it.doneByPrId,
+        doneByPrNumber: it.doneByPrNumber,
+        source: it.source,
+      })),
     };
   });
 

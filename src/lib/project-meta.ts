@@ -481,3 +481,51 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
 
   return { kind: 'synced', metaUpdated, phasesAdded, phasesUpdated, itemsAdded, itemsUpdated };
 }
+
+// Phase 10.2 — push webhook 자동 sync 진입점.
+// 호출자 (webhook route) 가 이미 default branch push + `.cortex/` 변경 감지 후 호출.
+// slug 로 project 매칭. 등록 안 된 레포 (Cortex 가 첫 webhook 받기 전) 는 skip.
+export type PushSyncResult = SyncResult | { kind: 'no-project-for-slug' };
+
+export async function handlePushEvent(input: {
+  slug: string;
+  installationId: number;
+}): Promise<PushSyncResult> {
+  const project = db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, input.slug))
+    .get();
+  if (!project) return { kind: 'no-project-for-slug' };
+  return syncProjectFromGit(project.id);
+}
+
+// Phase 10.2 — page-visit stale-while-revalidate.
+// /projects/[id]/roadmap 진입 시 metaSyncedAt 이 TTL 보다 오래됐으면 (또는 한 번도 sync
+// 안 됐으면) 백그라운드 sync 트리거. 사용자가 "동기화" 버튼 안 눌러도 자연 갱신.
+const SYNC_TTL_MS = 5 * 60 * 1000; // 5 분
+
+export function isMetaStale(projectId: number): boolean {
+  const row = db
+    .select({ syncedAt: projects.metaSyncedAt, installationId: projects.installationId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .get();
+  if (!row) return false;
+  // installation 없는 시드 프로젝트는 sync 자체 불가 → stale 판단 무관.
+  if (row.installationId === null) return false;
+  if (row.syncedAt === null) return true;
+  const ageMs = Date.now() - row.syncedAt.getTime();
+  return ageMs > SYNC_TTL_MS;
+}
+
+// Background sync — page server component 가 호출. 결과는 무시 (다음 RSC refresh 에 반영).
+// 실패해도 페이지 렌더는 영향 X (try/catch).
+export async function backgroundSyncIfStale(projectId: number): Promise<void> {
+  if (!isMetaStale(projectId)) return;
+  try {
+    await syncProjectFromGit(projectId);
+  } catch (err) {
+    console.error(`background meta sync failed (project ${projectId}):`, err);
+  }
+}
