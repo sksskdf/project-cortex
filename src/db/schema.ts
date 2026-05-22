@@ -192,6 +192,52 @@ export const notifications = sqliteTable('notifications', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
+// Phase 10 — 프로젝트별 로드맵. projects 의 Phase 들과 그 안의 산출물 (item).
+// docs/ROADMAP.md 같은 마크다운 문서를 Cortex 안에서 구조화된 데이터로 관리.
+// PR 머지 시 본문의 'Closes #PHASE-N' 같은 컨벤션을 매칭해 자동으로 item.status='done' 전환.
+export const roadmapPhases = sqliteTable(
+  'roadmap_phases',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    // 사람이 정한 짧은 식별자 — PR 본문 'Closes #PHASE-3' 형식에서 매칭됨.
+    // '3', 'auth', 'launch' 등 자유 텍스트. (project_id, key) unique.
+    key: text('key').notNull(),
+    title: text('title').notNull(),
+    goal: text('goal'),
+    status: text('status', { enum: ['planned', 'in-progress', 'done'] })
+      .notNull()
+      .default('planned'),
+    // 같은 프로젝트 안에서 카드 정렬용. 작은 숫자가 위.
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => ({
+    projectKeyIdx: uniqueIndex('roadmap_phases_project_key_idx').on(table.projectId, table.key),
+  }),
+);
+
+export const roadmapItems = sqliteTable('roadmap_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  phaseId: integer('phase_id')
+    .notNull()
+    .references(() => roadmapPhases.id),
+  title: text('title').notNull(),
+  // 완료 사유나 PR 링크 — done 일 때 자동 채워질 수 있음.
+  note: text('note'),
+  status: text('status', { enum: ['planned', 'in-progress', 'done'] })
+    .notNull()
+    .default('planned'),
+  // 머지 시 자동 done 으로 전환시킨 PR. null 이면 수동 toggle.
+  doneByPrId: integer('done_by_pr_id').references(() => prs.id),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type IssueRow = typeof issues.$inferSelect;
 export type AgentRunRow = typeof agentRuns.$inferSelect;
@@ -201,3 +247,5 @@ export type TriageDecisionRow = typeof triageDecisions.$inferSelect;
 export type ClusterRow = typeof clusters.$inferSelect;
 export type AppSettingsRow = typeof appSettings.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
+export type RoadmapPhaseRow = typeof roadmapPhases.$inferSelect;
+export type RoadmapItemRow = typeof roadmapItems.$inferSelect;

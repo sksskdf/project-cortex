@@ -178,3 +178,44 @@
   color: var(--ds-color-text-02);
   letter-spacing: var(--ds-typography-letter-spacing-wide);
 }
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-8) 0;
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.progressLabel {
+  color: var(--ds-color-text-02);
+  min-width: 80px;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 6px;
+  background: var(--ds-color-bg-01);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--ds-color-secondary-01);
+  transition: width 0.3s ease;
+}
+
+.progressMeta {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+  white-space: nowrap;
+}
+
+.progressEmpty {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  font-style: italic;
+}

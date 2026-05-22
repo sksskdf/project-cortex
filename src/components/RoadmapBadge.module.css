@@ -1,0 +1,72 @@
+.wrap {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-14) var(--ds-spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+}
+
+.title {
+  font-size: var(--ds-typography-font-size-12);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  border-radius: var(--ds-border-radius-input);
+}
+
+.itemLink {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-6) var(--ds-spacing-8);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--ds-border-radius-input);
+}
+
+.itemLink:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.itemKey {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+  min-width: 90px;
+}
+
+.itemTitle {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autoDone {
+  padding: 2px var(--ds-spacing-8);
+  border-radius: 999px;
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+  font-size: var(--ds-typography-font-size-10);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  white-space: nowrap;
+}

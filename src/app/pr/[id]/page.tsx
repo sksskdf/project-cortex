@@ -7,6 +7,8 @@ import { CheckIcon, ChevronLeftIcon, HelpIcon, InfoIcon, WarnIcon } from '@/comp
 import { AnalyzeRequestButton } from '@/components/AnalyzeRequestButton';
 import { Markdown } from '@/components/Markdown';
 import { PRActions } from '@/components/PRActions';
+import { RoadmapBadge } from '@/components/RoadmapBadge';
+import { getPRRoadmapLinks } from '@/lib/roadmap';
 import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
 import { getPRDetail } from '@/lib/pr';
 import type { FileStatus, GaugeTier, TagTone } from '@/lib/types';
@@ -147,9 +149,13 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     mergeableState,
     mergeBlockedByCI,
     reviews,
+    prDbId,
+    projectId,
   } = view;
   const detail = { ...fixture, hunkSummary };
   const bodyText = body?.trim() ?? '';
+  // Phase 10 — PR body 의 Closes #PHASE-N / Closes #ITEM-N 매칭으로 연결된 로드맵 항목.
+  const roadmapLinks = getPRRoadmapLinks(prDbId);
 
   return (
     <div className={styles.layout}>
@@ -249,6 +255,8 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
             />
           </div>
         )}
+
+        <RoadmapBadge links={roadmapLinks} projectId={projectId} />
 
         {bodyText.length > 0 && (
           <section className={styles.bodyCard} aria-label={t.pr.body.ariaLabel}>

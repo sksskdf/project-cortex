@@ -22,6 +22,10 @@ import type { FileBlock, PR, ReasonTone } from '@/lib/types';
 
 export type PRDetailView = {
   pr: PR;
+  // PR.id 는 "pr-N" 문자열 viewId. RoadmapBadge 등 일부 DB 조회는 numeric id 필요.
+  prDbId: number;
+  // 프로젝트 매핑 — RoadmapBadge 가 /projects/[id]/roadmap 으로 링크할 때 사용.
+  projectId: number;
   fixture: PRDetailFixture;
   hunkSummary: {
     totalHunks: number;
@@ -342,6 +346,8 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   const canRequestChangesBase = canMerge && !mergeBlockedByState;
 
   const common = {
+    prDbId: row.pr.id,
+    projectId: row.pr.repoId,
     isMerged,
     branchDeleted: row.pr.branchDeletedAt !== null,
     canMerge: canMergeEffective,
