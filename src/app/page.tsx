@@ -12,8 +12,10 @@ import {
   getTodayRows,
 } from '@/lib/dashboard';
 import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
+import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
 import { listDashboardProjects } from '@/lib/roadmap';
+import { listTodos } from '@/lib/todos';
 import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
 import styles from './page.module.css';
 
@@ -294,6 +296,7 @@ export default async function DashboardPage() {
   const notifications = listRecentNotifications();
   const unreadCount = unreadNotificationCount();
   const dashboardProjects = listDashboardProjects();
+  const dashboardTodos = listTodos('open');
   const todayReviewCount = dashboardStats.pendingReview.value;
   const weekAutoMergedCount = dashboardStats.autoMergedThisWeek.value;
 
@@ -479,6 +482,18 @@ export default async function DashboardPage() {
             </div>
             <div className={styles.feedCard}>
               <DashboardProjectsWidget rows={dashboardProjects} />
+            </div>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>{t.todos.widget.title}</h2>
+              <Link href="/todos" className={styles.sectionMore}>
+                {t.todos.widget.more}
+              </Link>
+            </div>
+            <div className={styles.feedCard}>
+              <DashboardTodosWidget todos={dashboardTodos} />
             </div>
           </section>
 

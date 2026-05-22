@@ -257,6 +257,45 @@ export const roadmapItems = sqliteTable('roadmap_items', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
+// Phase 11 — 개인 생산성 TODO. 한 줄 작업, 우선순위, due date, 연결된 PR/프로젝트
+// (optional FK). 로드맵 item 과 별개 — 로드맵은 "산출물" (배포 단위), todo 는 데일리 작업.
+export const todos = sqliteTable('todos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  note: text('note'),
+  status: text('status', { enum: ['open', 'in-progress', 'done'] })
+    .notNull()
+    .default('open'),
+  priority: text('priority', { enum: ['low', 'normal', 'high'] })
+    .notNull()
+    .default('normal'),
+  // 마감 (옵션). null 이면 일정 X — 단순 backlog.
+  dueAt: integer('due_at', { mode: 'timestamp' }),
+  // 관련 PR / 프로젝트 (옵션). 클릭 시 이동.
+  projectId: integer('project_id').references(() => projects.id),
+  prId: integer('pr_id').references(() => prs.id),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
+// Phase 12 — 로컬 워크스페이스 등록. projects 의 로컬 클론 경로. git pull 등 자동화의
+// 작업 디렉토리 + Phase 13 (Claude CLI) 의 spawn 경로 화이트리스트.
+export const workspaces = sqliteTable('workspaces', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id')
+    .notNull()
+    .references(() => projects.id),
+  // 절대 경로 (예: 'C:\\dev\\projects\\foo' 또는 '/home/user/foo').
+  // 한 프로젝트당 1개 — 추가 등록 시 기존 행 갱신.
+  localPath: text('local_path').notNull(),
+  // 마지막 git pull 시각 + 결과 — UI 가 stale 여부 표시.
+  lastPullAt: integer('last_pull_at', { mode: 'timestamp' }),
+  lastPullResult: text('last_pull_result'), // 짧은 메시지 (성공 N commits / 실패 사유)
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type IssueRow = typeof issues.$inferSelect;
 export type AgentRunRow = typeof agentRuns.$inferSelect;
@@ -268,3 +307,5 @@ export type AppSettingsRow = typeof appSettings.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type RoadmapPhaseRow = typeof roadmapPhases.$inferSelect;
 export type RoadmapItemRow = typeof roadmapItems.$inferSelect;
+export type TodoRow = typeof todos.$inferSelect;
+export type WorkspaceRow = typeof workspaces.$inferSelect;

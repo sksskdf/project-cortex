@@ -124,6 +124,7 @@ src/lib/triage.test.ts   ← 같은 폴더에 인접 배치
 - 커밋 메시지: 영어 한 줄, 50자 이내. `feat: add cluster auto-merge`.
 - PR 제목 한국어 OK. PR 본문은 한국어 + 변경 요약 3줄 이내.
 - 거대한 PR을 만들 것 같으면 멈추고 사람에게 묻기.
+- **PR 본문 최상단에 `Closes #PHASE-<key>` 필수** (해당 phase 있을 때). key 는 `.cortex/roadmap.md` 의 `## Phase <key>` 와 일치. 머지 시 cascade 규칙으로 그 phase 의 모든 미완료 item 옆에 `#PR번호` 자동 링크 (`lib/roadmap.ts` `matchAndApplyDoneFromPR`). 여러 phase 닫는 PR 이면 줄을 늘립니다. 특정 item 만 닫으려면 `Closes #ITEM-<id>`. 관련 phase 없는 PR 이면 생략 OK.
 
 ## 11. 의존성 추가
 
@@ -142,6 +143,7 @@ src/lib/triage.test.ts   ← 같은 폴더에 인접 배치
 
 - 메인 브랜치: `master`. 직접 푸시 금지.
 - 작업 브랜치: `feat/<짧은-이름>`, `fix/<짧은-이름>`, `chore/<짧은-이름>`, `docs/<짧은-이름>`, `refactor/<짧은-이름>`.
+  - **로드맵 phase 작업이면 `feat/phase<key>-<짧은-이름>`** (예: `feat/phase11-todos`, `feat/phase11-12-todos-workspaces`). key 는 `.cortex/roadmap.md` 의 `## Phase <key>` 와 1:1 매칭 — 향후 webhook 자동 marker 인입 시 브랜치명에서 key 추출.
 - 모든 변경은 master로 PR. 머지는 **squash** (커밋 1개로 압축).
 - `--force-push` 금지 (자기 작업 브랜치 정리는 예외).
 

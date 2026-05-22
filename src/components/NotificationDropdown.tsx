@@ -160,8 +160,9 @@ function NotificationContent({ n }: { n: NotificationView }) {
   );
 }
 
-// Phase 10.2 후속 — 브라우저 Notification 권한 요청 버튼.
-// 권한 default → "켜기" 버튼 / granted → "켜져 있음" / denied → "차단됨 (브라우저 설정)".
+// Phase 10.2 후속 — 브라우저 Notification 권한 토글 chip.
+// 사용자 시그널 (2026-05-22): "그냥 ON OFF 토글로 해주면 안되나" — 긴 "켜기" 버튼 대신
+// 작은 ON/OFF chip. granted=ON / default=OFF / denied=차단 (회색 비활성).
 function BrowserPermissionButton() {
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>('default');
 
@@ -174,26 +175,37 @@ function BrowserPermissionButton() {
   }, []);
 
   if (perm === 'unsupported') return null;
-  if (perm === 'granted') {
-    return <span className={styles.permGranted}>{t.notifications.browserPerm.granted}</span>;
+
+  const isOn = perm === 'granted';
+  const isDenied = perm === 'denied';
+  const title = isDenied
+    ? t.notifications.browserPerm.deniedHint
+    : t.notifications.browserPerm.tooltip;
+
+  function onClick() {
+    if (isDenied || isOn) return; // 브라우저 권한은 한 번 granted/denied 면 JS 로 revoke 불가
+    void Notification.requestPermission().then((result) => setPerm(result));
   }
-  if (perm === 'denied') {
-    return (
-      <span className={styles.permDenied} title={t.notifications.browserPerm.deniedHint}>
-        {t.notifications.browserPerm.denied}
-      </span>
-    );
-  }
+
   return (
     <button
       type="button"
-      className={styles.permBtn}
-      onClick={async () => {
-        const result = await Notification.requestPermission();
-        setPerm(result);
-      }}
+      role="switch"
+      aria-checked={isOn}
+      aria-label={t.notifications.browserPerm.label}
+      title={title}
+      onClick={onClick}
+      disabled={isDenied}
+      className={`${styles.permToggle} ${isOn ? styles.permToggleOn : ''} ${isDenied ? styles.permToggleDenied : ''}`}
     >
-      {t.notifications.browserPerm.enable}
+      <span className={styles.permToggleLabel}>{t.notifications.browserPerm.label}</span>
+      <span className={styles.permToggleState}>
+        {isDenied
+          ? t.notifications.browserPerm.deniedShort
+          : isOn
+            ? t.settings.ai.on
+            : t.settings.ai.off}
+      </span>
     </button>
   );
 }

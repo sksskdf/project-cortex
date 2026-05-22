@@ -1,0 +1,28 @@
+.page {
+  padding: var(--ds-spacing-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-20);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-22);
+  font-weight: var(--ds-typography-font-weight-bold);
+  letter-spacing: var(--ds-typography-letter-spacing-tight);
+  color: var(--ds-color-text-03-high);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}

@@ -4,7 +4,7 @@
 // PR 본문에 'Closes #PHASE-3' 또는 'Closes #ITEM-12' 같은 컨벤션을 적으면
 // 머지 시 해당 Phase / item 이 자동 done 으로 전환.
 
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { projects, prs, roadmapItems, roadmapPhases, type RoadmapItemRow } from '@/db/schema';
 
@@ -540,9 +540,39 @@ export function matchAndApplyDoneFromPR(prId: number): RoadmapMatchResult {
       .run();
   }
 
+  // Cascade: 'Closes #PHASE-<key>' 가 phase 단 status 뿐 아니라 그 phase 의
+  // 미완료 + 미연결 item 들도 이 PR 로 자동 done + doneByPrId. 사용자 시그널
+  // ("PHASE 하위 항목이 PR # 와 연결되고 누르면 PR 상세로") 실현. 명시적
+  // Closes #ITEM-N 으로 이미 다른 PR 에 연결된 item 은 건드리지 않음
+  // (doneByPrId IS NULL 가드).
+  const matchedPhaseIds = new Set(matchedPhases.map((p) => p.id));
+  const cascadedItemIds: number[] = [];
+  if (matchedPhaseIds.size > 0) {
+    const cascadeRows = db
+      .select({ id: roadmapItems.id })
+      .from(roadmapItems)
+      .where(
+        and(
+          inArray(roadmapItems.phaseId, [...matchedPhaseIds]),
+          isNull(roadmapItems.doneByPrId),
+          ne(roadmapItems.status, 'done'),
+        ),
+      )
+      .all();
+    for (const row of cascadeRows) {
+      // 명시적 ITEM-N 매칭으로 이미 처리된 건 제외 (id 충돌 방지 — 같은 row 두 번 갱신 X).
+      if (matchedItems.some((m) => m.id === row.id)) continue;
+      db.update(roadmapItems)
+        .set({ status: 'done', doneByPrId: prId, updatedAt: new Date() })
+        .where(eq(roadmapItems.id, row.id))
+        .run();
+      cascadedItemIds.push(row.id);
+    }
+  }
+
   return {
     phasesDone: matchedPhases.map((p) => p.id),
-    itemsDone: matchedItems.map((i) => i.id),
+    itemsDone: [...matchedItems.map((i) => i.id), ...cascadedItemIds],
   };
 }
 
