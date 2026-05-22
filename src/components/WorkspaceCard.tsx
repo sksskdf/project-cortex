@@ -1,8 +1,7 @@
 'use client';
 
 // Phase 12 — 프로젝트 카드의 워크스페이스 등록 + git pull 영역.
-// 미등록 상태: 경로 입력 form.
-// 등록 상태: 경로 + git pull 버튼 + 마지막 결과.
+// 카드 본문의 하단 한 줄로 통합 — 박스 안 박스 X, 상단 separator + 인라인 요소.
 
 import { useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
@@ -25,6 +24,13 @@ function formatAge(d: Date | null): string {
   const hr = Math.floor(min / 60);
   if (hr < 24) return `${hr}시간 전`;
   return `${Math.floor(hr / 24)}일 전`;
+}
+
+// git pull 출력에서 "성공:" / "실패:" 접두어만 남기고 본문은 제거 (라인 줄이기).
+function summarizeOutput(raw: string): string {
+  // 첫 줄만, 80자 cap.
+  const firstLine = raw.split('\n')[0] ?? raw;
+  return firstLine.length > 80 ? firstLine.slice(0, 80) + '…' : firstLine;
 }
 
 export function WorkspaceCard({
@@ -134,21 +140,9 @@ function RegisteredView({ projectId, workspace }: { projectId: number; workspace
     });
   }
 
-  return (
-    <div className={styles.registered}>
-      <div className={styles.registeredHead}>
-        <code className={styles.path}>{workspace.localPath}</code>
-        <button
-          type="button"
-          className={styles.removeBtn}
-          onClick={() => setConfirmRemove(true)}
-          disabled={pending || confirmRemove}
-          title={t.workspace.remove}
-        >
-          ×
-        </button>
-      </div>
-      {confirmRemove && (
+  if (confirmRemove) {
+    return (
+      <div className={styles.registered}>
         <div className={styles.confirmPanel} role="alertdialog">
           <span className={styles.confirmText}>
             {t.workspace.removeConfirm(workspace.localPath)}
@@ -172,11 +166,34 @@ function RegisteredView({ projectId, workspace }: { projectId: number; workspace
             </button>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.registered}>
+      <div className={styles.registeredHead}>
+        <span className={styles.pathIcon} aria-hidden>
+          ▸
+        </span>
+        <span className={styles.path} title={workspace.localPath}>
+          {workspace.localPath}
+        </span>
+        <button
+          type="button"
+          className={styles.removeBtn}
+          onClick={() => setConfirmRemove(true)}
+          disabled={pending}
+          title={t.workspace.remove}
+          aria-label={t.workspace.remove}
+        >
+          ×
+        </button>
+      </div>
       <div className={styles.actions}>
         <button
           type="button"
-          className="ds-btn ds-btn--sm ds-btn--filled-blue"
+          className="ds-btn ds-btn--sm ds-btn--outlined-basic"
           onClick={onPull}
           disabled={pending}
           aria-busy={pending && pullState.kind === 'idle'}
@@ -185,13 +202,8 @@ function RegisteredView({ projectId, workspace }: { projectId: number; workspace
             {pending ? t.workspace.pullPending : t.workspace.pullButton}
           </span>
         </button>
-        {workspace.lastPullAt && (
-          <span className={styles.lastPull}>
-            {t.workspace.lastPull(formatAge(workspace.lastPullAt))}
-          </span>
-        )}
+        <PullResultInline state={pullState} workspace={workspace} />
       </div>
-      <PullResultMessage state={pullState} fallback={workspace.lastPullResult} />
     </div>
   );
 }
@@ -201,71 +213,100 @@ function ResultMessage({ state }: { state: WorkspaceActionState }) {
   if (state.kind === 'registered' || state.kind === 'updated') {
     return (
       <span className={`${styles.result} ${styles.resultSuccess}`}>
-        {state.kind === 'registered' ? t.workspace.result.registered : t.workspace.result.updated}
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>
+          {state.kind === 'registered' ? t.workspace.result.registered : t.workspace.result.updated}
+        </span>
       </span>
     );
   }
   if (state.kind === 'invalid-path') {
     return (
       <span className={`${styles.result} ${styles.resultError}`}>
-        {t.workspace.result.invalidPath(state.reason)}
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{t.workspace.result.invalidPath(state.reason)}</span>
       </span>
     );
   }
   if (state.kind === 'no-project') {
     return (
       <span className={`${styles.result} ${styles.resultError}`}>
-        {t.workspace.result.noProject}
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{t.workspace.result.noProject}</span>
       </span>
     );
   }
   if (state.kind === 'deleted') {
     return (
       <span className={`${styles.result} ${styles.resultSuccess}`}>
-        {t.workspace.result.deleted}
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{t.workspace.result.deleted}</span>
       </span>
     );
   }
   if (state.kind === 'not-found') {
     return (
       <span className={`${styles.result} ${styles.resultError}`}>
-        {t.workspace.result.noWorkspace}
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{t.workspace.result.noWorkspace}</span>
       </span>
     );
   }
   return (
     <span className={`${styles.result} ${styles.resultError}`}>
-      {t.workspace.result.error(state.message)}
+      <span className={styles.resultDot} aria-hidden />
+      <span className={styles.resultText}>{t.workspace.result.error(state.message)}</span>
     </span>
   );
 }
 
-function PullResultMessage({
+// 라이브 결과 (state) 우선, 없으면 마지막 sync 시각만 표시 (fallback 텍스트는 title 에).
+function PullResultInline({
   state,
-  fallback,
+  workspace,
 }: {
   state: PullActionState;
-  fallback: string | null;
+  workspace: WorkspaceView;
 }) {
-  if (state.kind === 'idle') {
-    return fallback ? <span className={styles.lastResultMuted}>{fallback}</span> : null;
-  }
   if (state.kind === 'pulled') {
-    return <span className={`${styles.result} ${styles.resultSuccess}`}>{state.output}</span>;
+    return (
+      <span className={`${styles.result} ${styles.resultSuccess}`} title={state.output}>
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{summarizeOutput(state.output)}</span>
+      </span>
+    );
   }
   if (state.kind === 'failed') {
-    return <span className={`${styles.result} ${styles.resultError}`}>{state.output}</span>;
+    return (
+      <span className={`${styles.result} ${styles.resultError}`} title={state.output}>
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{summarizeOutput(state.output)}</span>
+      </span>
+    );
   }
   if (state.kind === 'no-workspace') {
     return (
       <span className={`${styles.result} ${styles.resultError}`}>
-        {t.workspace.result.noWorkspace}
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{t.workspace.result.noWorkspace}</span>
       </span>
     );
   }
-  return (
-    <span className={`${styles.result} ${styles.resultError}`}>
-      {t.workspace.result.error(state.message)}
-    </span>
-  );
+  if (state.kind === 'error') {
+    return (
+      <span className={`${styles.result} ${styles.resultError}`} title={state.message}>
+        <span className={styles.resultDot} aria-hidden />
+        <span className={styles.resultText}>{t.workspace.result.error(state.message)}</span>
+      </span>
+    );
+  }
+  // idle — 마지막 sync 시각.
+  if (workspace.lastPullAt) {
+    return (
+      <span className={styles.lastPull} title={workspace.lastPullResult ?? undefined}>
+        {t.workspace.lastPull(formatAge(workspace.lastPullAt))}
+      </span>
+    );
+  }
+  return null;
 }

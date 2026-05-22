@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache';
 import { setProjectAutoMerge } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
+import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
 import { setAiEnabled } from '@/lib/settings';
 
 export type SettingsActionState =
@@ -80,9 +81,20 @@ export async function reconcileProjectAction(projectId: number): Promise<Reconci
     return { kind: 'error', message };
   }
 
+  // reconcile 이 머지된 PR 들을 upsert 한 후 로드맵 매칭 backfill 1회 발화.
+  // wire-up 전 머지된 PR 들 + body 마커 있는데 매칭 안 된 PR 들 모두 채움.
+  // cascade 가드 (doneByPrId IS NULL) 로 idempotent — 두 번 클릭해도 안전.
+  try {
+    reapplyRoadmapMatchesForProject(projectId);
+  } catch (err) {
+    console.error(`reapplyRoadmapMatchesForProject failed for project ${projectId}:`, err);
+  }
+
   revalidatePath('/settings');
   revalidatePath('/inbox');
   revalidatePath('/');
+  revalidatePath(`/projects/${projectId}/roadmap`);
+  revalidatePath('/projects');
 
   if (result.kind === 'reconciled') {
     return {

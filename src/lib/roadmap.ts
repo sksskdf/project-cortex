@@ -576,6 +576,27 @@ export function matchAndApplyDoneFromPR(prId: number): RoadmapMatchResult {
   };
 }
 
+// 이미 머지된 PR 들에 대한 일괄 매칭 backfill. 사용 시점:
+// - 매칭 wire-up 전 머지된 PR 들의 로드맵 연결 채울 때 (1회 마이그레이션성)
+// - `.cortex/roadmap.md` 의 phase key 가 바뀐 후 재매칭할 때
+// idempotent — cascade 의 `doneByPrId IS NULL` 가드로 같은 PR 두 번 호출해도 안전.
+export function reapplyRoadmapMatchesForProject(projectId: number): {
+  scanned: number;
+  matched: number;
+} {
+  const merged = db
+    .select({ id: prs.id })
+    .from(prs)
+    .where(and(eq(prs.repoId, projectId), eq(prs.status, 'merged')))
+    .all();
+  let matched = 0;
+  for (const pr of merged) {
+    const r = matchAndApplyDoneFromPR(pr.id);
+    if (r.phasesDone.length > 0 || r.itemsDone.length > 0) matched += 1;
+  }
+  return { scanned: merged.length, matched };
+}
+
 // PR 상세에 노출되는 미니 배지 — 이 PR 이 연결된 phase / item 목록.
 export type PRRoadmapLink = {
   kind: 'phase' | 'item';
