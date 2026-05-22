@@ -1,0 +1,190 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-16);
+}
+
+.addForm {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-12);
+}
+
+.addInput {
+  flex: 1;
+  padding: var(--ds-spacing-6) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-13);
+  font-family: inherit;
+}
+
+.addInput:focus {
+  outline: 2px solid var(--ds-color-secondary-03);
+  outline-offset: 1px;
+}
+
+.addSelect {
+  padding: var(--ds-spacing-6) var(--ds-spacing-8);
+  border-radius: var(--ds-border-radius-input);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-12);
+  cursor: pointer;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-spacing-8);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-13);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+}
+
+.sectionCount {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+}
+
+.empty {
+  padding: var(--ds-spacing-12) var(--ds-spacing-16);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  text-align: center;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-6);
+}
+
+.listDone {
+  opacity: 0.7;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-8) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.row:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.rowDone .title {
+  text-decoration: line-through;
+  color: var(--ds-color-text-02);
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.checkLabel input {
+  cursor: pointer;
+  accent-color: var(--ds-color-secondary-01);
+}
+
+.priorityDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.priorityLow {
+  background: var(--ds-color-line-02);
+}
+
+.priorityNormal {
+  background: var(--ds-color-secondary-01);
+}
+
+.priorityHigh {
+  background: var(--ds-color-state-error-accent);
+}
+
+.title {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  gap: var(--ds-spacing-6);
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+  white-space: nowrap;
+}
+
+.metaItem {
+  font-family: inherit;
+}
+
+.prLink {
+  color: var(--ds-color-text-04-primary, var(--ds-color-secondary-01));
+  text-decoration: none;
+}
+
+.prLink:hover {
+  text-decoration: underline;
+}
+
+.delete {
+  background: transparent;
+  border: none;
+  color: var(--ds-color-text-02);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--ds-spacing-6);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.delete:hover {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}

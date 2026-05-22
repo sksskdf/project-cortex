@@ -11,13 +11,16 @@ import { ko as t } from '@/copy/ko';
 import { ProjectAutoMergeToggle } from './ProjectAutoMergeToggle';
 import { ProjectReconcileButton } from './ProjectReconcileButton';
 import { RoadmapDrawer } from './RoadmapDrawer';
+import { WorkspaceCard } from './WorkspaceCard';
 import type { ProjectStatsRow } from '@/lib/projects';
 import type { ProjectRoadmapView } from '@/lib/roadmap';
+import type { WorkspaceView } from '@/lib/workspace';
 import styles from './ProjectsList.module.css';
 
 export type ProjectCardData = {
   row: ProjectStatsRow;
   roadmap: ProjectRoadmapView | null;
+  workspace: WorkspaceView | null;
 };
 
 export function ProjectsList({ cards }: { cards: ReadonlyArray<ProjectCardData> }) {
@@ -92,6 +95,8 @@ function ProjectCard({
           <span className="ds-btn__label">{t.projects.drawer.open}</span>
         </button>
       </div>
+
+      <WorkspaceCard projectId={row.id} workspace={card.workspace} />
     </article>
   );
 }

@@ -71,6 +71,7 @@ export type SidebarCounts = {
   projects: number;
   agents: number;
   clusters: number;
+  todos: number;
 };
 
 export type StatDelta = {

@@ -5,6 +5,7 @@ import { ko as t } from '@/copy/ko';
 import { ProjectsList, type ProjectCardData } from '@/components/ProjectsList';
 import { listProjectsWithStats } from '@/lib/projects';
 import { getProjectRoadmap } from '@/lib/roadmap';
+import { getWorkspace } from '@/lib/workspace';
 import styles from './page.module.css';
 
 export default async function ProjectsPage() {
@@ -12,10 +13,11 @@ export default async function ProjectsPage() {
   const active = rows.filter((r) => r.installationId !== null);
   const seed = rows.filter((r) => r.installationId === null);
 
-  // 카드별 로드맵 prep — drawer 가 클릭 즉시 보여주도록 미리 fetch (단일 사용자 + 소수 프로젝트).
+  // 카드별 로드맵 + 워크스페이스 prep — drawer 가 클릭 즉시 보여주도록 미리 fetch.
   const activeCards: ProjectCardData[] = active.map((row) => ({
     row,
     roadmap: getProjectRoadmap(row.id),
+    workspace: getWorkspace(row.id),
   }));
 
   return (

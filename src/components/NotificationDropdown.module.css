@@ -205,27 +205,44 @@
   gap: var(--ds-spacing-8);
 }
 
-.permBtn {
-  background: transparent;
+/* 브라우저 알림 권한 토글 — 작은 ON/OFF chip 형태 (사용자 시그널: 큰 버튼 X) */
+.permToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-4);
+  padding: 2px var(--ds-spacing-6);
+  border-radius: 999px;
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
-  color: var(--ds-color-secondary-01);
-  font-size: var(--ds-typography-font-size-11);
+  background: transparent;
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-10);
   cursor: pointer;
-  padding: var(--ds-spacing-4) var(--ds-spacing-8);
-  border-radius: var(--ds-border-radius-input);
+  white-space: nowrap;
 }
 
-.permBtn:hover {
+.permToggle:hover:not(:disabled) {
   background: var(--ds-color-bg-01);
 }
 
-.permGranted {
-  font-size: var(--ds-typography-font-size-11);
+.permToggleOn {
+  background: var(--ds-color-soft-green);
   color: var(--ds-color-state-success-text-dark);
+  border-color: transparent;
+  cursor: default;
 }
 
-.permDenied {
-  font-size: var(--ds-typography-font-size-11);
+.permToggleDenied {
+  background: var(--ds-color-soft-red);
   color: var(--ds-color-state-error-strong);
+  border-color: transparent;
   cursor: help;
+}
+
+.permToggleLabel {
+  font-family: inherit;
+}
+
+.permToggleState {
+  font-family: var(--ds-typography-font-family-number);
+  font-weight: var(--ds-typography-font-weight-semibold);
 }
