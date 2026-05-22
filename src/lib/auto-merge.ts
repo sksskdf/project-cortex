@@ -7,6 +7,7 @@ import { db } from '@/db/client';
 import { prs, projects, triageDecisions } from '@/db/schema';
 import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
 import { createNotification } from './notifications';
+import { matchAndApplyDoneFromPR } from './roadmap';
 
 export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
@@ -68,6 +69,8 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
     // 머지된 head 브랜치 자동 삭제 — 실패해도 머지 자체는 성공으로 처리. 사용자가
     // /pr 상세에서 수동 삭제 가능.
     await safeDeleteBranch(prId);
+    // Phase 10 — PR 본문의 Closes #PHASE-N / Closes #ITEM-N 매칭해 자동 done.
+    safeApplyRoadmap(prId);
     safeNotify({ kind: 'auto-merged', prId });
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
@@ -78,6 +81,7 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
     if (isRaceMergeError(message)) {
       db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
       await safeDeleteBranch(prId);
+      safeApplyRoadmap(prId);
       // sha 정확히 모르면 빈 문자열 — UI 는 short sha 7자만 쓰므로 빈 문자열도 큰 문제 없음.
       return { kind: 'merged', sha: '' };
     }
@@ -91,6 +95,15 @@ function safeNotify(input: Parameters<typeof createNotification>[0]): void {
     createNotification(input);
   } catch (err) {
     console.error('알림 생성 실패:', err);
+  }
+}
+
+// Phase 10 — 로드맵 매칭도 best-effort. PR body 정규식 매칭만 하므로 실패 거의 없음.
+function safeApplyRoadmap(prId: number): void {
+  try {
+    matchAndApplyDoneFromPR(prId);
+  } catch (err) {
+    console.error('로드맵 자동 done 매칭 실패:', err);
   }
 }
 
@@ -150,6 +163,8 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
     // 머지 = 브랜치 삭제 (자동/사람 모두 동일). 별도 '브랜치 삭제' 액션 흐름 제거 —
     // 사용자가 두 번 클릭할 필요 없게. fork/cross-repo 는 자동 skip.
     await safeDeleteBranch(prId);
+    // Phase 10 — PR 본문의 Closes 컨벤션 매칭해 자동 done.
+    safeApplyRoadmap(prId);
     // 사람 결정 기록 — 자동 머지 정책과 구분되게 decidedBy='human'.
     const existing = db
       .select({ id: triageDecisions.id })

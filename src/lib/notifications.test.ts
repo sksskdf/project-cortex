@@ -52,9 +52,9 @@ describe('isRevertPR', () => {
     expect(isRevertPR({ title: 'Revert "Add feature X"', body: null })).toBe(true);
   });
   it('detects body "This reverts commit <sha>"', () => {
-    expect(
-      isRevertPR({ title: 'Some PR', body: 'This reverts commit 1234567890abcdef.' }),
-    ).toBe(true);
+    expect(isRevertPR({ title: 'Some PR', body: 'This reverts commit 1234567890abcdef.' })).toBe(
+      true,
+    );
   });
   it('false for normal PR', () => {
     expect(isRevertPR({ title: 'Add feature X', body: 'Implements X' })).toBe(false);

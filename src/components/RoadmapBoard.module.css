@@ -1,0 +1,341 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-16);
+}
+
+.boardHead {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+  color: var(--ds-color-text-02);
+}
+
+.empty strong {
+  font-size: var(--ds-typography-font-size-15);
+  color: var(--ds-color-text-03-high);
+}
+
+.phaseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-14);
+}
+
+.phaseCard {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-12);
+}
+
+.phaseHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ds-spacing-12);
+}
+
+.phaseMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.phaseKey {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+}
+
+.phaseTitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-16);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.phaseGoal {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  line-height: var(--ds-typography-line-height-148);
+}
+
+.phaseRight {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  flex-shrink: 0;
+}
+
+.progress {
+  position: relative;
+  width: 80px;
+  height: 16px;
+  background: var(--ds-color-bg-01);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--ds-color-secondary-01);
+  transition: width 0.3s ease;
+}
+
+.progressLabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-10);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+  text-shadow: 0 0 2px var(--ds-color-bg-00);
+}
+
+.statusSelect {
+  padding: 4px 8px;
+  border-radius: var(--ds-border-radius-input);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  background: var(--ds-color-bg-00);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-12);
+  cursor: pointer;
+}
+
+.statusPlanned {
+  color: var(--ds-color-text-02);
+}
+
+.statusInProgress {
+  color: var(--ds-color-state-warning-base);
+}
+
+.statusDone {
+  color: var(--ds-color-state-success-accent);
+}
+
+.itemList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-6) var(--ds-spacing-8);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.item:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.itemDone .itemTitle {
+  text-decoration: line-through;
+  color: var(--ds-color-text-02);
+}
+
+.itemCheck {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.itemCheck input {
+  cursor: pointer;
+  accent-color: var(--ds-color-secondary-01);
+}
+
+.itemTitle {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemAutoDone {
+  padding: 2px var(--ds-spacing-8);
+  border-radius: 999px;
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+  font-size: var(--ds-typography-font-size-10);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  white-space: nowrap;
+}
+
+.itemDelete {
+  background: transparent;
+  border: none;
+  color: var(--ds-color-text-02);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--ds-spacing-6);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.itemDelete:hover {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}
+
+.itemEmpty {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  padding: var(--ds-spacing-8) var(--ds-spacing-8);
+}
+
+.phaseFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--ds-spacing-8);
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.phaseDeleteBtn {
+  background: transparent;
+  border: none;
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-12);
+  cursor: pointer;
+  padding: var(--ds-spacing-4) var(--ds-spacing-8);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.phaseDeleteBtn:hover {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}
+
+.confirmPanel {
+  background: var(--ds-color-soft-red);
+  border-radius: var(--ds-border-radius-input);
+  padding: var(--ds-spacing-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+  color: var(--ds-color-state-error-strong);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.confirmPanel p {
+  margin: 0;
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  justify-content: flex-end;
+}
+
+.addPhaseForm,
+.addItemForm {
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+}
+
+.addItemForm {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-10) var(--ds-spacing-12);
+}
+
+.formRow {
+  display: flex;
+  gap: var(--ds-spacing-10);
+  flex-wrap: wrap;
+}
+
+.formLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.formLabelGrow {
+  composes: formLabel;
+  flex: 1;
+  min-width: 200px;
+}
+
+.formInput {
+  padding: var(--ds-spacing-6) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  background: var(--ds-color-bg-00);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-13);
+  font-family: inherit;
+  min-width: 120px;
+}
+
+.addItemForm .formInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.formInput:focus {
+  outline: 2px solid var(--ds-color-secondary-03);
+  outline-offset: 1px;
+}
+
+.formHint {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+}
+
+.formError {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+  padding: var(--ds-spacing-6) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.formActions {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  justify-content: flex-end;
+}
