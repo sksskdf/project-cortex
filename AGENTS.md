@@ -130,8 +130,15 @@
 
 - 모든 작업은 별도 브랜치에서. **master 직접 푸시 금지.**
 - 브랜치명: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/` 접두사 + 짧은 이름.
+  - 로드맵 phase 작업이면 **`feat/phase<key>-<짧은-이름>`** (예: `feat/phase11-todos`, `feat/phase11-12-todos-workspaces`). key 는 `.cortex/roadmap.md` 의 `## Phase <key>` 와 일치.
 - master로 **squash merge.** 한 PR = 한 변경 (§1.1과 동일 원칙).
 - PR을 올릴 때 `.github/PULL_REQUEST_TEMPLATE.md`의 체크리스트를 채웁니다.
+- **PR 본문 최상단에 `Closes #PHASE-<key>` 필수** (해당 phase 있을 때). 머지 시 cascade 규칙이 그 phase 의 모든 미완료 item 옆에 `#PR번호` 링크 자동 표시. key 는 `.cortex/roadmap.md` grep 한 번이면 찾음. 여러 phase 닫는 PR 이면 줄을 늘립니다.
+  ```
+  Closes #PHASE-11
+  Closes #PHASE-12
+  ```
+  관련 phase 없는 PR (순수 인프라/문서/리팩토링 등) 이면 생략 OK.
 
 자세한 룰은 `docs/CONVENTIONS.md` §10·§13.
 
