@@ -160,9 +160,10 @@ function NotificationContent({ n }: { n: NotificationView }) {
   );
 }
 
-// Phase 10.2 후속 — 브라우저 Notification 권한 토글 chip.
-// 사용자 시그널 (2026-05-22): "그냥 ON OFF 토글로 해주면 안되나" — 긴 "켜기" 버튼 대신
-// 작은 ON/OFF chip. granted=ON / default=OFF / denied=차단 (회색 비활성).
+// Phase 10.2 후속 — 브라우저 Notification 권한 토글 스위치.
+// 사용자 시그널 (2026-05-22, 재): "토글로 바꿔달랬더니 이게 뭐임? 토글 모름?"
+// → chip 형태 X. 진짜 슬라이딩 스위치 (track + knob). 라벨은 좌측 별도.
+// granted=ON / default=OFF / denied=차단 (스위치 disabled + 빨강 hint).
 function BrowserPermissionButton() {
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>('default');
 
@@ -188,24 +189,19 @@ function BrowserPermissionButton() {
   }
 
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isOn}
-      aria-label={t.notifications.browserPerm.label}
-      title={title}
-      onClick={onClick}
-      disabled={isDenied}
-      className={`${styles.permToggle} ${isOn ? styles.permToggleOn : ''} ${isDenied ? styles.permToggleDenied : ''}`}
-    >
-      <span className={styles.permToggleLabel}>{t.notifications.browserPerm.label}</span>
-      <span className={styles.permToggleState}>
-        {isDenied
-          ? t.notifications.browserPerm.deniedShort
-          : isOn
-            ? t.settings.ai.on
-            : t.settings.ai.off}
-      </span>
-    </button>
+    <div className={styles.permRow} title={title}>
+      <span className={styles.permLabel}>{t.notifications.browserPerm.label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        aria-label={t.notifications.browserPerm.label}
+        onClick={onClick}
+        disabled={isDenied}
+        className={`${styles.switch} ${isOn ? styles.switchOn : ''} ${isDenied ? styles.switchDenied : ''}`}
+      >
+        <span className={styles.switchKnob} aria-hidden />
+      </button>
+    </div>
   );
 }
