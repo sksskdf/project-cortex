@@ -14,6 +14,12 @@ export const projects = sqliteTable('projects', {
   // null 이면 시드/데모 프로젝트 (실 webhook 흐름 비대상).
   // Phase 3.4b 의 credentials 테이블이 들어오면 FK 로 분리됨.
   installationId: integer('installation_id'),
+  // Phase 10.1 — .cortex/project.yml 에서 가져온 메타. null 이면 sync 안 됨 (manual).
+  description: text('description'),
+  kind: text('kind'), // web-app | cli | library | mobile | docs | infra (자유 텍스트)
+  domain: text('domain'),
+  homepage: text('homepage'),
+  metaSyncedAt: integer('meta_synced_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
@@ -212,6 +218,14 @@ export const roadmapPhases = sqliteTable(
       .default('planned'),
     // 같은 프로젝트 안에서 카드 정렬용. 작은 숫자가 위.
     sortOrder: integer('sort_order').notNull().default(0),
+    // Phase 10.1 — 데이터 origin. 'git' = .cortex/roadmap.md 에서 가져옴 (sync 가 덮어쓸 수 있음).
+    // 'manual' = 사용자가 Cortex UI 에서 추가. sync 가 안 건드림.
+    source: text('source', { enum: ['git', 'manual'] })
+      .notNull()
+      .default('manual'),
+    // 사용자가 git source 항목을 UI 에서 수정한 시점. null 이면 미수정.
+    // 다음 sync 시 이 값이 채워진 행은 덮어쓰지 않고 충돌 배지로 표시.
+    sourceOverrideAt: integer('source_override_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
@@ -234,6 +248,11 @@ export const roadmapItems = sqliteTable('roadmap_items', {
   // 머지 시 자동 done 으로 전환시킨 PR. null 이면 수동 toggle.
   doneByPrId: integer('done_by_pr_id').references(() => prs.id),
   sortOrder: integer('sort_order').notNull().default(0),
+  // Phase 10.1 — Phase 와 동일.
+  source: text('source', { enum: ['git', 'manual'] })
+    .notNull()
+    .default('manual'),
+  sourceOverrideAt: integer('source_override_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });

@@ -397,3 +397,33 @@ export async function getPRMergeableState(
   });
   return normalizeMergeableState(data.mergeable_state);
 }
+
+// Phase 10.1 — .cortex/project.yml · .cortex/roadmap.md 등 임의 파일 fetch.
+// default branch 의 raw content. 파일 없으면 null (404). path 는 슬래시 경로 (예: '.cortex/project.yml').
+export type RepoFileContent = { content: string; sha: string } | null;
+
+export async function getRepoFileContent(
+  installationId: number,
+  ref: RepoRef,
+  path: string,
+): Promise<RepoFileContent> {
+  const octokit = await getOctokitForInstallation(installationId);
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner: ref.owner,
+      repo: ref.repo,
+      path,
+    });
+    // getContent 는 디렉토리 응답이면 array, 파일이면 object — 파일만 처리.
+    if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) {
+      return null;
+    }
+    // GitHub 는 base64 encoded.
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    return { content, sha: data.sha };
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status === 404) return null;
+    throw err;
+  }
+}

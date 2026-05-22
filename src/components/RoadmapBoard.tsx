@@ -175,7 +175,10 @@ function PhaseCard({ projectId, phase }: { projectId: number; phase: RoadmapPhas
     <article className={styles.phaseCard}>
       <header className={styles.phaseHead}>
         <div className={styles.phaseMeta}>
-          <span className={styles.phaseKey}>PHASE-{phase.key}</span>
+          <div className={styles.phaseKeyRow}>
+            <span className={styles.phaseKey}>PHASE-{phase.key}</span>
+            <SourceBadge source={phase.source} overridden={phase.overridden} />
+          </div>
           <h3 className={styles.phaseTitle}>{phase.title}</h3>
           {phase.goal && <p className={styles.phaseGoal}>{phase.goal}</p>}
         </div>
@@ -357,6 +360,7 @@ function ItemRow({ projectId, item }: { projectId: number; item: RoadmapItemView
         />
         <span className={styles.itemTitle}>{item.title}</span>
       </label>
+      <SourceBadge source={item.source} overridden={item.overridden} />
       {item.doneByPrId !== null && (
         <span className={styles.itemAutoDone} title={t.roadmap.item.autoDoneTip(item.doneByPrId)}>
           {t.roadmap.item.autoDoneBadge}
@@ -373,5 +377,21 @@ function ItemRow({ projectId, item }: { projectId: number; item: RoadmapItemView
         ×
       </button>
     </li>
+  );
+}
+
+function SourceBadge({ source, overridden }: { source: 'git' | 'manual'; overridden: boolean }) {
+  if (source === 'manual') return null;
+  if (overridden) {
+    return (
+      <span className={styles.sourceOverride} title={t.roadmap.sourceBadge.overrideTip}>
+        {t.roadmap.sourceBadge.override}
+      </span>
+    );
+  }
+  return (
+    <span className={styles.sourceGit} title={t.roadmap.sourceBadge.gitTip}>
+      {t.roadmap.sourceBadge.git}
+    </span>
   );
 }
