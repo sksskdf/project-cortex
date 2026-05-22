@@ -296,6 +296,21 @@ export const workspaces = sqliteTable('workspaces', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
+// Phase 11 후속 — 자유 마크다운 메모. todos 와 별개 (todos 는 작업, notes 는 기록).
+// 노션 페이지를 대체하는 가벼운 메모. 태그/카테고리는 1차 비목표 (단순 검색만).
+export const notes = sqliteTable('notes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  body: text('body').notNull().default(''), // 마크다운 원본. 1차 plain 렌더.
+  // 관련 PR / 프로젝트 (옵션).
+  projectId: integer('project_id').references(() => projects.id),
+  prId: integer('pr_id').references(() => prs.id),
+  // 핀 고정 — true 면 목록 상단. 단일 사용자라 카테고리 대신 핀으로 우선순위.
+  pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type IssueRow = typeof issues.$inferSelect;
 export type AgentRunRow = typeof agentRuns.$inferSelect;
@@ -309,3 +324,4 @@ export type RoadmapPhaseRow = typeof roadmapPhases.$inferSelect;
 export type RoadmapItemRow = typeof roadmapItems.$inferSelect;
 export type TodoRow = typeof todos.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
+export type NoteRow = typeof notes.$inferSelect;
