@@ -1,11 +1,13 @@
+/* WorkspaceCard 는 ProjectCard 내부 섹션. bg/border 박스로 또 한 번 둘러싸지 않고
+   상단 separator + 인라인 요소로 카드 본문의 한 줄처럼 보이게. */
+
 .notRegistered {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--ds-spacing-12);
-  padding: var(--ds-spacing-10) var(--ds-spacing-12);
-  background: var(--ds-color-bg-01);
-  border-radius: var(--ds-border-radius-input);
+  padding-top: var(--ds-spacing-10);
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
 }
 
 .notRegisteredText {
@@ -31,9 +33,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--ds-spacing-8);
-  padding: var(--ds-spacing-12);
-  background: var(--ds-color-bg-01);
-  border-radius: var(--ds-border-radius-input);
+  padding-top: var(--ds-spacing-10);
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
 }
 
 .label {
@@ -48,7 +49,7 @@
   padding: var(--ds-spacing-6) var(--ds-spacing-10);
   border-radius: var(--ds-border-radius-input);
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
-  background: var(--ds-color-bg-00);
+  background: var(--ds-color-bg-01);
   color: var(--ds-color-text-03-high);
   font-size: var(--ds-typography-font-size-12);
   font-family: var(--ds-typography-font-family-number);
@@ -63,37 +64,48 @@
 .registered {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-spacing-8);
-  padding: var(--ds-spacing-10) var(--ds-spacing-12);
-  background: var(--ds-color-bg-01);
-  border-radius: var(--ds-border-radius-input);
+  gap: var(--ds-spacing-6);
+  padding-top: var(--ds-spacing-10);
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
 }
 
 .registeredHead {
   display: flex;
   align-items: center;
-  gap: var(--ds-spacing-8);
+  gap: var(--ds-spacing-6);
+  min-width: 0;
+}
+
+.pathIcon {
+  flex-shrink: 0;
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-11);
+  font-family: var(--ds-typography-font-family-number);
 }
 
 .path {
   flex: 1;
+  min-width: 0;
   font-family: var(--ds-typography-font-family-number);
   font-size: var(--ds-typography-font-size-11);
-  color: var(--ds-color-text-03-high);
+  color: var(--ds-color-text-02);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  direction: rtl; /* 긴 경로는 끝부분 (project-cortex) 보이게 */
+  text-align: left;
 }
 
 .removeBtn {
   background: transparent;
   border: none;
   color: var(--ds-color-text-02);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 var(--ds-spacing-6);
+  padding: 2px 6px;
   border-radius: var(--ds-border-radius-input);
+  flex-shrink: 0;
 }
 
 .removeBtn:hover {
@@ -105,6 +117,7 @@
   display: flex;
   align-items: center;
   gap: var(--ds-spacing-8);
+  flex-wrap: wrap;
 }
 
 .lastPull {
@@ -113,34 +126,61 @@
   color: var(--ds-color-text-02);
 }
 
+/* 결과 표시 — 풀 폭 블록 X. 작은 dot + 짧은 라벨 인라인. */
 .result {
-  padding: var(--ds-spacing-4) var(--ds-spacing-8);
-  border-radius: var(--ds-border-radius-input);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-6);
   font-size: var(--ds-typography-font-size-11);
   font-family: var(--ds-typography-font-family-number);
+  color: var(--ds-color-text-02);
+}
+
+.resultDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.resultSuccess .resultDot {
+  background: var(--ds-color-state-success-text-dark);
 }
 
 .resultSuccess {
-  background: var(--ds-color-soft-green);
   color: var(--ds-color-state-success-text-dark);
 }
 
+.resultError .resultDot {
+  background: var(--ds-color-state-error-strong);
+}
+
 .resultError {
-  background: var(--ds-color-soft-red);
   color: var(--ds-color-state-error-strong);
+}
+
+.resultText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
 }
 
 .lastResultMuted {
   font-size: var(--ds-typography-font-size-10);
   color: var(--ds-color-text-02);
   font-family: var(--ds-typography-font-family-number);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .confirmPanel {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--ds-spacing-8);
-  padding: var(--ds-spacing-8) var(--ds-spacing-10);
+  padding: var(--ds-spacing-6) var(--ds-spacing-8);
   background: var(--ds-color-soft-red);
   border-radius: var(--ds-border-radius-input);
 }
@@ -153,5 +193,5 @@
 .confirmActions {
   display: flex;
   gap: var(--ds-spacing-6);
-  justify-content: flex-end;
+  flex-shrink: 0;
 }
