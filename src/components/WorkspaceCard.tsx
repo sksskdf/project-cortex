@@ -202,9 +202,37 @@ function RegisteredView({ projectId, workspace }: { projectId: number; workspace
             {pending ? t.workspace.pullPending : t.workspace.pullButton}
           </span>
         </button>
+        <IdeOpenLinks localPath={workspace.localPath} />
         <PullResultInline state={pullState} workspace={workspace} />
       </div>
     </div>
+  );
+}
+
+// Phase 12 — 등록된 워크스페이스를 외부 IDE 로 열기. vscode:// / cursor://
+// URI 스킴. OS 가 등록된 핸들러로 IDE 실행. IDE 미설치 시 브라우저가 무시 (안전).
+// 경로는 절대 경로 (path validation 통과한 것) + URI encode.
+function IdeOpenLinks({ localPath }: { localPath: string }) {
+  // URI 는 vscode://file/<absolutePath>. Windows 의 'C:\...' 도 그대로 OK (VS Code 가 처리).
+  // 한글/공백 등은 encodeURI 로 safe.
+  const encoded = encodeURI(localPath);
+  return (
+    <span className={styles.ideLinks} role="group" aria-label={t.workspace.openIn}>
+      <a
+        className="ds-btn ds-btn--sm ds-btn--outlined-basic"
+        href={`vscode://file/${encoded}`}
+        title={t.workspace.openVscode}
+      >
+        <span className="ds-btn__label">{t.workspace.openVscode}</span>
+      </a>
+      <a
+        className="ds-btn ds-btn--sm ds-btn--outlined-basic"
+        href={`cursor://file/${encoded}`}
+        title={t.workspace.openCursor}
+      >
+        <span className="ds-btn__label">{t.workspace.openCursor}</span>
+      </a>
+    </span>
   );
 }
 
