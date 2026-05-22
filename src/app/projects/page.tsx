@@ -2,6 +2,7 @@
 // Phase 10.1 후속 — Gauge 제거, 컴팩트 카드 + 로드맵 drawer 통합.
 
 import { ko as t } from '@/copy/ko';
+import { AddProjectForm } from '@/components/AddProjectForm';
 import { ProjectsList, type ProjectCardData } from '@/components/ProjectsList';
 import { listProjectsWithStats } from '@/lib/projects';
 import { getProjectRoadmap } from '@/lib/roadmap';
@@ -23,8 +24,11 @@ export default async function ProjectsPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{t.projects.title}</h1>
-        <p className={styles.subtitle}>{t.projects.subtitle}</p>
+        <div className={styles.headerText}>
+          <h1 className={styles.title}>{t.projects.title}</h1>
+          <p className={styles.subtitle}>{t.projects.subtitle}</p>
+        </div>
+        <AddProjectForm />
       </header>
 
       {active.length === 0 && seed.length === 0 ? (

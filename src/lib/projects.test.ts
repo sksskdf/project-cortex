@@ -1,8 +1,9 @@
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { projects } from '@/db/schema';
-import { listAutoMergeProjects, setProjectAutoMerge } from './projects';
+import { addProjectManually, listAutoMergeProjects, setProjectAutoMerge } from './projects';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -74,5 +75,36 @@ describe('setProjectAutoMerge', () => {
       .get();
 
     expect((await setProjectAutoMerge(inserted.id, true)).kind).toBe('not-found');
+  });
+});
+
+describe('addProjectManually', () => {
+  it('adds with installationId=null + autoMergeEnabled=false', () => {
+    const r = addProjectManually({ slug: 'vercel/next.js' });
+    expect(r.kind).toBe('added');
+    const row = db.select().from(projects).where(eq(projects.slug, 'vercel/next.js')).get();
+    expect(row?.installationId).toBeNull();
+    expect(row?.autoMergeEnabled).toBe(false);
+    expect(row?.name).toBe('vercel/next.js');
+  });
+
+  it('uses custom name when provided', () => {
+    addProjectManually({ slug: 'a/b', name: 'My App' });
+    const row = db.select().from(projects).where(eq(projects.slug, 'a/b')).get();
+    expect(row?.name).toBe('My App');
+  });
+
+  it('rejects invalid slug', () => {
+    expect(addProjectManually({ slug: '' }).kind).toBe('invalid-slug');
+    expect(addProjectManually({ slug: 'no-slash' }).kind).toBe('invalid-slug');
+    expect(addProjectManually({ slug: 'too/many/slashes' }).kind).toBe('invalid-slug');
+    expect(addProjectManually({ slug: 'spaces / not ok' }).kind).toBe('invalid-slug');
+  });
+
+  it('rejects duplicate slug', () => {
+    addProjectManually({ slug: 'a/b' });
+    const r = addProjectManually({ slug: 'a/b' });
+    expect(r.kind).toBe('duplicate');
+    if (r.kind === 'duplicate') expect(r.existingId).toBeGreaterThan(0);
   });
 });

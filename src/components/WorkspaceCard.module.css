@@ -120,6 +120,16 @@
   flex-wrap: wrap;
 }
 
+.ideLinks {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-4);
+}
+
+.ideLinks a {
+  text-decoration: none;
+}
+
 .lastPull {
   font-family: var(--ds-typography-font-family-number);
   font-size: var(--ds-typography-font-size-10);

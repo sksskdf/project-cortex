@@ -153,3 +153,44 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
     };
   });
 }
+
+// Phase 8 — 수동 레포 등록 (인테이크 마법사).
+// 자동 onboard 와 별개: webhook 도착 전이거나 App 미설치 상태에서도 사용자가 직접
+// projects 행 생성. installationId=null + autoMergeEnabled=false 로 시작.
+// 후속 webhook 도착 시 handlePullRequestWebhook 의 자동 onboard 로직이 installationId
+// 채움 (slug 매칭) — 코드 추가 변경 없이 흐름이 자연 합쳐짐.
+const SLUG_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+
+export type AddProjectResult =
+  | { kind: 'added'; id: number }
+  | { kind: 'invalid-slug'; reason: string }
+  | { kind: 'duplicate'; existingId: number };
+
+export function addProjectManually(input: { slug: string; name?: string }): AddProjectResult {
+  const slug = input.slug.trim();
+  if (slug.length === 0) return { kind: 'invalid-slug', reason: 'slug 가 비어있습니다.' };
+  if (!SLUG_RE.test(slug)) {
+    return { kind: 'invalid-slug', reason: 'owner/repo 형식이 아닙니다.' };
+  }
+  // GitHub slug 제한: 100자 (owner) + 100자 (repo). 안전 마진 250.
+  if (slug.length > 250) return { kind: 'invalid-slug', reason: 'slug 가 너무 깁니다.' };
+
+  const existing = db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .get();
+  if (existing) return { kind: 'duplicate', existingId: existing.id };
+
+  const inserted = db
+    .insert(projects)
+    .values({
+      slug,
+      name: input.name?.trim() || slug,
+      installationId: null,
+      autoMergeEnabled: false,
+    })
+    .returning({ id: projects.id })
+    .get();
+  return { kind: 'added', id: inserted.id };
+}

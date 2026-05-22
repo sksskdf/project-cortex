@@ -105,8 +105,9 @@ export const ko = {
     },
     section: {
       active: '활성 (App 설치됨)',
-      seed: '시드 / 데모',
-      seedDesc: 'GitHub installation 이 없어 실 webhook 받지 못합니다 — 화면 확인용.',
+      seed: 'App 미설치 (대기 / 시드)',
+      seedDesc:
+        'GitHub installation 이 없어 webhook 을 받지 못합니다. App 설치 후 첫 webhook 도착 시 자동 연결됩니다.',
     },
     stat: {
       active: '활성 PR',
@@ -129,6 +130,23 @@ export const ko = {
     // 카드 통계 한 줄 — 활성 PR · 머지 누적 · 평균 신뢰.
     statInline: (active: number, merged: number, confidence: number) =>
       `활성 ${active} · 머지 ${merged} · 신뢰 ${confidence || '-'}`,
+    add: {
+      button: '프로젝트 추가',
+      title: '수동 레포 등록',
+      desc: 'GitHub App 미설치 상태에서도 레포를 미리 등록할 수 있어요. 설치 후 첫 webhook 도착 시 자동 연결됩니다.',
+      slugLabel: 'GitHub 슬러그 (owner/repo)',
+      slugPlaceholder: '예: vercel/next.js',
+      nameLabel: '표시 이름 (옵션)',
+      namePlaceholder: '비워두면 슬러그로 대체',
+      cancel: '취소',
+      submit: '등록',
+      result: {
+        added: '프로젝트를 등록했습니다.',
+        duplicate: '이미 등록된 슬러그입니다.',
+        invalidSlug: (reason: string) => `슬러그 오류: ${reason}`,
+        error: (message: string) => `처리 실패: ${message}`,
+      },
+    },
     drawer: {
       open: '로드맵 열기',
       title: '로드맵',
@@ -673,6 +691,9 @@ export const ko = {
     removeConfirm: (path: string) => `${path} 등록을 해제할까요?`,
     removeConfirmYes: '해제',
     removeConfirmNo: '취소',
+    openIn: 'IDE 에서 열기',
+    openVscode: 'VS Code',
+    openCursor: 'Cursor',
     pullButton: 'git pull',
     pullPending: 'git pull 중…',
     lastPull: (ago: string) => `마지막: ${ago}`,
