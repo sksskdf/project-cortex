@@ -116,6 +116,8 @@ export const ko = {
       sync: '동기화',
       roadmap: '로드맵',
     },
+    autoMergeAria: (enabled: boolean) =>
+      enabled ? '자동 머지 켜짐 — 누르면 끔' : '자동 머지 꺼짐 — 누르면 켬',
     seedBadge: '시드',
     progress: {
       label: '진척',
@@ -218,6 +220,7 @@ export const ko = {
       openOf: (open: number, total: number) => `${open} / ${total}건 남음`,
       allDone: '모두 완료',
       groupEmpty: '이 Phase 의 항목이 없습니다.',
+      prLinkTip: '이 항목을 완료한 PR 로 이동',
     },
     sourceBadge: {
       git: 'git',
@@ -437,6 +440,13 @@ export const ko = {
       'cluster-created': '새 클러스터',
       'revert-detected': 'Revert 감지',
     },
+    // Phase 10.2 후속 — 브라우저 Notification 권한 상태 UI.
+    browserPerm: {
+      enable: '브라우저 알림 켜기',
+      granted: '브라우저 알림 켜짐',
+      denied: '브라우저 알림 차단됨',
+      deniedHint: '브라우저 설정에서 알림 권한을 허용해 주세요.',
+    },
   },
   settings: {
     title: '설정',
@@ -472,11 +482,13 @@ export const ko = {
       cta: '프로젝트 페이지로 →',
     },
     reconcile: {
-      button: 'GitHub 와 동기화',
+      button: 'PR 동기화',
       pending: '동기화 중…',
       result: {
         reconciled: (slug: string, total: number, inserted: number, updated: number) =>
-          `${slug} — 총 ${total}건 (신규 ${inserted} · 갱신 ${updated}). AI 분석은 안 했어요.`,
+          total === 0
+            ? `${slug} — 최근 갱신된 PR 이 없어요.`
+            : `${slug} — 총 ${total}건 (신규 ${inserted} · 갱신 ${updated}). AI 분석은 안 했어요.`,
         error: (message: string) => `동기화 실패: ${message}`,
       },
     },

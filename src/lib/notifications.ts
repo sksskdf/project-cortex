@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, notifications, prs, projects } from '@/db/schema';
 import type { NotificationRow } from '@/db/schema';
+import { broadcastNotification } from './events';
 
 // 헤더 알림 드롭다운에 보이는 행 한 줄.
 export type NotificationKind = NotificationRow['kind'];
@@ -114,16 +115,24 @@ export function createNotification(input: CreateNotificationInput): {
       .where(eq(clusters.id, input.clusterId))
       .get();
     if (!cluster) return { kind: 'skipped' };
+    const title = `새 클러스터: ${cluster.title}`;
+    const body = `${input.size}개 PR 이 묶였습니다.`;
     const row = db
       .insert(notifications)
       .values({
         kind: 'cluster-created',
         clusterId: input.clusterId,
-        title: `새 클러스터: ${cluster.title}`,
-        body: `${input.size}개 PR 이 묶였습니다.`,
+        title,
+        body,
       })
       .returning({ id: notifications.id })
       .get();
+    safeBroadcast({
+      kind: 'cluster-created',
+      title,
+      body,
+      href: `/cluster/${input.clusterId}`,
+    });
     return { kind: 'created', id: row.id };
   }
 
@@ -183,7 +192,27 @@ export function createNotification(input: CreateNotificationInput): {
     })
     .returning({ id: notifications.id })
     .get();
+  safeBroadcast({
+    kind: input.kind,
+    title: titleAndBody.title,
+    body: titleAndBody.body,
+    href: `/pr/${pr.id}`,
+  });
   return { kind: 'created', id: row.id };
+}
+
+// broadcast 실패가 DB 흐름을 망가뜨리지 않게 — best-effort.
+function safeBroadcast(payload: {
+  kind: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+}): void {
+  try {
+    broadcastNotification(payload);
+  } catch (err) {
+    console.error('notification broadcast failed:', err);
+  }
 }
 
 // PR title prefix 검사 — GitHub revert UI 가 만드는 PR 은 "Revert " 로 시작.

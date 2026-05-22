@@ -3,6 +3,7 @@
 // Phase 10 — /projects/[id]/roadmap 의 메인 UI. Phase 카드 리스트 + 산출물 체크박스.
 // Phase 추가 form / 산출물 추가 inline / 상태 변경 select / 삭제 confirm 패널 모두 내장.
 
+import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import {
@@ -362,9 +363,18 @@ function ItemRow({ projectId, item }: { projectId: number; item: RoadmapItemView
       </label>
       <SourceBadge source={item.source} overridden={item.overridden} />
       {item.doneByPrId !== null && (
-        <span className={styles.itemAutoDone} title={t.roadmap.item.autoDoneTip(item.doneByPrId)}>
-          {t.roadmap.item.autoDoneBadge}
-        </span>
+        <>
+          <Link
+            href={`/pr/${item.doneByPrId}`}
+            className={styles.prLink}
+            title={t.roadmap.item.autoDoneTip(item.doneByPrId)}
+          >
+            #{item.doneByPrNumber ?? item.doneByPrId}
+          </Link>
+          <span className={styles.itemAutoDone} title={t.roadmap.item.autoDoneTip(item.doneByPrId)}>
+            {t.roadmap.item.autoDoneBadge}
+          </span>
+        </>
       )}
       <button
         type="button"

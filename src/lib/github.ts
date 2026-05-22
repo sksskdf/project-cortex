@@ -270,45 +270,42 @@ export type PRListItem = {
   updatedAt: Date;
 };
 
+// Phase 8 reconcile — 다운타임 회복 + GitHub 에서 직접 머지/닫은 PR 의 status 갱신.
+// state='all' + sort='updated' desc — 최근 갱신된 PR 부터 1 페이지만 (오래된 closed PR
+// 들이 폭주하지 않게). 100건 한도면 단일 사용자 시나리오에 충분.
+//
+// 함수명은 기존 호출처 호환을 위해 listOpenPullRequests 유지. 의미는 "최근 갱신 PR 리스트"
+// 로 확장됨 — open 뿐 아니라 closed/merged 포함.
 export async function listOpenPullRequests(
   installationId: number,
   ref: RepoRef,
 ): Promise<PRListItem[]> {
   const octokit = await getOctokitForInstallation(installationId);
-  const all: PRListItem[] = [];
-  let page = 1;
-  while (true) {
-    const { data } = await octokit.pulls.list({
-      owner: ref.owner,
-      repo: ref.repo,
-      state: 'open',
-      per_page: 100,
-      page,
-    });
-    if (data.length === 0) break;
-    for (const pr of data) {
-      all.push({
-        number: pr.number,
-        title: pr.title,
-        body: pr.body ?? null,
-        headSha: pr.head.sha,
-        state: pr.state as 'open' | 'closed',
-        merged: false, // open PR 만 fetch — 무조건 false.
-        authorLogin: pr.user?.login ?? 'unknown',
-        authorType: pr.user?.type,
-        // pulls.list 는 body 가 짧게 잘려 올 수 있지만 marker 검사에는 충분 (footer).
-        authorBody: pr.body ?? null,
-        additions: 0, // list endpoint 는 stats 미포함 — 0 으로 두고 다음 sync 시 갱신.
-        deletions: 0,
-        changedFiles: 0,
-        createdAt: new Date(pr.created_at),
-        updatedAt: new Date(pr.updated_at),
-      });
-    }
-    if (data.length < 100) break;
-    page += 1;
-  }
-  return all;
+  const { data } = await octokit.pulls.list({
+    owner: ref.owner,
+    repo: ref.repo,
+    state: 'all',
+    sort: 'updated',
+    direction: 'desc',
+    per_page: 100,
+  });
+  return data.map((pr) => ({
+    number: pr.number,
+    title: pr.title,
+    body: pr.body ?? null,
+    headSha: pr.head.sha,
+    state: pr.state as 'open' | 'closed',
+    // pulls.list 는 merged 별도 필드 없음 — merged_at 으로 판단.
+    merged: pr.merged_at !== null,
+    authorLogin: pr.user?.login ?? 'unknown',
+    authorType: pr.user?.type,
+    authorBody: pr.body ?? null,
+    additions: 0, // list endpoint 는 stats 미포함 — 0 으로 두고 다음 sync 시 갱신.
+    deletions: 0,
+    changedFiles: 0,
+    createdAt: new Date(pr.created_at),
+    updatedAt: new Date(pr.updated_at),
+  }));
 }
 
 // PR 의 리뷰 목록 — 사용자가 보낸 변경 요청 (REQUEST_CHANGES) · 승인 (APPROVED) ·

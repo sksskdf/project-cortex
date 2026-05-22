@@ -104,16 +104,19 @@ export function NotificationDropdown({
         <div className={styles.panel} role="dialog" aria-label={t.notifications.title}>
           <div className={styles.panelHead}>
             <span className={styles.panelTitle}>{t.notifications.title}</span>
-            {notifications.some((n) => !n.read) && (
-              <button
-                type="button"
-                className={styles.markAllBtn}
-                onClick={onMarkAll}
-                aria-label={t.notifications.markAllReadAria}
-              >
-                {t.notifications.markAllRead}
-              </button>
-            )}
+            <div className={styles.panelHeadActions}>
+              <BrowserPermissionButton />
+              {notifications.some((n) => !n.read) && (
+                <button
+                  type="button"
+                  className={styles.markAllBtn}
+                  onClick={onMarkAll}
+                  aria-label={t.notifications.markAllReadAria}
+                >
+                  {t.notifications.markAllRead}
+                </button>
+              )}
+            </div>
           </div>
 
           {notifications.length === 0 ? (
@@ -154,5 +157,43 @@ function NotificationContent({ n }: { n: NotificationView }) {
         {n.body && <div className={styles.itemBodyText}>{n.body}</div>}
       </div>
     </>
+  );
+}
+
+// Phase 10.2 후속 — 브라우저 Notification 권한 요청 버튼.
+// 권한 default → "켜기" 버튼 / granted → "켜져 있음" / denied → "차단됨 (브라우저 설정)".
+function BrowserPermissionButton() {
+  const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>('default');
+
+  useEffect(() => {
+    if (typeof Notification === 'undefined') {
+      setPerm('unsupported');
+      return;
+    }
+    setPerm(Notification.permission);
+  }, []);
+
+  if (perm === 'unsupported') return null;
+  if (perm === 'granted') {
+    return <span className={styles.permGranted}>{t.notifications.browserPerm.granted}</span>;
+  }
+  if (perm === 'denied') {
+    return (
+      <span className={styles.permDenied} title={t.notifications.browserPerm.deniedHint}>
+        {t.notifications.browserPerm.denied}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={styles.permBtn}
+      onClick={async () => {
+        const result = await Notification.requestPermission();
+        setPerm(result);
+      }}
+    >
+      {t.notifications.browserPerm.enable}
+    </button>
   );
 }

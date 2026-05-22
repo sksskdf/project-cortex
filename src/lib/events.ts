@@ -19,5 +19,37 @@ if (!globalThis.__cortexEvents) {
 }
 
 export type CortexEvent =
-  | { type: 'sync'; prId: number; kind: 'inserted' | 'updated' }
+  | { type: 'sync'; prId?: number; kind?: 'inserted' | 'updated' }
   | { type: 'connected' };
+
+// Phase 10.2 후속 — 새 알림 발생 시 브라우저 Notification 표시용 payload.
+// notifications 테이블에 row insert 시점에 함께 emit.
+export type NotificationEvent = {
+  type: 'notification';
+  kind: string; // NotificationKind
+  title: string;
+  body: string | null;
+  href: string | null;
+};
+
+// SSE route 에 추가로 listen 할 이벤트.
+export const NOTIFICATION_EVENT = 'notification' as const;
+
+// broadcast wrapper — 기존 'sync' 흐름 호환. notification 은 별도 채널.
+export function broadcastSync(payload?: Partial<CortexEvent>): void {
+  events.emit('sync', { type: 'sync', ...payload });
+}
+
+export function broadcastNotification(payload: Omit<NotificationEvent, 'type'>): void {
+  events.emit(NOTIFICATION_EVENT, { type: 'notification', ...payload });
+}
+
+// 기존 호출자 호환 — `events.broadcast({type: 'sync'})` 패턴.
+// declare module 대신 별도 export 로 wrapper 제공.
+export function broadcast(event: CortexEvent | NotificationEvent): void {
+  if (event.type === 'notification') {
+    events.emit(NOTIFICATION_EVENT, event);
+  } else {
+    events.emit('sync', event);
+  }
+}
