@@ -173,6 +173,34 @@ export const ko = {
       phaseLabel: (key: string) => `PHASE-${key}`,
       itemLabel: (id: number) => `ITEM-${id}`,
     },
+    // Phase 10.1 — .cortex/ 동기화 + open items 패널 + source 배지.
+    sync: {
+      button: '.cortex 동기화',
+      pending: '동기화 중…',
+      result: {
+        synced: (phases: number, items: number) =>
+          `동기화 완료 — Phase ${phases}건 · 산출물 ${items}건 갱신.`,
+        noMetaFile: '.cortex/project.yml 이 없습니다 — 레포에 추가 후 다시 시도.',
+        noInstallation: 'GitHub App 설치가 없어 동기화 불가.',
+        noProject: '프로젝트를 찾을 수 없습니다.',
+        parseError: (message: string) => `메타 파싱 실패: ${message}`,
+        error: (message: string) => `동기화 실패: ${message}`,
+      },
+    },
+    openItems: {
+      title: '남은 작업',
+      ariaLabel: '진행 중 + 예정 산출물 목록',
+      empty: '남은 작업이 없습니다 — 모두 완료되었어요.',
+      count: (n: number) => `${n}건`,
+      // open items 패널의 한 줄: phase key + item title.
+      phaseRef: (phaseKey: string) => `PHASE-${phaseKey}`,
+    },
+    sourceBadge: {
+      git: 'git',
+      gitTip: '.cortex/roadmap.md 에서 가져옴 — 다음 동기화 시 갱신',
+      override: '사용자 수정',
+      overrideTip: 'git 항목을 사용자가 수정함 — 다음 동기화 시 충돌 표기',
+    },
   },
   // 인박스 / 대시보드 행 인라인 액션 — PR 상세 안 들어가도 빠르게 머지·닫기·삭제 가능.
   row: {

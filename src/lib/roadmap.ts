@@ -9,6 +9,7 @@ import { db } from '@/db/client';
 import { projects, prs, roadmapItems, roadmapPhases, type RoadmapItemRow } from '@/db/schema';
 
 export type RoadmapStatus = 'planned' | 'in-progress' | 'done';
+export type RoadmapSource = 'git' | 'manual';
 
 export type RoadmapItemView = {
   id: number;
@@ -18,6 +19,9 @@ export type RoadmapItemView = {
   status: RoadmapStatus;
   doneByPrId: number | null;
   sortOrder: number;
+  // Phase 10.1 — data origin + 사용자 수정 마크.
+  source: RoadmapSource;
+  overridden: boolean; // sourceOverrideAt !== null
 };
 
 export type RoadmapPhaseView = {
@@ -31,6 +35,20 @@ export type RoadmapPhaseView = {
   items: RoadmapItemView[];
   // 진척 계산 — items 의 done 비율 (정수 %). items 가 0 개면 phase.status 기반.
   progressPct: number;
+  source: RoadmapSource;
+  overridden: boolean;
+};
+
+// Phase 10.1 — 사용자 시그널 ("남은 작업 목록을 확인할 수 있어야 함"). Phase 카드와
+// 별개로 진행 중 + 예정 item 만 모은 평탄 리스트.
+export type OpenItemView = {
+  id: number;
+  title: string;
+  status: 'planned' | 'in-progress';
+  phaseId: number;
+  phaseKey: string;
+  phaseTitle: string;
+  source: RoadmapSource;
 };
 
 export type ProjectRoadmapView = {
@@ -38,9 +56,12 @@ export type ProjectRoadmapView = {
   projectSlug: string;
   projectName: string;
   phases: RoadmapPhaseView[];
+  openItems: OpenItemView[];
   // 프로젝트 전체 진척 — 모든 phase 의 items 의 done 비율 가중 평균.
   // items 가 하나도 없으면 phases.done / phases.total.
   overallPct: number;
+  totalItems: number;
+  doneItems: number;
 };
 
 function rowToItemView(row: RoadmapItemRow): RoadmapItemView {
@@ -52,6 +73,8 @@ function rowToItemView(row: RoadmapItemRow): RoadmapItemView {
     status: row.status as RoadmapStatus,
     doneByPrId: row.doneByPrId,
     sortOrder: row.sortOrder,
+    source: row.source as RoadmapSource,
+    overridden: row.sourceOverrideAt !== null,
   };
 }
 
@@ -108,26 +131,46 @@ export function getProjectRoadmap(projectId: number): ProjectRoadmapView | null 
       sortOrder: p.sortOrder,
       items,
       progressPct: calcPhaseProgress(items, p.status as RoadmapStatus),
+      source: p.source as RoadmapSource,
+      overridden: p.sourceOverrideAt !== null,
     };
   });
 
   // 프로젝트 전체 진척 — 전체 items 의 done 비율. items 0 이면 phases.done / phases.total.
   const allItems = phases.flatMap((p) => p.items);
+  const doneCount = allItems.filter((i) => i.status === 'done').length;
   let overallPct = 0;
   if (allItems.length > 0) {
-    const doneItems = allItems.filter((i) => i.status === 'done').length;
-    overallPct = Math.round((doneItems / allItems.length) * 100);
+    overallPct = Math.round((doneCount / allItems.length) * 100);
   } else if (phases.length > 0) {
     const donePhases = phases.filter((p) => p.status === 'done').length;
     overallPct = Math.round((donePhases / phases.length) * 100);
   }
+
+  // 사용자 시그널: "남은 작업 목록을 확인할 수 있어야 함". open items 만 평탄화.
+  const openItems: OpenItemView[] = phases.flatMap((phase) =>
+    phase.items
+      .filter((it) => it.status !== 'done')
+      .map((it) => ({
+        id: it.id,
+        title: it.title,
+        status: it.status as 'planned' | 'in-progress',
+        phaseId: phase.id,
+        phaseKey: phase.key,
+        phaseTitle: phase.title,
+        source: it.source,
+      })),
+  );
 
   return {
     projectId: project.id,
     projectSlug: project.slug,
     projectName: project.name,
     phases,
+    openItems,
     overallPct,
+    totalItems: allItems.length,
+    doneItems: doneCount,
   };
 }
 
@@ -224,15 +267,17 @@ export function updatePhaseStatus(
   status: RoadmapStatus,
 ): { kind: 'updated' } | { kind: 'not-found' } {
   const existing = db
-    .select({ id: roadmapPhases.id })
+    .select({ id: roadmapPhases.id, source: roadmapPhases.source })
     .from(roadmapPhases)
     .where(eq(roadmapPhases.id, phaseId))
     .get();
   if (!existing) return { kind: 'not-found' };
-  db.update(roadmapPhases)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(roadmapPhases.id, phaseId))
-    .run();
+  // git source 행을 수정하면 sourceOverrideAt 마킹 — 다음 sync 가 덮어쓰지 않게.
+  const updates: Record<string, unknown> = { status, updatedAt: new Date() };
+  if (existing.source === 'git') {
+    updates.sourceOverrideAt = new Date();
+  }
+  db.update(roadmapPhases).set(updates).where(eq(roadmapPhases.id, phaseId)).run();
   return { kind: 'updated' };
 }
 
@@ -284,16 +329,22 @@ export function toggleItemStatus(
   status: RoadmapStatus,
 ): { kind: 'updated' } | { kind: 'not-found' } {
   const existing = db
-    .select({ id: roadmapItems.id })
+    .select({ id: roadmapItems.id, source: roadmapItems.source })
     .from(roadmapItems)
     .where(eq(roadmapItems.id, itemId))
     .get();
   if (!existing) return { kind: 'not-found' };
   // 수동 toggle 이면 doneByPrId 는 null 로 (자동 done 추적 끊김).
-  db.update(roadmapItems)
-    .set({ status, doneByPrId: null, updatedAt: new Date() })
-    .where(eq(roadmapItems.id, itemId))
-    .run();
+  // git source 행을 수정하면 sourceOverrideAt 마킹 — 다음 sync 가 덮어쓰지 않게.
+  const updates: Record<string, unknown> = {
+    status,
+    doneByPrId: null,
+    updatedAt: new Date(),
+  };
+  if (existing.source === 'git') {
+    updates.sourceOverrideAt = new Date();
+  }
+  db.update(roadmapItems).set(updates).where(eq(roadmapItems.id, itemId)).run();
   return { kind: 'updated' };
 }
 

@@ -1,0 +1,99 @@
+.section {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-16) var(--ds-spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-15);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.count {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.empty {
+  padding: var(--ds-spacing-12) 0;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-6) var(--ds-spacing-8);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.item:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.dotPlanned {
+  background: var(--ds-color-line-02);
+}
+
+.dotInProgress {
+  background: var(--ds-color-state-warning-base);
+}
+
+.phaseRef {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+  min-width: 90px;
+}
+
+.itemTitle {
+  color: var(--ds-color-text-03-high);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceGit {
+  padding: 2px var(--ds-spacing-8);
+  border-radius: 999px;
+  background: var(--ds-color-soft-blue, var(--ds-color-bg-01));
+  color: var(--ds-color-text-04-primary, var(--ds-color-text-02));
+  font-size: var(--ds-typography-font-size-10);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  font-family: var(--ds-typography-font-family-number);
+  text-transform: uppercase;
+}

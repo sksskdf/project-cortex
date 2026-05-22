@@ -1,0 +1,27 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  flex-wrap: wrap;
+}
+
+.result {
+  padding: var(--ds-spacing-6) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.resultSuccess {
+  background: var(--ds-color-soft-green);
+  color: var(--ds-color-state-success-text-dark);
+}
+
+.resultWarn {
+  background: var(--ds-color-soft-yellow, var(--ds-color-bg-01));
+  color: var(--ds-color-state-warning-text-dark, var(--ds-color-text-02));
+}
+
+.resultError {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}

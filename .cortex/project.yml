@@ -1,0 +1,19 @@
+schema: 1
+name: Project Cortex
+slug: sksskdf/project-cortex
+description: AI 코드 게이트키퍼 — PR 흐름을 관리하는 단일 사용자 도구
+kind: web-app
+status: active
+domain: code-review
+owners:
+  - sksskdfg123
+tech:
+  language: TypeScript
+  framework: Next.js 15
+  database: SQLite
+links:
+  issue_tracker: github
+automation:
+  auto_merge: true
+  ai_review: true
+  auto_resolve_changes: false
