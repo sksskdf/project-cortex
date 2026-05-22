@@ -51,12 +51,31 @@ export type OpenItemView = {
   source: RoadmapSource;
 };
 
+// Phase 10.1 후속 — 남은 작업을 Phase 별로 그룹핑 + 펼치기/접기 위한 구조.
+// 사용자 시그널 (2026-05-22): "남은 작업의 PHASE 별로 클릭했을 때 토글로 펼쳐지면서
+// 상세 내용도 보였으면 좋겠음". phaseGoal + items 모두 한 그룹 안에.
+export type OpenItemGroupView = {
+  phaseId: number;
+  phaseKey: string;
+  phaseTitle: string;
+  phaseGoal: string | null;
+  // 그룹 내 진행 중 + 예정 item 수 (헤더에 노출).
+  openCount: number;
+  // 그룹 내 전체 item 수 — 진척 표시 ('완료 N/M').
+  totalCount: number;
+  doneCount: number;
+  items: OpenItemView[];
+};
+
 export type ProjectRoadmapView = {
   projectId: number;
   projectSlug: string;
   projectName: string;
   phases: RoadmapPhaseView[];
   openItems: OpenItemView[];
+  // Open items 를 Phase 별로 그룹핑한 뷰 — 빈 그룹 (모든 item done) 도 포함해서
+  // Phase 진척 한눈 + 펼치기 가능. UI 가 collapsed by default 로 렌더.
+  openItemGroups: OpenItemGroupView[];
   // 프로젝트 전체 진척 — 모든 phase 의 items 의 done 비율 가중 평균.
   // items 가 하나도 없으면 phases.done / phases.total.
   overallPct: number;
@@ -162,12 +181,36 @@ export function getProjectRoadmap(projectId: number): ProjectRoadmapView | null 
       })),
   );
 
+  // Phase 별 그룹 — open items 없는 phase 도 포함 (UI 가 진척만 표시하고 펼치면 빈 상태).
+  // phase 순서 유지 (sortOrder + id).
+  const openItemsByPhaseId = new Map<number, OpenItemView[]>();
+  for (const it of openItems) {
+    const list = openItemsByPhaseId.get(it.phaseId) ?? [];
+    list.push(it);
+    openItemsByPhaseId.set(it.phaseId, list);
+  }
+  const openItemGroups: OpenItemGroupView[] = phases.map((phase) => {
+    const items = openItemsByPhaseId.get(phase.id) ?? [];
+    const doneInPhase = phase.items.filter((i) => i.status === 'done').length;
+    return {
+      phaseId: phase.id,
+      phaseKey: phase.key,
+      phaseTitle: phase.title,
+      phaseGoal: phase.goal,
+      openCount: items.length,
+      totalCount: phase.items.length,
+      doneCount: doneInPhase,
+      items,
+    };
+  });
+
   return {
     projectId: project.id,
     projectSlug: project.slug,
     projectName: project.name,
     phases,
     openItems,
+    openItemGroups,
     overallPct,
     totalItems: allItems.length,
     doneItems: doneCount,
@@ -181,6 +224,45 @@ export type ProjectProgress = {
   phaseCount: number;
   donePhaseCount: number;
 };
+
+// 대시보드 프로젝트 위젯 — 모든 active 프로젝트의 진척 한눈. 사용자 시그널 (2026-05-22):
+// "대시보드에서도 프로젝트 관련 뷰잉 위젯이 있으면 좋을 것 같고".
+export type DashboardProjectRow = {
+  projectId: number;
+  slug: string;
+  name: string;
+  overallPct: number;
+  openItemCount: number;
+  totalItems: number;
+  doneItems: number;
+};
+
+export function listDashboardProjects(): DashboardProjectRow[] {
+  const projectRows = db
+    .select({
+      id: projects.id,
+      slug: projects.slug,
+      name: projects.name,
+      installationId: projects.installationId,
+    })
+    .from(projects)
+    .all();
+
+  // installation 있는 프로젝트만 (시드 제외 — 대시보드 진척은 실 프로젝트만).
+  const active = projectRows.filter((p) => p.installationId !== null);
+  return active.map((p) => {
+    const view = getProjectRoadmap(p.id);
+    return {
+      projectId: p.id,
+      slug: p.slug,
+      name: p.name,
+      overallPct: view?.overallPct ?? 0,
+      openItemCount: view?.openItems.length ?? 0,
+      totalItems: view?.totalItems ?? 0,
+      doneItems: view?.doneItems ?? 0,
+    };
+  });
+}
 
 export function getProjectProgress(projectId: number): ProjectProgress {
   const phaseRows = db

@@ -1,8 +1,12 @@
-// Phase 10.1 — 사용자 시그널 ("남은 작업 목록을 확인할 수 있어야 함"). Phase 카드와
-// 별개로 진행 중 + 예정 산출물만 모은 평탄 리스트. 한눈에 "다음에 뭐 할지" 가시.
+'use client';
 
+// Phase 10.1 후속 — 남은 작업 Phase 별 그룹 + 펼치기/접기.
+// 사용자 시그널 (2026-05-22): "PHASE 별로 클릭했을 때 토글로 펼쳐지면서 상세 내용도".
+// 디폴트: open items 있는 그룹만 펼침 (모두 done 인 phase 는 접힘).
+
+import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
-import type { OpenItemView } from '@/lib/roadmap';
+import type { OpenItemGroupView } from '@/lib/roadmap';
 import styles from './RoadmapOpenItems.module.css';
 
 const statusDotClass: Record<'planned' | 'in-progress', string> = {
@@ -10,27 +14,70 @@ const statusDotClass: Record<'planned' | 'in-progress', string> = {
   'in-progress': styles.dotInProgress,
 };
 
-export function RoadmapOpenItems({ items }: { items: ReadonlyArray<OpenItemView> }) {
+export function RoadmapOpenItems({ groups }: { groups: ReadonlyArray<OpenItemGroupView> }) {
+  const totalOpen = groups.reduce((sum, g) => sum + g.openCount, 0);
+
   return (
     <section className={styles.section} aria-label={t.roadmap.openItems.ariaLabel}>
       <header className={styles.head}>
         <h2 className={styles.title}>{t.roadmap.openItems.title}</h2>
-        <span className={styles.count}>{t.roadmap.openItems.count(items.length)}</span>
+        <span className={styles.count}>{t.roadmap.openItems.count(totalOpen)}</span>
       </header>
-      {items.length === 0 ? (
+      {totalOpen === 0 ? (
         <div className={styles.empty}>{t.roadmap.openItems.empty}</div>
       ) : (
-        <ul className={styles.list}>
-          {items.map((it) => (
-            <li key={it.id} className={styles.item}>
-              <span className={`${styles.dot} ${statusDotClass[it.status]}`} aria-hidden />
-              <span className={styles.phaseRef}>{t.roadmap.openItems.phaseRef(it.phaseKey)}</span>
-              <span className={styles.itemTitle}>{it.title}</span>
-              {it.source === 'git' && <span className={styles.sourceGit}>git</span>}
-            </li>
+        <ul className={styles.groupList}>
+          {groups.map((group) => (
+            <PhaseGroup key={group.phaseId} group={group} />
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function PhaseGroup({ group }: { group: OpenItemGroupView }) {
+  // 디폴트: open 있으면 펼침, 다 done 이면 접힘.
+  const [expanded, setExpanded] = useState(group.openCount > 0);
+  const allDone = group.openCount === 0 && group.totalCount > 0;
+
+  return (
+    <li className={`${styles.group} ${allDone ? styles.groupDone : ''}`}>
+      <button
+        type="button"
+        className={styles.groupHead}
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        <span className={styles.chevron} aria-hidden>
+          {expanded ? '▾' : '▸'}
+        </span>
+        <span className={styles.phaseRef}>{t.roadmap.openItems.phaseRef(group.phaseKey)}</span>
+        <span className={styles.phaseTitle}>{group.phaseTitle}</span>
+        <span className={styles.groupMeta}>
+          {allDone
+            ? t.roadmap.openItems.allDone
+            : t.roadmap.openItems.openOf(group.openCount, group.totalCount)}
+        </span>
+      </button>
+      {expanded && (
+        <div className={styles.groupBody}>
+          {group.phaseGoal && <p className={styles.phaseGoal}>{group.phaseGoal}</p>}
+          {group.items.length === 0 ? (
+            <div className={styles.groupEmpty}>{t.roadmap.openItems.groupEmpty}</div>
+          ) : (
+            <ul className={styles.itemList}>
+              {group.items.map((it) => (
+                <li key={it.id} className={styles.item}>
+                  <span className={`${styles.dot} ${statusDotClass[it.status]}`} aria-hidden />
+                  <span className={styles.itemTitle}>{it.title}</span>
+                  {it.source === 'git' && <span className={styles.sourceGit}>git</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

@@ -6,4 +6,5 @@ export const currentUser: CurrentUser = {
   name: '현우',
   role: '엔지니어링 리드',
   initials: 'HW',
+  githubLogin: 'sksskdfg123',
 };
