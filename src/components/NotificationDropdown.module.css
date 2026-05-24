@@ -205,44 +205,70 @@
   gap: var(--ds-spacing-8);
 }
 
-/* 브라우저 알림 권한 토글 — 작은 ON/OFF chip 형태 (사용자 시그널: 큰 버튼 X) */
-.permToggle {
+/* 브라우저 알림 권한 — 진짜 슬라이딩 스위치 (track + knob).
+   라벨은 좌측 별도. ON 시 track 초록 + knob 우측, OFF 시 track 회색 + knob 좌측. */
+.permRow {
   display: inline-flex;
   align-items: center;
-  gap: var(--ds-spacing-4);
-  padding: 2px var(--ds-spacing-6);
-  border-radius: 999px;
-  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
-  background: transparent;
+  gap: var(--ds-spacing-8);
+}
+
+.permLabel {
+  font-size: var(--ds-typography-font-size-11);
   color: var(--ds-color-text-02);
-  font-size: var(--ds-typography-font-size-10);
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.permToggle:hover:not(:disabled) {
-  background: var(--ds-color-bg-01);
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ds-color-line-02);
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    opacity 0.18s ease;
+  flex-shrink: 0;
 }
 
-.permToggleOn {
-  background: var(--ds-color-soft-green);
-  color: var(--ds-color-state-success-text-dark);
-  border-color: transparent;
-  cursor: default;
+.switch:hover:not(:disabled) {
+  opacity: 0.85;
 }
 
-.permToggleDenied {
-  background: var(--ds-color-soft-red);
-  color: var(--ds-color-state-error-strong);
-  border-color: transparent;
+.switch:focus-visible {
+  outline: 2px solid var(--ds-color-state-info-accent);
+  outline-offset: 2px;
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.switchKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s ease;
+}
+
+.switchOn {
+  background: var(--ds-color-state-success-accent);
+}
+
+.switchOn .switchKnob {
+  transform: translateX(16px);
+}
+
+.switchDenied {
+  background: var(--ds-color-state-error-accent);
   cursor: help;
-}
-
-.permToggleLabel {
-  font-family: inherit;
-}
-
-.permToggleState {
-  font-family: var(--ds-typography-font-family-number);
-  font-weight: var(--ds-typography-font-weight-semibold);
 }
