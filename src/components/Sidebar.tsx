@@ -209,8 +209,8 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
 
   // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
   // /clusters: Phase 6 — 활성. /projects: Phase 8 — 활성.
-  // /agents: Phase 13 (Claude CLI 통합) 으로 이관 — 준비 중.
-  // /reports: Phase 7 — 준비 중. /help: 최하 우선순위 — 준비 중.
+  // /agents: Phase 13 (Claude CLI 터미널 임베드) — 활성.
+  // /reports: Phase 7 — 활성. /help: 최하 우선순위 — 준비 중.
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
     {
@@ -244,7 +244,6 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       label: t.nav.agents,
       icon: agentsIcon,
       count: counts.agents,
-      comingSoon: true,
     },
     {
       href: '/clusters',

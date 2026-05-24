@@ -709,6 +709,30 @@ export const ko = {
       error: (message: string) => `처리 실패: ${message}`,
     },
   },
+  // Phase 13 — Claude CLI 터미널 임베드 (/agents).
+  agents: {
+    title: '에이전트',
+    subtitle: '등록된 워크스페이스에서 Claude Code 를 실행합니다.',
+    pickerLabel: '워크스페이스',
+    start: 'Claude Code 시작',
+    stop: '세션 종료',
+    restart: '다시 시작',
+    placeholder: '워크스페이스를 고르고 시작을 누르면 터미널이 열립니다.',
+    hint: 'claude CLI 가 선택한 경로에서 실행됩니다. 사용자 Claude 플랜을 사용하며 별도 크레딧이 들지 않습니다.',
+    notReady: 'claude CLI 를 찾을 수 없습니다. 설치 후 다시 시도해 주세요.',
+    status: {
+      connecting: '연결 중…',
+      open: '실행 중',
+      closed: '세션 종료됨',
+      error: '연결 오류',
+    },
+    sessionEnd: (code: string) => `claude 세션 종료 — code ${code}`,
+    empty: {
+      title: '등록된 워크스페이스가 없습니다',
+      desc: '프로젝트에 로컬 워크스페이스를 먼저 등록해 주세요.',
+      cta: '프로젝트로 이동',
+    },
+  },
   // Phase 11 후속 — 자유 마크다운 메모.
   notes: {
     title: '메모',

@@ -74,6 +74,7 @@
 - GitHub 연동은 `@octokit/rest`를 `src/lib/github.ts` 어댑터로 감싸서 사용하고, 테스트는 Vitest(`npm run test`)를 기본으로 사용합니다.
 - Tailwind 안 씁니다. 디자인 시스템 토큰을 CSS Variable로 직접 사용합니다.
 - 폼 검증은 `zod`, 서버 호출은 React **Server Actions** 우선 (API route는 webhook 같은 경우만).
+- **터미널 임베드(Phase 13)는 커스텀 Next 서버(`server.ts`, `tsx` 실행)로 동작합니다** — App Router 가 WebSocket upgrade 를 못 해서. `claude` CLI 만 `node-pty` 로 spawn(화이트리스트, cwd=등록 워크스페이스)하고 `ws`(`/api/pty`)로 xterm.js 와 연결. **`npm run dev`/`start` 가 이 서버를 띄웁니다** (`next dev`/`next start` 아님). 새 dep: `@xterm/xterm`·`@xterm/addon-fit`·`node-pty`·`ws`.
 
 자세한 구조는 `docs/ARCHITECTURE.md`.
 

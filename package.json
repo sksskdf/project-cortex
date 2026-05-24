@@ -6,9 +6,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx server.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx server.ts",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
@@ -25,14 +25,18 @@
     "@octokit/auth-app": "^8.2.0",
     "@octokit/rest": "^21.0.0",
     "@octokit/webhooks-types": "^7.6.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "better-sqlite3": "^11.5.0",
     "drizzle-orm": "^0.36.0",
     "next": "^15.0.0",
+    "node-pty": "^1.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
     "remark-gfm": "^4.0.1",
+    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -40,6 +44,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^2.1.0",
     "drizzle-kit": "^0.28.0",
     "eslint": "^8.57.0",
