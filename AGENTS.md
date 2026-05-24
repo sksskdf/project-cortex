@@ -132,6 +132,7 @@
 - 브랜치명: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/` 접두사 + 짧은 이름.
   - 로드맵 phase 작업이면 **`feat/phase<key>-<짧은-이름>`** (예: `feat/phase11-todos`, `feat/phase11-12-todos-workspaces`). key 는 `.cortex/roadmap.md` 의 `## Phase <key>` 와 일치.
 - master로 **squash merge.** 한 PR = 한 변경 (§1.1과 동일 원칙).
+- **squash 누락 검증 (강한 룰).** PR 을 만든 뒤 추가 commit 을 같은 브랜치로 push 했다면, 머지 직전 PR 의 head SHA 가 마지막 push SHA 와 같은지 반드시 확인합니다. GitHub squash 가 머지 시점 이후 push 된 commit 을 빠뜨리는 사고가 PR #95·#100·#103 에서 세 번 반복됐습니다. 머지 후엔 `git show origin/master:<바뀐파일>` 로 실제 반영 여부를 한 번 더 확인합니다.
 - PR을 올릴 때 `.github/PULL_REQUEST_TEMPLATE.md`의 체크리스트를 채웁니다.
 - **PR 본문 최상단에 `Closes #PHASE-<key>` 필수** (해당 phase 있을 때). 머지 시 cascade 규칙이 그 phase 의 모든 미완료 item 옆에 `#PR번호` 링크 자동 표시. key 는 `.cortex/roadmap.md` grep 한 번이면 찾음. 여러 phase 닫는 PR 이면 줄을 늘립니다.
   ```
