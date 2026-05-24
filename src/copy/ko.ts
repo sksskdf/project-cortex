@@ -735,5 +735,10 @@ export const ko = {
       notFound: '메모를 찾을 수 없습니다.',
       generic: (message: string) => `처리 실패: ${message}`,
     },
+    widget: {
+      title: '핀 메모',
+      more: '전체 보기 →',
+      empty: '핀 고정한 메모가 없습니다.',
+    },
   },
 } as const;

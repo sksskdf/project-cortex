@@ -7,6 +7,7 @@ import {
   createNote,
   deleteNote,
   listNotes,
+  listPinnedNotes,
   previewWithMatch,
   updateNote,
 } from './notes';
@@ -74,6 +75,23 @@ describe('deleteNote', () => {
     if (r.kind !== 'created') throw new Error('setup');
     deleteNote(r.id);
     expect(countNotes()).toBe(0);
+  });
+});
+
+describe('listPinnedNotes', () => {
+  it('핀 고정만 반환', () => {
+    const a = createNote({ title: 'pinned' });
+    createNote({ title: 'normal' });
+    if (a.kind !== 'created') throw new Error('setup');
+    updateNote(a.id, { pinned: true });
+    const pinned = listPinnedNotes();
+    expect(pinned.length).toBe(1);
+    expect(pinned[0].title).toBe('pinned');
+  });
+
+  it('핀 0개면 빈 배열', () => {
+    createNote({ title: 'x' });
+    expect(listPinnedNotes()).toEqual([]);
   });
 });
 
