@@ -141,5 +141,20 @@ export function countNotes(): number {
   return db.select({ id: notes.id }).from(notes).all().length;
 }
 
+// 대시보드 위젯용 — 핀 고정 메모만, 최근 갱신 순. 핀 0개면 빈 배열.
+export function listPinnedNotes(limit = 5): NoteView[] {
+  const rows = db
+    .select()
+    .from(notes)
+    .where(eq(notes.pinned, true))
+    .orderBy(desc(notes.updatedAt))
+    .limit(limit)
+    .all();
+  // 대시보드 위젯은 메타 (project/pr) 표시 안 함 — 빈 맵으로 충분.
+  const empty = new Map<number, string>();
+  const emptyNum = new Map<number, number>();
+  return rows.map((r) => rowToView(r, empty, emptyNum));
+}
+
 // 검색 결과에서 매치 위치 highlight 용. lib/notes-preview.ts 로 분리 (클라이언트 안전).
 export { previewWithMatch } from './notes-preview';
