@@ -4,7 +4,7 @@
 
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { prs, projects, triageDecisions } from '@/db/schema';
+import { prs, projects, triageDecisions, type PRRecord } from '@/db/schema';
 import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
 import { createNotification } from './notifications';
 import { matchAndApplyDoneFromPR } from './roadmap';
@@ -19,7 +19,8 @@ export type AutoMergeResult =
         | 'no-installation'
         | 'wrong-status'
         | 'no-decision'
-        | 'not-auto-merge';
+        | 'not-auto-merge'
+        | 'in-progress';
     }
   | { kind: 'failed'; reason: string };
 
@@ -39,6 +40,9 @@ function isRaceMergeError(message: string): boolean {
   return RACE_ERROR_PATTERNS.some((re) => re.test(message));
 }
 
+// 같은 PR 에 대한 동시 머지 시도를 막는 in-process lock.
+const inFlightMerges = new Set<number>();
+
 export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
@@ -47,6 +51,22 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
   // 이미 머지/닫힘이면 멱등 skip.
   if (pr.status !== 'auto-mergeable') return { kind: 'skipped', reason: 'wrong-status' };
 
+  // 동시 실행 가드 — GitHub 가 같은 PR 의 여러 webhook (synchronize · check_run completed) 을
+  // 거의 동시에 보내면 attemptAutoMerge 가 병렬로 들어와, 한 호출은 머지 성공 (auto-merged 알림)·
+  // 다른 호출은 'already merged' 오류가 RACE 패턴에 안 걸려 revertToReviewNeeded 로 triage 를
+  // human-review 로 덮어쓴다 → 대시보드 '수동' 오분류 + 자동 카운트 누락 + 모순된 실패 알림.
+  // better-sqlite3 가 동기라 status 읽기~lock 획득 사이 yield 가 없어 in-process lock 으로 충분.
+  if (inFlightMerges.has(prId)) return { kind: 'skipped', reason: 'in-progress' };
+  inFlightMerges.add(prId);
+  try {
+    return await runAutoMerge(pr);
+  } finally {
+    inFlightMerges.delete(prId);
+  }
+}
+
+async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
+  const prId = pr.id;
   const decision = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
   if (!decision) return { kind: 'skipped', reason: 'no-decision' };
   if (decision.decision !== 'auto-merge') return { kind: 'skipped', reason: 'not-auto-merge' };

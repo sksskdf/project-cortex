@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
-import { findClaudeCommand } from '@/lib/agents';
+import { resolveClaude } from '@/lib/agents';
 
 export const PTY_PATH = '/api/pty';
 const MAX_SESSIONS = 8;
@@ -68,8 +68,8 @@ function startSession(ws: WebSocket, params: URLSearchParams) {
   }
 
   // 명령은 클라이언트가 못 고릅니다 — 서버가 화이트리스트에서 선택.
-  const command = findClaudeCommand();
-  if (!command) {
+  const claude = resolveClaude();
+  if (!claude) {
     sysClose(ws, 'claude CLI 를 찾을 수 없습니다.');
     return;
   }
@@ -77,9 +77,15 @@ function startSession(ws: WebSocket, params: URLSearchParams) {
   const cols = clampDim(params.get('cols'), DEFAULT_COLS);
   const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
 
+  // Windows 전역 npm bin 은 claude.cmd/.bat (배치 스크립트) — node-pty(ConPTY)가 직접
+  // CreateProcess 로 실행 못 하므로 cmd.exe /c 로 감쌉니다. POSIX 는 resolve 된 경로 직접 실행.
+  const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claude.path);
+  const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : claude.path;
+  const args = isWinScript ? ['/c', claude.path] : [];
+
   let proc: IPty;
   try {
-    proc = spawn(command, [], {
+    proc = spawn(file, args, {
       name: 'xterm-256color',
       cwd: workspace.localPath,
       cols,

@@ -159,6 +159,36 @@ describe('attemptAutoMerge', () => {
     expect(second).toEqual({ kind: 'skipped', reason: 'wrong-status' });
     expect(mergeMock).toHaveBeenCalledTimes(1);
   });
+
+  it('동시 호출은 한 번만 머지 — race 로 인한 모순 알림/triage 오염 없음', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: true, sha: 'merged-sha' } });
+    setOctokit(mockOctokit(mergeMock));
+    const prId = setupPR({ decision: 'auto-merge' });
+
+    // 두 호출을 동시에 — 첫 호출이 await 에 들어가기 전에 inFlight lock 을 동기적으로 잡으므로
+    // 둘째 호출은 lock 을 보고 즉시 in-progress 로 빠진다 (mergePR 은 한 번만 호출).
+    const [r1, r2] = await Promise.all([attemptAutoMerge(prId), attemptAutoMerge(prId)]);
+
+    // 하나는 머지 성공, 다른 하나는 lock 으로 skip(in-progress). mergePR 은 단 한 번.
+    const results = [r1, r2];
+    expect(results.map((r) => r.kind).sort()).toEqual(['merged', 'skipped']);
+    const skipped = results.find((r) => r.kind === 'skipped');
+    expect(skipped?.kind === 'skipped' && skipped.reason).toBe('in-progress');
+    expect(mergeMock).toHaveBeenCalledTimes(1);
+
+    // 모순된 실패 알림 없음 — auto-merged 1건, auto-merge-failed 0건.
+    expect(
+      db.select().from(notifications).where(eq(notifications.kind, 'auto-merged')).all(),
+    ).toHaveLength(1);
+    expect(
+      db.select().from(notifications).where(eq(notifications.kind, 'auto-merge-failed')).all(),
+    ).toHaveLength(0);
+
+    // triage decision 보존 — 대시보드가 '자동' 으로 분류 + 자동 카운트 반영.
+    const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
+    expect(td?.decision).toBe('auto-merge');
+    expect(td?.decidedBy).toBe('system');
+  });
 });
 
 describe('attemptHumanMerge', () => {
