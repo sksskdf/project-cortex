@@ -76,13 +76,10 @@ describe('decideTriage', () => {
     expect(r.reason).toContain('CI 결과');
   });
 
-  it('human-review when confidence below 90', () => {
-    const r = decideTriage(base({ confidence: 89 }));
-    expect(r.decision).toBe('human-review');
-    expect(r.reason).toContain('89점');
-  });
-
-  it('auto-merge at exactly 90 confidence', () => {
+  it('auto-merge regardless of confidence — 신뢰점수 게이트 제거 (위험 아니면 자동 머지)', () => {
+    // 낮은 신뢰 점수여도 위험 플래그·CI 문제 없으면 자동 머지.
+    expect(decideTriage(base({ confidence: 10 })).decision).toBe('auto-merge');
+    expect(decideTriage(base({ confidence: 89 })).decision).toBe('auto-merge');
     expect(decideTriage(base({ confidence: 90 })).decision).toBe('auto-merge');
   });
 
