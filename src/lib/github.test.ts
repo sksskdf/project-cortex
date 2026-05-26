@@ -1,6 +1,12 @@
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { getPRDetails, listCheckRunsForRef, mergePR, setOctokit } from './github';
+import {
+  getPRDetails,
+  listCheckRunsForRef,
+  listOpenPullRequests,
+  mergePR,
+  setOctokit,
+} from './github';
 
 type PullsMock = { get?: Mock; merge?: Mock };
 type ChecksMock = { listForRef?: Mock };
@@ -247,5 +253,46 @@ describe('mergePR', () => {
       commit_title: 'Hello',
       merge_method: 'rebase',
     });
+  });
+});
+
+describe('listOpenPullRequests', () => {
+  const makePr = (n: number) => ({
+    number: n,
+    title: `pr ${n}`,
+    body: null,
+    head: { sha: `sha-${n}` },
+    state: 'closed',
+    merged_at: '2026-05-10T00:00:00Z',
+    user: { login: 'devin', type: 'User' },
+    created_at: '2026-05-18T00:00:00Z',
+    updated_at: '2026-05-18T00:00:00Z',
+  });
+
+  it('100개 초과 PR 도 페이지네이션으로 모두 가져온다 (110 → 110)', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => makePr(i + 1));
+    const page2 = Array.from({ length: 10 }, (_, i) => makePr(i + 101));
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({ data: page1 })
+      .mockResolvedValueOnce({ data: page2 });
+    setOctokit({ pulls: { list }, checks: {} } as unknown as Octokit);
+
+    const result = await listOpenPullRequests(123, { owner: 'acme', repo: 'web' });
+
+    expect(result).toHaveLength(110);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(list.mock.calls[0][0].page).toBe(1);
+    expect(list.mock.calls[1][0].page).toBe(2);
+  });
+
+  it('한 페이지(100건 미만)로 끝나면 추가 호출하지 않는다', async () => {
+    const list = vi.fn().mockResolvedValue({ data: [makePr(1)] });
+    setOctokit({ pulls: { list }, checks: {} } as unknown as Octokit);
+
+    const result = await listOpenPullRequests(123, { owner: 'acme', repo: 'web' });
+
+    expect(result).toHaveLength(1);
+    expect(list).toHaveBeenCalledTimes(1);
   });
 });

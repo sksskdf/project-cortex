@@ -67,26 +67,6 @@ export function listNotes(query?: string): NoteView[] {
   return rows.map((r) => rowToView(r, projectById, prNumberById));
 }
 
-export function getNote(id: number): NoteView | null {
-  const row = db.select().from(notes).where(eq(notes.id, id)).get();
-  if (!row) return null;
-  const projectById = new Map<number, string>();
-  const prNumberById = new Map<number, number>();
-  if (row.projectId !== null) {
-    const p = db
-      .select({ slug: projects.slug })
-      .from(projects)
-      .where(eq(projects.id, row.projectId))
-      .get();
-    if (p) projectById.set(row.projectId, p.slug);
-  }
-  if (row.prId !== null) {
-    const p = db.select({ number: prs.number }).from(prs).where(eq(prs.id, row.prId)).get();
-    if (p) prNumberById.set(row.prId, p.number);
-  }
-  return rowToView(row, projectById, prNumberById);
-}
-
 export type CreateNoteInput = {
   title: string;
   body?: string;

@@ -13,8 +13,6 @@ import styles from './ClusterActions.module.css';
 type Props = {
   viewId: string;
   totalCount: number;
-  identicalCount: number;
-  individualReviewNumber: number;
   status: ClusterRow['status'];
 };
 
@@ -24,13 +22,7 @@ function isActiveStatus(status: ClusterRow['status']): boolean {
   return status === 'open' || status === 'partially-merged';
 }
 
-export function ClusterActions({
-  viewId,
-  totalCount,
-  identicalCount,
-  individualReviewNumber,
-  status,
-}: Props) {
+export function ClusterActions({ viewId, totalCount, status }: Props) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ClusterActionState>({ kind: 'idle' });
 
@@ -69,27 +61,7 @@ export function ClusterActions({
           {pending ? t.cluster.action.pending : t.cluster.action.mergeAll(totalCount)}
         </span>
       </button>
-      {/* splitMerge · switchIndividual 은 의도된 기능이 정의됐지만 wire-up 안 됨.
-          전체 머지 / 해제 의 조합으로 갈음 가능하므로 미구현 상태 그대로 disable. */}
-      <button
-        type="button"
-        className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
-        disabled
-        aria-disabled="true"
-      >
-        <span className="ds-btn__label">
-          {t.cluster.action.splitMerge(identicalCount, individualReviewNumber)}
-        </span>
-      </button>
       <div className={styles.divider} aria-hidden="true" />
-      <button
-        type="button"
-        className="ds-btn ds-btn--md ds-btn--outlined-basic ds-btn--full-width"
-        disabled
-        aria-disabled="true"
-      >
-        <span className="ds-btn__label">{t.cluster.action.switchIndividual}</span>
-      </button>
       <button
         type="button"
         className="ds-btn ds-btn--md ds-btn--filled-gray ds-btn--full-width"

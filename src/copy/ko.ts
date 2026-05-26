@@ -622,9 +622,6 @@ export const ko = {
       countLabel: '개 PR을 한 번에',
       timeNote: '개별 검토 시 평균 8분 → 클러스터로 1분',
       mergeAll: (count: number) => `전체 ${count}개 머지`,
-      splitMerge: (mergeCount: number, individualNumber: number) =>
-        `${mergeCount}개만 머지 · #${individualNumber} 개별 검토`,
-      switchIndividual: '개별 검토로 전환',
       dissolve: '클러스터 해제',
       pending: '처리 중…',
       result: {

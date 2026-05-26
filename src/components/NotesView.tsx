@@ -9,20 +9,9 @@ import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { createNoteAction, deleteNoteAction, updateNoteAction } from '@/actions/notes';
 import { previewWithMatch } from '@/lib/notes-preview';
+import { formatRelativeAge } from '@/lib/format';
 import type { NoteView } from '@/lib/notes';
 import styles from './NotesView.module.css';
-
-function formatAge(d: Date): string {
-  const diff = Date.now() - d.getTime();
-  const min = Math.floor(diff / 60_000);
-  if (min < 1) return '방금';
-  if (min < 60) return `${min}분 전`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}시간 전`;
-  const day = Math.floor(hr / 24);
-  if (day < 30) return `${day}일 전`;
-  return d.toLocaleDateString('ko-KR');
-}
 
 export function NotesView({ initialNotes }: { initialNotes: ReadonlyArray<NoteView> }) {
   const [query, setQuery] = useState('');
@@ -214,7 +203,7 @@ function NoteRow({
             </span>
           )}
         </button>
-        <span className={styles.itemAge}>{formatAge(note.updatedAt)}</span>
+        <span className={styles.itemAge}>{formatRelativeAge(note.updatedAt.getTime())}</span>
       </div>
 
       {!expanded && note.body.trim().length > 0 && <p className={styles.itemPreview}>{preview}</p>}
