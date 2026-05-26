@@ -1,0 +1,114 @@
+.console {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-12);
+}
+
+.controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-spacing-10);
+  flex-wrap: wrap;
+}
+
+.pickerLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  flex: 1;
+  min-width: 240px;
+}
+
+.picker {
+  height: 34px;
+  padding: 0 var(--ds-spacing-10);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  color: var(--ds-color-text-03-high);
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.picker:disabled {
+  opacity: 0.6;
+}
+
+.notReady {
+  margin: 0;
+  padding: var(--ds-spacing-10) var(--ds-spacing-12);
+  background: var(--ds-color-soft-red-light);
+  border-radius: var(--ds-border-radius-input);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) dashed var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  overflow: hidden;
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-8) var(--ds-spacing-12);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ds-color-soft-gray-dark);
+}
+
+.dot_connecting {
+  background: var(--ds-color-soft-yellow);
+}
+
+.dot_open {
+  background: var(--ds-color-soft-green);
+}
+
+.dot_closed {
+  background: var(--ds-color-soft-gray-dark);
+}
+
+.dot_error {
+  background: var(--ds-color-soft-red);
+}
+
+.statusText {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.term {
+  height: 460px;
+  padding: var(--ds-spacing-8);
+}

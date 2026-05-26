@@ -19,17 +19,12 @@ export type WorkspaceView = {
   lastPullResult: string | null;
 };
 
-export function getWorkspace(projectId: number): WorkspaceView | null {
-  const row = db
-    .select({
-      ws: workspaces,
-      slug: projects.slug,
-    })
-    .from(workspaces)
-    .innerJoin(projects, eq(projects.id, workspaces.projectId))
-    .where(eq(workspaces.projectId, projectId))
-    .get();
-  if (!row) return null;
+type WorkspaceJoinRow = {
+  ws: typeof workspaces.$inferSelect;
+  slug: string;
+};
+
+function toView(row: WorkspaceJoinRow): WorkspaceView {
   return {
     id: row.ws.id,
     projectId: row.ws.projectId,
@@ -38,6 +33,38 @@ export function getWorkspace(projectId: number): WorkspaceView | null {
     lastPullAt: row.ws.lastPullAt,
     lastPullResult: row.ws.lastPullResult,
   };
+}
+
+export function getWorkspace(projectId: number): WorkspaceView | null {
+  const row = db
+    .select({ ws: workspaces, slug: projects.slug })
+    .from(workspaces)
+    .innerJoin(projects, eq(projects.id, workspaces.projectId))
+    .where(eq(workspaces.projectId, projectId))
+    .get();
+  return row ? toView(row) : null;
+}
+
+// Phase 13 — 세션 spawn 시 workspaceId 로 cwd 화이트리스트 조회. DB 에 등록된 것만.
+export function getWorkspaceById(workspaceId: number): WorkspaceView | null {
+  const row = db
+    .select({ ws: workspaces, slug: projects.slug })
+    .from(workspaces)
+    .innerJoin(projects, eq(projects.id, workspaces.projectId))
+    .where(eq(workspaces.id, workspaceId))
+    .get();
+  return row ? toView(row) : null;
+}
+
+// Phase 13 — /agents 워크스페이스 선택용. 프로젝트 slug 순.
+export function listWorkspaces(): WorkspaceView[] {
+  return db
+    .select({ ws: workspaces, slug: projects.slug })
+    .from(workspaces)
+    .innerJoin(projects, eq(projects.id, workspaces.projectId))
+    .orderBy(projects.slug)
+    .all()
+    .map(toView);
 }
 
 export type RegisterWorkspaceResult =
