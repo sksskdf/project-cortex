@@ -29,7 +29,10 @@ export async function createIssueAction(input: {
 }): Promise<CreateIssueActionState> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
-    return { kind: 'invalid', message: parsed.error.issues[0]?.message ?? '입력이 올바르지 않습니다.' };
+    return {
+      kind: 'invalid',
+      message: parsed.error.issues[0]?.message ?? '입력이 올바르지 않습니다.',
+    };
   }
   const { repoId, title, spec, delegateToClaude } = parsed.data;
 
