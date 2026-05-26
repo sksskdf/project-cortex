@@ -740,6 +740,10 @@ export const ko = {
     titlePlaceholder: '제목',
     bodyPlaceholder: '메모 본문 (마크다운 OK)',
     searchPlaceholder: '제목 / 본문 검색',
+    // 프로젝트별 관리 + 개인(미연결) 노트 — projectId null = 개인.
+    projectLabel: '프로젝트',
+    projectFilterAll: '전체',
+    projectPersonal: '개인',
     cancel: '취소',
     save: '저장',
     edit: '편집',
