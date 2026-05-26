@@ -281,31 +281,44 @@ export async function listOpenPullRequests(
   ref: RepoRef,
 ): Promise<PRListItem[]> {
   const octokit = await getOctokitForInstallation(installationId);
-  const { data } = await octokit.pulls.list({
-    owner: ref.owner,
-    repo: ref.repo,
-    state: 'all',
-    sort: 'updated',
-    direction: 'desc',
-    per_page: 100,
-  });
-  return data.map((pr) => ({
-    number: pr.number,
-    title: pr.title,
-    body: pr.body ?? null,
-    headSha: pr.head.sha,
-    state: pr.state as 'open' | 'closed',
-    // pulls.list 는 merged 별도 필드 없음 — merged_at 으로 판단.
-    merged: pr.merged_at !== null,
-    authorLogin: pr.user?.login ?? 'unknown',
-    authorType: pr.user?.type,
-    authorBody: pr.body ?? null,
-    additions: 0, // list endpoint 는 stats 미포함 — 0 으로 두고 다음 sync 시 갱신.
-    deletions: 0,
-    changedFiles: 0,
-    createdAt: new Date(pr.created_at),
-    updatedAt: new Date(pr.updated_at),
-  }));
+  // 페이지네이션 — pulls.list 는 페이지당 최대 100건. 페이지네이션이 없으면 PR 이 100개를
+  // 넘는 레포에서 잘려 Cortex PR 수가 실제보다 적게 나온다 (110 → 100). 한 페이지가
+  // per_page 미만이면 마지막 페이지 — 종료. MAX_PAGES 는 폭주 방지 안전 상한.
+  const PER_PAGE = 100;
+  const MAX_PAGES = 50;
+  const items: PRListItem[] = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const { data } = await octokit.pulls.list({
+      owner: ref.owner,
+      repo: ref.repo,
+      state: 'all',
+      sort: 'updated',
+      direction: 'desc',
+      per_page: PER_PAGE,
+      page,
+    });
+    for (const pr of data) {
+      items.push({
+        number: pr.number,
+        title: pr.title,
+        body: pr.body ?? null,
+        headSha: pr.head.sha,
+        state: pr.state as 'open' | 'closed',
+        // pulls.list 는 merged 별도 필드 없음 — merged_at 으로 판단.
+        merged: pr.merged_at !== null,
+        authorLogin: pr.user?.login ?? 'unknown',
+        authorType: pr.user?.type,
+        authorBody: pr.body ?? null,
+        additions: 0, // list endpoint 는 stats 미포함 — 0 으로 두고 다음 sync 시 갱신.
+        deletions: 0,
+        changedFiles: 0,
+        createdAt: new Date(pr.created_at),
+        updatedAt: new Date(pr.updated_at),
+      });
+    }
+    if (data.length < PER_PAGE) break;
+  }
+  return items;
 }
 
 // PR 의 리뷰 목록 — 사용자가 보낸 변경 요청 (REQUEST_CHANGES) · 승인 (APPROVED) ·
