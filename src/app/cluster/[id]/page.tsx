@@ -116,7 +116,6 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
   if (!cluster) {
     notFound();
   }
-  const identicalCount = cluster.prs.filter((p) => p.similarity === 'identical').length;
 
   return (
     <div className={styles.layout}>
@@ -231,8 +230,6 @@ export default async function ClusterDetailPage({ params }: { params: Promise<{ 
           <ClusterActions
             viewId={cluster.id}
             totalCount={cluster.prs.length}
-            identicalCount={identicalCount}
-            individualReviewNumber={cluster.individualReviewNumber}
             status={cluster.status}
           />
         </div>
