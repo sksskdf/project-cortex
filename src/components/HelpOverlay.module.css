@@ -1,0 +1,241 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 70;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  animation: popIn 0.16s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-spacing-12);
+  padding: var(--ds-spacing-16) var(--ds-spacing-20);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-16);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--ds-border-radius-input);
+  background: transparent;
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  color: var(--ds-color-text-02);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ds-spacing-16) var(--ds-spacing-20) var(--ds-spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-20);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-12);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.screenList,
+.shortcutList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+}
+
+.screenRow {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--ds-spacing-12);
+  align-items: baseline;
+}
+
+.screenLabel {
+  font-size: var(--ds-typography-font-size-13);
+  font-weight: var(--ds-typography-font-weight-medium);
+  color: var(--ds-color-text-03-high);
+}
+
+.screenDesc {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  line-height: 1.5;
+}
+
+.shortcutRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-12);
+}
+
+.kbd {
+  min-width: 28px;
+  padding: 2px var(--ds-spacing-6);
+  text-align: center;
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-03-high);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--ds-spacing-4);
+}
+
+/* 가이드 투어 — 한 화면씩 spotlight. */
+.tourCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-20);
+  text-align: center;
+  background: var(--ds-color-bg-01);
+  border-radius: var(--ds-border-radius-card);
+}
+
+.tourSpot {
+  padding: 2px var(--ds-spacing-10);
+  font-size: var(--ds-typography-font-size-12);
+  font-weight: var(--ds-typography-font-weight-medium);
+  color: var(--ds-color-secondary-01);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-secondary-01);
+  border-radius: 999px;
+}
+
+.tourTitle {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-16);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.tourDesc {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  line-height: 1.6;
+}
+
+.tourDots {
+  display: flex;
+  gap: var(--ds-spacing-6);
+  margin-top: var(--ds-spacing-4);
+}
+
+.tourDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-color-line-02);
+}
+
+.tourDotActive {
+  background: var(--ds-color-secondary-01);
+}
+
+.tourFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-spacing-12);
+}
+
+.tourCount {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.tourNav {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+}
