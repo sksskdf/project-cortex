@@ -50,14 +50,8 @@ export function AiToggle({ initial }: Props) {
 }
 
 function SettingsResult({ state }: { state: SettingsActionState }) {
-  if (state.kind === 'idle') return null;
-  if (state.kind === 'updated') {
-    return (
-      <div className={`${styles.result} ${styles.resultSuccess}`} role="status" aria-live="polite">
-        {state.aiEnabled ? t.settings.ai.result.enabled : t.settings.ai.result.disabled}
-      </div>
-    );
-  }
+  // 성공 메시지는 안 띄운다 — 토글 상태(ON/OFF)가 이미 결과를 보여줌 (텍스트 최소화). 에러만 노출.
+  if (state.kind !== 'error') return null;
   return (
     <div className={`${styles.result} ${styles.resultError}`} role="alert">
       {t.settings.ai.result.error(state.message)}
