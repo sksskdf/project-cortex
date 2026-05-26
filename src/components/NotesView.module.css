@@ -25,6 +25,15 @@
   outline-offset: -1px;
 }
 
+.filterSelect {
+  padding: var(--ds-spacing-8) var(--ds-spacing-12);
+  border-radius: var(--ds-border-radius-input);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  background: var(--ds-color-bg-00);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-13);
+}
+
 .empty {
   padding: var(--ds-spacing-24);
   text-align: center;

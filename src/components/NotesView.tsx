@@ -13,19 +13,34 @@ import { formatRelativeAge } from '@/lib/format';
 import type { NoteView } from '@/lib/notes';
 import styles from './NotesView.module.css';
 
-export function NotesView({ initialNotes }: { initialNotes: ReadonlyArray<NoteView> }) {
+export type ProjectOption = { id: number; slug: string };
+
+// 'all' = 전체, 'personal' = 프로젝트 미연결(개인), number = 해당 프로젝트.
+type ProjectFilter = number | 'all' | 'personal';
+
+export function NotesView({
+  initialNotes,
+  projects,
+}: {
+  initialNotes: ReadonlyArray<NoteView>;
+  projects: ReadonlyArray<ProjectOption>;
+}) {
   const [query, setQuery] = useState('');
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
   const [adding, setAdding] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // 클라이언트 필터 (서버에서도 listNotes(query) 가능하지만 인터랙티브 검색 부담 X).
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return initialNotes;
-    return initialNotes.filter(
-      (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q),
-    );
-  }, [query, initialNotes]);
+    return initialNotes.filter((n) => {
+      if (projectFilter === 'personal' && n.projectId !== null) return false;
+      if (typeof projectFilter === 'number' && n.projectId !== projectFilter) return false;
+      if (q && !(n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)))
+        return false;
+      return true;
+    });
+  }, [query, projectFilter, initialNotes]);
 
   return (
     <div className={styles.view}>
@@ -37,6 +52,23 @@ export function NotesView({ initialNotes }: { initialNotes: ReadonlyArray<NoteVi
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t.notes.searchPlaceholder}
         />
+        <select
+          className={styles.filterSelect}
+          value={String(projectFilter)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setProjectFilter(v === 'all' || v === 'personal' ? v : Number(v));
+          }}
+          aria-label={t.notes.projectLabel}
+        >
+          <option value="all">{t.notes.projectFilterAll}</option>
+          <option value="personal">{t.notes.projectPersonal}</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.slug}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           className="ds-btn ds-btn--md ds-btn--filled-blue"
@@ -47,7 +79,7 @@ export function NotesView({ initialNotes }: { initialNotes: ReadonlyArray<NoteVi
         </button>
       </div>
 
-      {adding && <AddNoteForm onClose={() => setAdding(false)} />}
+      {adding && <AddNoteForm projects={projects} onClose={() => setAdding(false)} />}
 
       {filtered.length === 0 ? (
         <div className={styles.empty}>
@@ -70,20 +102,33 @@ export function NotesView({ initialNotes }: { initialNotes: ReadonlyArray<NoteVi
   );
 }
 
-function AddNoteForm({ onClose }: { onClose: () => void }) {
+function AddNoteForm({
+  projects,
+  onClose,
+}: {
+  projects: ReadonlyArray<ProjectOption>;
+  onClose: () => void;
+}) {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  // '' = 개인(프로젝트 미연결), 숫자 문자열 = 프로젝트 id.
+  const [projectId, setProjectId] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const r = await createNoteAction({ title, body });
+      const r = await createNoteAction({
+        title,
+        body,
+        projectId: projectId === '' ? null : Number(projectId),
+      });
       if (r.kind === 'created') {
         setTitle('');
         setBody('');
+        setProjectId('');
         onClose();
       } else if (r.kind === 'error') {
         setError(r.message);
@@ -111,6 +156,20 @@ function AddNoteForm({ onClose }: { onClose: () => void }) {
         disabled={pending}
         rows={5}
       />
+      <select
+        className={styles.filterSelect}
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+        disabled={pending}
+        aria-label={t.notes.projectLabel}
+      >
+        <option value="">{t.notes.projectPersonal}</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.slug}
+          </option>
+        ))}
+      </select>
       {error && <span className={styles.error}>{t.notes.error.generic(error)}</span>}
       <div className={styles.formActions}>
         <button
