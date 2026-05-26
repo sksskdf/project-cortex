@@ -11,6 +11,7 @@ import {
   markNotificationsReadAction,
 } from '@/actions/notifications';
 import type { NotificationKind, NotificationView } from '@/lib/notifications';
+import { getBrowserNotifyPref, setBrowserNotifyPref } from '@/lib/notify-pref';
 import styles from './NotificationDropdown.module.css';
 
 function bellIcon() {
@@ -160,12 +161,14 @@ function NotificationContent({ n }: { n: NotificationView }) {
   );
 }
 
-// Phase 10.2 후속 — 브라우저 Notification 권한 토글 스위치.
-// 사용자 시그널 (2026-05-22, 재): "토글로 바꿔달랬더니 이게 뭐임? 토글 모름?"
-// → chip 형태 X. 진짜 슬라이딩 스위치 (track + knob). 라벨은 좌측 별도.
-// granted=ON / default=OFF / denied=차단 (스위치 disabled + 빨강 hint).
+// Phase 10.2 후속 — 브라우저 알림 토글 스위치.
+// 브라우저 권한(Notification.permission)은 한 번 granted 되면 JS 로 끌 수 없으므로,
+// 토글을 권한에 직접 묶으면 ON 에서 OFF 가 안 된다 (사용자 버그 신고). 그래서 앱 레벨
+// 선호 플래그(notify-pref)로 분리 — 권한 granted 상태에서 자유롭게 on/off 토글.
+// 효과적 ON = 권한 granted + 플래그 ON. default=권한 요청 / denied=차단(disabled + 빨강 hint).
 function BrowserPermissionButton() {
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>('default');
+  const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
     if (typeof Notification === 'undefined') {
@@ -173,19 +176,35 @@ function BrowserPermissionButton() {
       return;
     }
     setPerm(Notification.permission);
+    setEnabled(getBrowserNotifyPref());
   }, []);
 
   if (perm === 'unsupported') return null;
 
-  const isOn = perm === 'granted';
   const isDenied = perm === 'denied';
+  // 효과적 ON = 권한 granted + 앱 플래그 ON.
+  const isOn = perm === 'granted' && enabled;
   const title = isDenied
     ? t.notifications.browserPerm.deniedHint
     : t.notifications.browserPerm.tooltip;
 
   function onClick() {
-    if (isDenied || isOn) return; // 브라우저 권한은 한 번 granted/denied 면 JS 로 revoke 불가
-    void Notification.requestPermission().then((result) => setPerm(result));
+    if (isDenied) return; // 브라우저가 차단 — JS 로 풀 수 없음.
+    if (perm === 'default') {
+      // 아직 권한 요청 전 — 권한 요청 후 granted 면 플래그 ON.
+      void Notification.requestPermission().then((result) => {
+        setPerm(result);
+        if (result === 'granted') {
+          setBrowserNotifyPref(true);
+          setEnabled(true);
+        }
+      });
+      return;
+    }
+    // 권한 granted — 앱 플래그만 자유롭게 토글 (OFF 가능).
+    const next = !enabled;
+    setEnabled(next);
+    setBrowserNotifyPref(next);
   }
 
   return (
