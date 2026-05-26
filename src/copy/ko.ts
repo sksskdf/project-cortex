@@ -712,10 +712,14 @@ export const ko = {
       error: (message: string) => `처리 실패: ${message}`,
     },
   },
-  // Phase 13 — Claude CLI 터미널 임베드 (/agents).
+  // Phase 13 — Claude CLI 터미널 임베드 (전역 drawer).
   agents: {
     title: '에이전트',
     subtitle: '등록된 워크스페이스에서 Claude Code 를 실행합니다.',
+    launcher: '에이전트 열기',
+    close: '닫기',
+    expand: '전체화면',
+    collapse: '축소',
     pickerLabel: '워크스페이스',
     start: 'Claude Code 시작',
     stop: '세션 종료',

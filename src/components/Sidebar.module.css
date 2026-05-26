@@ -48,6 +48,15 @@
   text-decoration: none;
 }
 
+/* onSelect 액션 항목은 button 으로 렌더 — 기본 버튼 스타일 리셋. */
+.itemButton {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+}
+
 .item:hover {
   background: var(--ds-color-bg-01);
   color: var(--ds-color-text-03-high);

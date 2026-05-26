@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import type { CurrentUser, SidebarCounts } from '@/lib/types';
+import { useAgentDrawer } from './AgentDrawer';
 import styles from './Sidebar.module.css';
 
 type NavItem = {
@@ -15,6 +16,8 @@ type NavItem = {
   // 라우트가 아직 없을 때 — 클릭 비활성, "준비 중" 표시.
   // 해당 Phase 가 들어오면 false 로 바꾼다.
   comingSoon?: boolean;
+  // 라우트 이동 대신 액션 (예: '에이전트' → 전역 드로어 열기). 있으면 button 으로 렌더.
+  onSelect?: () => void;
 };
 
 const dashboardIcon = (
@@ -195,6 +198,21 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
     );
   }
 
+  // 라우트 이동 대신 액션 (전역 드로어 열기 등) — button 으로 렌더.
+  if (item.onSelect) {
+    return (
+      <li>
+        <button
+          type="button"
+          className={`${className} ${styles.itemButton}`}
+          onClick={item.onSelect}
+        >
+          {body}
+        </button>
+      </li>
+    );
+  }
+
   return (
     <li>
       <Link href={item.href} className={className}>
@@ -206,10 +224,11 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 
 export function Sidebar({ counts, user }: { counts: SidebarCounts; user: CurrentUser }) {
   const pathname = usePathname();
+  const { openDrawer } = useAgentDrawer();
 
   // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
   // /clusters: Phase 6 — 활성. /projects: Phase 8 — 활성.
-  // /agents: Phase 13 (Claude CLI 터미널 임베드) — 활성.
+  // /agents: Phase 13 — 라우트 이동 대신 전역 드로어 토글 (onSelect).
   // /reports: Phase 7 — 활성. /help: 최하 우선순위 — 준비 중.
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
@@ -244,6 +263,8 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       label: t.nav.agents,
       icon: agentsIcon,
       count: counts.agents,
+      // 라우트 이동 대신 전역 드로어 — 어느 화면에서든 세션 유지.
+      onSelect: openDrawer,
     },
     {
       href: '/clusters',
