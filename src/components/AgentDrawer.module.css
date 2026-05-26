@@ -1,0 +1,116 @@
+.launcher {
+  position: fixed;
+  bottom: var(--ds-spacing-24);
+  right: var(--ds-spacing-24);
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: none;
+  background: var(--ds-color-secondary-01);
+  color: var(--ds-color-bg-00);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px var(--ds-color-shadow-black);
+  z-index: 50;
+}
+
+.launcher svg {
+  width: 22px;
+  height: 22px;
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(480px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-color-bg-01);
+  border-left: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  box-shadow: -4px 0 24px var(--ds-color-shadow-black);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 60;
+}
+
+.panelOpen {
+  transform: translateX(0);
+}
+
+.panelExpanded {
+  width: 100vw;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ds-spacing-12) var(--ds-spacing-16);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.headTitle {
+  font-size: var(--ds-typography-font-size-15);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-4);
+}
+
+.headBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: var(--ds-border-radius-input);
+  color: var(--ds-color-text-02);
+  cursor: pointer;
+  font-size: var(--ds-typography-font-size-18);
+  line-height: 1;
+}
+
+.headBtn:hover {
+  background: var(--ds-color-bg-02);
+  color: var(--ds-color-text-03-high);
+}
+
+.headBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: var(--ds-spacing-16);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-spacing-10);
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.empty strong {
+  font-size: var(--ds-typography-font-size-15);
+  color: var(--ds-color-text-03-high);
+}
+
+.empty p {
+  margin: 0;
+}
