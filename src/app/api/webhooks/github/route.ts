@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { broadcast as broadcastEvent, events } from '@/lib/events';
 import { handlePushEvent } from '@/lib/project-meta';
+import { logger } from '@/lib/logger';
 import { handleCheckWebhook, handlePullRequestWebhook } from '@/lib/sync';
 import {
   mapCheckEvent,
@@ -19,10 +20,12 @@ export async function POST(req: Request) {
   const signature = req.headers.get('x-hub-signature-256');
 
   if (!verifyGithubSignature(rawBody, signature, env.githubWebhookSecret())) {
+    logger.warn({ source: 'webhook/github' }, 'rejected webhook with invalid signature');
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }
 
   const eventName = req.headers.get('x-github-event');
+  logger.debug({ source: 'webhook/github', event: eventName }, 'received webhook');
   if (eventName === 'pull_request') {
     return handlePullRequest(rawBody);
   }
@@ -86,7 +89,7 @@ async function handlePush(rawBody: string) {
     if (result.kind === 'synced') broadcastEvent({ type: 'sync' });
     return NextResponse.json({ ok: true, result });
   } catch (err) {
-    console.error('handlePushEvent failed:', err);
+    logger.error({ source: 'webhook/github', event: 'push', slug, err }, 'handlePushEvent failed');
     return NextResponse.json({ error: 'push handler failed' }, { status: 500 });
   }
 }
@@ -111,7 +114,10 @@ async function handlePullRequest(rawBody: string) {
     }
     return NextResponse.json({ ok: true, result });
   } catch (err) {
-    console.error('[webhook/github] pull_request sync failed', err);
+    logger.error(
+      { source: 'webhook/github', event: 'pull_request', number: payload.pr.number, err },
+      'pull_request sync failed',
+    );
     return NextResponse.json({ error: 'sync failed' }, { status: 500 });
   }
 }
@@ -138,7 +144,10 @@ async function handleCheck(rawBody: string) {
     }
     return NextResponse.json({ ok: true, result });
   } catch (err) {
-    console.error('[webhook/github] check sync failed', err);
+    logger.error(
+      { source: 'webhook/github', event: 'check', headSha: payload.headSha, err },
+      'check sync failed',
+    );
     return NextResponse.json({ error: 'sync failed' }, { status: 500 });
   }
 }
