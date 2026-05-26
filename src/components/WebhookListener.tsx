@@ -7,6 +7,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getBrowserNotifyPref } from '@/lib/notify-pref';
 
 // GitHub 가 같은 PR 의 여러 이벤트 (opened → labeled → synchronize) 를 짧은 간격에
 // 연속 발송하는 경우가 흔함. 매번 router.refresh() 하면 RSC 트리가 N 번 재마운트
@@ -42,8 +43,12 @@ export function WebhookListener() {
         if (data.type === 'sync') {
           scheduleRefresh();
         } else if (data.type === 'notification') {
-          // 권한 granted 일 때만 표시. 미설정/거부면 조용히 skip.
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          // 권한 granted + 앱 토글 ON 일 때만 표시. 미설정/거부/토글 OFF 면 조용히 skip.
+          if (
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'granted' &&
+            getBrowserNotifyPref()
+          ) {
             const n = new Notification(data.title, {
               body: data.body ?? undefined,
               tag: `cortex-${data.kind}-${data.href ?? ''}`, // 같은 PR 의 연속 알림 합침
