@@ -494,8 +494,7 @@ export const ko = {
         humanFlow: 'PR 은 review-needed 로 인박스에 등장 — 사용자가 직접 머지 · 브랜치 삭제 가능.',
       },
       result: {
-        enabled: 'AI 분석을 활성화했습니다.',
-        disabled: 'AI 분석을 비활성화했습니다 — 다음 webhook 부터 Anthropic 호출 0.',
+        // 성공 메시지는 안 띄움 (토글 상태로 충분 — 텍스트 최소화). 에러만 노출.
         error: (message: string) => `설정 변경 실패: ${message}`,
       },
     },
