@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { AgentFaceIcon, AlertIcon, CheckIcon, InfoIcon } from '@/components/icons';
+import { NewIssueDialog } from '@/components/NewIssueDialog';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { PRRowInlineActions } from '@/components/PRRowInlineActions';
 import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
@@ -16,6 +17,7 @@ import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { listPinnedNotes } from '@/lib/notes';
 import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
+import { listIssueRepos } from '@/lib/issues';
 import { listDashboardProjects } from '@/lib/roadmap';
 import { listTodos } from '@/lib/todos';
 import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
@@ -47,24 +49,6 @@ const workloadBarClass: Record<WorkloadBarTone, string> = {
 };
 
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 15;
-
-function plusIcon(width = 16, height = 16, strokeWidth = 2.5) {
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1={12} y1={5} x2={12} y2={19} />
-      <line x1={5} y1={12} x2={19} y2={12} />
-    </svg>
-  );
-}
 
 function startIcon() {
   return (
@@ -300,6 +284,7 @@ export default async function DashboardPage() {
   const dashboardProjects = listDashboardProjects();
   const dashboardTodos = listTodos('open');
   const dashboardPinnedNotes = listPinnedNotes();
+  const issueRepos = listIssueRepos();
   const todayReviewCount = dashboardStats.pendingReview.value;
   const weekAutoMergedCount = dashboardStats.autoMergedThisWeek.value;
 
@@ -312,8 +297,8 @@ export default async function DashboardPage() {
         </div>
         <div className={styles.headerActions}>
           {/* 알림은 Phase 7 활성화 — NotificationDropdown 가 자체 BellIcon + 카운트 배지 렌더.
-              에이전트 시작은 Phase 13 활성화 — /agents (Claude Code 세션 매니저) 로 이동.
-              새 이슈는 Phase 13 잔여 (issues + 위임 토글) — disabled 유지. */}
+              에이전트 시작은 /agents (Claude Code 세션 매니저) 로 이동.
+              새 이슈는 NewIssueDialog 모달 — Claude Code 위임 토글 포함 (Phase 13). */}
           <NotificationDropdown notifications={notifications} unreadCount={unreadCount} />
           <Link
             href="/agents"
@@ -326,19 +311,7 @@ export default async function DashboardPage() {
             </span>
             <span className="ds-btn__label">{t.dashboard.startAgent}</span>
           </Link>
-          <button
-            type="button"
-            className="ds-btn ds-btn--md ds-btn--filled-blue"
-            aria-label={t.dashboard.header.newIssueHint}
-            title={t.dashboard.header.newIssueHint}
-            disabled
-            aria-disabled="true"
-          >
-            <span className="ds-btn__icon" aria-hidden="true">
-              {plusIcon()}
-            </span>
-            <span className="ds-btn__label">{t.dashboard.newIssue}</span>
-          </button>
+          <NewIssueDialog repos={issueRepos} />
         </div>
       </header>
 

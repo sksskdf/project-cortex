@@ -25,11 +25,31 @@ export const ko = {
     notifications: '알림',
     startAgent: '에이전트 시작',
     newIssue: '새 이슈',
-    // 알림·새 이슈 hint 는 미구현/예정 안내. 에이전트 시작은 Phase 13 활성화 — /agents 로 이동.
+    // 알림 hint 는 미구현/예정 안내. 에이전트 시작은 /agents 로 이동, 새 이슈는 모달 작성.
     header: {
       notificationsHint: '알림 — Phase 7 (운영 메트릭 + 이벤트) 예정',
       startAgentHint: '에이전트 — Claude Code 세션 매니저로 이동',
-      newIssueHint: '새 이슈 — Phase 13 (Claude CLI 통합) 예정',
+      newIssueHint: '새 이슈 작성 — Claude Code 위임 가능',
+    },
+    // 새 이슈 모달 — 레포·제목·내용 + Claude Code 위임 토글.
+    newIssueForm: {
+      title: '새 이슈',
+      repo: '레포',
+      issueTitle: '제목',
+      issueTitlePlaceholder: '한 줄 요약',
+      spec: '내용',
+      specPlaceholder: '작업 내용과 수용 기준을 적어주세요.',
+      delegate: 'Claude Code 에 위임',
+      submit: '이슈 생성',
+      submitting: '생성 중',
+      cancel: '취소',
+      close: '닫기',
+      noRepos: '먼저 프로젝트를 등록해주세요.',
+      noReposCta: '프로젝트로 이동',
+      delegatedTitle: '에이전트에 위임했어요',
+      delegatedDesc: '아래 프롬프트로 Claude Code 세션을 시작하세요.',
+      copyPrompt: '프롬프트 복사',
+      copied: '복사됨',
     },
     principle: {
       title: (count: number) => `이번 주 ${count}건이 자동 머지되었어요`,
