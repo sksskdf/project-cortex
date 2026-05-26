@@ -340,6 +340,13 @@ export const ko = {
       tests: '테스트 실행',
       coverage: '커버리지',
       risk: '위험 영역',
+      // CI 상태 라벨 — running 은 GitHub check run 이 queued/in_progress 일 때.
+      status: {
+        passed: '통과',
+        failed: '실패',
+        running: '측정중',
+        none: '미측정',
+      },
     },
     tree: {
       ariaLabel: '파일 트리',

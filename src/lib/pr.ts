@@ -14,11 +14,43 @@ import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } f
 import {
   getPRDiff,
   getPRMergeableState,
+  listCheckRunsForRef,
   listPullReviews,
+  type CheckRunsSummary,
   type PRReviewSummary,
 } from '@/lib/github';
 import { getSettings } from '@/lib/settings';
+import { ko as t } from '@/copy/ko';
 import type { FileBlock, PR, ReasonTone } from '@/lib/types';
+
+// PR 상세의 CI 표시 상태. 'running' = check run 이 queued/in_progress (저장된 testsPassed
+// 의 null 은 'CI 없음' 과 '실행 중' 을 구분 못 해서, 상세에선 라이브 check run 으로 분기).
+export type CiStatus = 'passed' | 'failed' | 'running' | 'none';
+
+function ciFromStored(testsPassed: boolean | null): CiStatus {
+  return testsPassed === true ? 'passed' : testsPassed === false ? 'failed' : 'none';
+}
+
+function ciFromCheckRuns(summary: CheckRunsSummary): CiStatus {
+  if (summary.status === 'passed') return 'passed';
+  if (summary.status === 'failed') return 'failed';
+  // pending — check run 이 있으면 실행 중, 하나도 없으면 CI 미설정.
+  return summary.total > 0 ? 'running' : 'none';
+}
+
+function ciCheck(ci: CiStatus): AiCheck {
+  const s = t.pr.aiCheck.status;
+  switch (ci) {
+    case 'passed':
+      return { key: 'tests', value: s.passed, tone: 'ok' };
+    case 'failed':
+      return { key: 'tests', value: s.failed, tone: 'alert' };
+    case 'running':
+      return { key: 'tests', value: s.running, tone: 'warn' };
+    case 'none':
+      return { key: 'tests', value: s.none, tone: 'warn' };
+  }
+}
 
 export type PRDetailView = {
   pr: PR;
@@ -84,7 +116,7 @@ function toMs(t: Date | number | null | undefined): number {
 function buildAiSummary(
   preReview: PreReviewRow,
   triage: TriageDecisionRow | null,
-  testsPassed: boolean | null,
+  ci: CiStatus,
 ): PRDetailFixture['aiSummary'] {
   const analyzedAtMs =
     preReview.analyzedAt instanceof Date
@@ -100,13 +132,7 @@ function buildAiSummary(
   // 체크 3종 — 테스트·커버리지·위험.
   const checks: AiCheck[] = [];
 
-  if (testsPassed === true) {
-    checks.push({ key: 'tests', value: '통과', tone: 'ok' });
-  } else if (testsPassed === false) {
-    checks.push({ key: 'tests', value: '실패', tone: 'alert' });
-  } else {
-    checks.push({ key: 'tests', value: '미측정', tone: 'warn' });
-  }
+  checks.push(ciCheck(ci));
 
   if (preReview.coverage !== null && preReview.coverage !== undefined) {
     const pct = Math.round(preReview.coverage * 100);
@@ -320,23 +346,32 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     gauge: { value: confidence, tier: gaugeTierFromConfidence(confidence) },
   };
 
-  // mergeable_state + reviews — installation 있는 PR 만 GitHub 에 묻는다. 둘 다 fetch
-  // 실패는 무시 (null/빈배열) — UI 가 표시 안 함. 병렬로 가져와 latency 절약.
+  // mergeable_state + reviews + CI check runs — installation 있는 PR 만 GitHub 에 묻는다.
+  // fetch 실패는 무시 (null/빈배열) — UI 가 표시 안 함. 병렬로 가져와 latency 절약.
   let mergeableState: Awaited<ReturnType<typeof getPRMergeableState>> | null = null;
   let reviews: PRReviewSummary[] = [];
+  let liveCi: CheckRunsSummary | null = null;
   if (row.installationId !== null) {
     const [owner, repo] = row.repoSlug.split('/');
-    const [stateResult, reviewsResult] = await Promise.allSettled([
+    const [stateResult, reviewsResult, ciResult] = await Promise.allSettled([
       !isMerged && !isClosed
         ? getPRMergeableState(row.installationId, { owner, repo }, row.pr.number)
         : Promise.resolve(null),
       listPullReviews(row.installationId, { owner, repo }, row.pr.number),
+      // 머지/닫힘 PR 의 CI 는 과거값 — 저장된 testsPassed 로 충분. open PR 만 라이브 조회.
+      !isMerged && !isClosed
+        ? listCheckRunsForRef(row.installationId, { owner, repo }, row.pr.headSha)
+        : Promise.resolve(null),
     ]);
     if (stateResult.status === 'fulfilled') mergeableState = stateResult.value;
     else console.error(`getPRMergeableState failed for PR ${row.pr.id}:`, stateResult.reason);
     if (reviewsResult.status === 'fulfilled') reviews = reviewsResult.value;
     else console.error(`listPullReviews failed for PR ${row.pr.id}:`, reviewsResult.reason);
+    if (ciResult.status === 'fulfilled') liveCi = ciResult.value;
+    else console.error(`listCheckRunsForRef failed for PR ${row.pr.id}:`, ciResult.reason);
   }
+  // 상세 CI 표시 — 라이브 check run 우선 (running 구분 가능), 없으면 저장된 testsPassed.
+  const ci: CiStatus = liveCi ? ciFromCheckRuns(liveCi) : ciFromStored(row.pr.testsPassed);
   // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
   // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
   const mergeBlockedByState = mergeableState === 'dirty' || mergeableState === 'blocked';
@@ -368,7 +403,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   if (row.preReview && hasUsableDiffData(row.preReview)) {
     const { tree, totalHunks, autoApprovableHunks } = buildTree(row.preReview);
     const realFixture: PRDetailFixture = {
-      aiSummary: buildAiSummary(row.preReview, row.triage, row.pr.testsPassed),
+      aiSummary: buildAiSummary(row.preReview, row.triage, ci),
       hunkSummary: { totalHunks, autoApprovableHunks },
       tree,
       files: buildFiles(row.preReview),
@@ -397,7 +432,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       const files = parseUnifiedDiff(diffText);
       const tree = buildTreeFromFiles(files);
       const fetchedFixture: PRDetailFixture = {
-        aiSummary: notAnalyzedAiSummary(row.pr.testsPassed),
+        aiSummary: notAnalyzedAiSummary(ci),
         hunkSummary: { totalHunks: 0, autoApprovableHunks: 0 },
         tree,
         files,
@@ -438,19 +473,12 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
 // 미분석 PR 의 placeholder aiSummary — Anthropic 호출 0. CI 결과 (testsPassed) 는
 // AI 와 무관하게 채워지므로 prs.testsPassed 가 있으면 그대로 표시. coverage/risk 는
 // LLM 결과라 미측정 유지.
-function notAnalyzedAiSummary(testsPassed: boolean | null): PRDetailFixture['aiSummary'] {
-  const testsCheck: AiCheck =
-    testsPassed === true
-      ? { key: 'tests', value: '통과', tone: 'ok' }
-      : testsPassed === false
-        ? { key: 'tests', value: '실패', tone: 'alert' }
-        : { key: 'tests', value: '미측정', tone: 'warn' };
-
+function notAnalyzedAiSummary(ci: CiStatus): PRDetailFixture['aiSummary'] {
   return {
     analyzedAgo: '분석 안 됨',
     summarySegments: [{ text: '이 PR 은 아직 분석되지 않았습니다.' }],
     checks: [
-      testsCheck,
+      ciCheck(ci),
       { key: 'coverage', value: '미측정', tone: 'warn' },
       { key: 'risk', value: '미측정', tone: 'warn' },
     ],

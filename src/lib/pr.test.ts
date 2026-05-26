@@ -1,7 +1,9 @@
+import type { Octokit } from '@octokit/rest';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { setOctokit } from './github';
 import { getPRDetail } from './pr';
 
 beforeAll(() => {
@@ -14,6 +16,18 @@ beforeEach(() => {
   db.delete(prs).run();
   db.delete(projects).run();
 });
+
+afterEach(() => {
+  setOctokit(null);
+});
+
+// check run 한 건만 가진 octokit mock — listCheckRunsForRef 만 응답. pulls.* 는 없어
+// getPRMergeableState/listPullReviews 는 graceful fail (allSettled).
+function mockCheckRuns(runs: Array<{ status: string; conclusion: string | null }>): Octokit {
+  return {
+    checks: { listForRef: () => Promise.resolve({ data: { check_runs: runs } }) },
+  } as unknown as Octokit;
+}
 
 function setup(opts: {
   withPreReview?: boolean;
@@ -123,6 +137,27 @@ describe('getPRDetail', () => {
     expect(checks.find((c) => c.key === 'coverage')?.tone).toBe('warn');
     expect(checks.find((c) => c.key === 'risk')?.value).toBe('payment-domain');
     expect(checks.find((c) => c.key === 'risk')?.tone).toBe('alert');
+  });
+
+  it('CI 가 실행 중 (in_progress) 이면 테스트 상태를 측정중으로 표시', async () => {
+    const id = setup({ withPreReview: true, testsPassed: null });
+    // 라이브 check run 이 in_progress — pending + total>0 → running → 측정중.
+    setOctokit(mockCheckRuns([{ status: 'in_progress', conclusion: null }]));
+
+    const view = await getPRDetail(id);
+
+    const tests = view!.fixture.aiSummary.checks.find((c) => c.key === 'tests');
+    expect(tests?.value).toBe('측정중');
+    expect(tests?.tone).toBe('warn');
+  });
+
+  it('check run 이 하나도 없으면 (CI 미설정) 미측정', async () => {
+    const id = setup({ withPreReview: true, testsPassed: null });
+    setOctokit(mockCheckRuns([]));
+
+    const view = await getPRDetail(id);
+
+    expect(view!.fixture.aiSummary.checks.find((c) => c.key === 'tests')?.value).toBe('미측정');
   });
 
   it('builds tree from changedPaths and hunkAnnotations', async () => {
