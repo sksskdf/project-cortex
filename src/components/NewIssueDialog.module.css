@@ -1,0 +1,236 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 60;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  animation: popIn 0.16s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-spacing-12);
+  padding: var(--ds-spacing-16) var(--ds-spacing-20);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-16);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-border-radius-input);
+  background: transparent;
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  color: var(--ds-color-text-02);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ds-spacing-16) var(--ds-spacing-20) var(--ds-spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-14);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.label {
+  font-size: var(--ds-typography-font-size-12);
+  font-weight: var(--ds-typography-font-weight-medium);
+  color: var(--ds-color-text-02);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: var(--ds-spacing-8) var(--ds-spacing-10);
+  font-size: var(--ds-typography-font-size-13);
+  font-family: inherit;
+  color: var(--ds-color-text-03-high);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  box-sizing: border-box;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.5;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--ds-color-secondary-01);
+}
+
+.delegateRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-spacing-12);
+}
+
+/* 위임 토글 — 진짜 슬라이딩 스위치 (track 36×20 + knob 16). ON 시 초록 + knob 우측. */
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ds-color-line-02);
+  cursor: pointer;
+  transition: background 0.18s ease;
+  flex-shrink: 0;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--ds-color-secondary-01);
+  outline-offset: 2px;
+}
+
+.switchKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s ease;
+}
+
+.switchOn {
+  background: var(--ds-color-state-success-accent);
+}
+
+.switchOn .switchKnob {
+  transform: translateX(16px);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-state-error-accent);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-spacing-8);
+  margin-top: var(--ds-spacing-4);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ds-spacing-12);
+  padding: var(--ds-spacing-20);
+  background: var(--ds-color-bg-01);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  text-align: center;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.delegated {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.delegatedTitle {
+  font-size: var(--ds-typography-font-size-14);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}
+
+.delegatedDesc {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.prompt {
+  margin: 0;
+  padding: var(--ds-spacing-12);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-03-high);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
