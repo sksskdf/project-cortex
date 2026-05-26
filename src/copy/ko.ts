@@ -719,6 +719,7 @@ export const ko = {
     close: '닫기',
     expand: '전체화면',
     collapse: '축소',
+    dragHint: '드래그해서 위치 이동 (오른쪽 ↔ 하단)',
     pickerLabel: '워크스페이스',
     start: 'Claude Code 시작',
     stop: '세션 종료',
