@@ -12,19 +12,9 @@ import {
   type PullActionState,
   type WorkspaceActionState,
 } from '@/actions/workspace';
+import { formatRelativeAge } from '@/lib/format';
 import type { WorkspaceView } from '@/lib/workspace';
 import styles from './WorkspaceCard.module.css';
-
-function formatAge(d: Date | null): string {
-  if (!d) return '—';
-  const diff = Date.now() - d.getTime();
-  const min = Math.floor(diff / 60_000);
-  if (min < 1) return '방금';
-  if (min < 60) return `${min}분 전`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}시간 전`;
-  return `${Math.floor(hr / 24)}일 전`;
-}
 
 // git pull 출력에서 "성공:" / "실패:" 접두어만 남기고 본문은 제거 (라인 줄이기).
 function summarizeOutput(raw: string): string {
@@ -304,7 +294,7 @@ function PullResultInline({
   if (workspace.lastPullAt) {
     return (
       <span className={styles.lastPull} title={workspace.lastPullResult ?? undefined}>
-        {t.workspace.lastPull(formatAge(workspace.lastPullAt))}
+        {t.workspace.lastPull(formatRelativeAge(workspace.lastPullAt.getTime()))}
       </span>
     );
   }
