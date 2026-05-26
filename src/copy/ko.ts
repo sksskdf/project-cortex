@@ -25,10 +25,10 @@ export const ko = {
     notifications: '알림',
     startAgent: '에이전트 시작',
     newIssue: '새 이슈',
-    // 헤더 3 버튼 모두 백엔드 미구현으로 disabled. 어느 Phase 에서 활성화될지 hover/aria 로 알려줌.
+    // 알림·새 이슈 hint 는 미구현/예정 안내. 에이전트 시작은 Phase 13 활성화 — /agents 로 이동.
     header: {
       notificationsHint: '알림 — Phase 7 (운영 메트릭 + 이벤트) 예정',
-      startAgentHint: '에이전트 시작 — Phase 13 (Claude CLI 통합) 예정',
+      startAgentHint: '에이전트 — Claude Code 세션 매니저로 이동',
       newIssueHint: '새 이슈 — Phase 13 (Claude CLI 통합) 예정',
     },
     principle: {

@@ -312,21 +312,20 @@ export default async function DashboardPage() {
         </div>
         <div className={styles.headerActions}>
           {/* 알림은 Phase 7 활성화 — NotificationDropdown 가 자체 BellIcon + 카운트 배지 렌더.
-              에이전트 시작 · 새 이슈는 Phase 13 (Claude CLI 통합) 으로 이관 (Decision Log 2026-05-21) — disabled 유지. */}
+              에이전트 시작은 Phase 13 활성화 — /agents (Claude Code 세션 매니저) 로 이동.
+              새 이슈는 Phase 13 잔여 (issues + 위임 토글) — disabled 유지. */}
           <NotificationDropdown notifications={notifications} unreadCount={unreadCount} />
-          <button
-            type="button"
+          <Link
+            href="/agents"
             className="ds-btn ds-btn--md ds-btn--outlined-basic"
             aria-label={t.dashboard.header.startAgentHint}
             title={t.dashboard.header.startAgentHint}
-            disabled
-            aria-disabled="true"
           >
             <span className="ds-btn__icon" aria-hidden="true">
               {startIcon()}
             </span>
             <span className="ds-btn__label">{t.dashboard.startAgent}</span>
-          </button>
+          </Link>
           <button
             type="button"
             className="ds-btn ds-btn--md ds-btn--filled-blue"
