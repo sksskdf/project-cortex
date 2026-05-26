@@ -4,6 +4,7 @@ import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
 import { listCheckRunsForRef } from './github';
+import { logger } from './logger';
 import { createNotification, isRevertPR } from './notifications';
 import { analyzePR } from './pre-review';
 import { matchAndApplyDoneFromPR } from './roadmap';
@@ -66,7 +67,7 @@ async function safeAnalyze(prId: number): Promise<void> {
   try {
     await analyzePR(prId);
   } catch (err) {
-    console.error(`analyzePR failed for PR ${prId}:`, err);
+    logger.error({ source: 'sync', op: 'analyzePR', prId, err }, 'analyzePR failed');
   }
 }
 
@@ -76,7 +77,10 @@ async function safeAutoMerge(prId: number): Promise<void> {
   try {
     await attemptAutoMerge(prId);
   } catch (err) {
-    console.error(`attemptAutoMerge unexpected error for PR ${prId}:`, err);
+    logger.error(
+      { source: 'sync', op: 'attemptAutoMerge', prId, err },
+      'attemptAutoMerge unexpected error',
+    );
   }
 }
 
@@ -87,7 +91,10 @@ function safeRoadmapMatch(prId: number): void {
   try {
     matchAndApplyDoneFromPR(prId);
   } catch (err) {
-    console.error(`matchAndApplyDoneFromPR failed for PR ${prId}:`, err);
+    logger.error(
+      { source: 'sync', op: 'matchAndApplyDoneFromPR', prId, err },
+      'matchAndApplyDoneFromPR failed',
+    );
   }
 }
 
@@ -99,7 +106,10 @@ async function safeTryCluster(prId: number): Promise<void> {
   try {
     await tryClusterPR(prId);
   } catch (err) {
-    console.error(`tryClusterPR unexpected error for PR ${prId}:`, err);
+    logger.error(
+      { source: 'sync', op: 'tryClusterPR', prId, err },
+      'tryClusterPR unexpected error',
+    );
   }
 }
 
@@ -334,6 +344,9 @@ function safeNotify(input: Parameters<typeof createNotification>[0]): void {
   try {
     createNotification(input);
   } catch (err) {
-    console.error('알림 생성 실패:', err);
+    logger.error(
+      { source: 'sync', op: 'createNotification', kind: input.kind, err },
+      'createNotification failed',
+    );
   }
 }

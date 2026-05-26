@@ -98,9 +98,60 @@ project-cortex/
 - **환경 변수**: `.env.local` (예: `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`).
 - **배포**: 단일 컨테이너 (Dockerfile 한 개). Fly.io · Railway · Render 어디든 가능.
 
+### 백업·복구 (Phase 7)
+
+DB 는 단일 SQLite 파일이라 절차도 단순합니다. SQLite/CLI 전용 (`src/lib/backup.ts`).
+
+- **백업**: `npm run db:backup` — better-sqlite3 온라인 백업 API(`db.backup()`)로 핫 카피를 만듭니다. 원시 파일 복사가 아니라 dev 서버가 떠 있어도 안전하며, WAL 까지 체크포인트된 단일 파일로 떨어집니다. 결과는 `data/backups/cortex-YYYYMMDD-HHmmss.sqlite`. 다른 경로에 받으려면 `npm run db:backup -- <dir>`.
+- **복구**: 라이브 DB 를 쓰는 프로세스(dev/start 서버)를 먼저 종료한 뒤 `npm run db:restore -- <백업파일>`. SQLite 헤더를 검증해 유효한 파일만 받아들이고, 덮어쓰기 전에 현재 DB 를 `cortex.sqlite.pre-restore` 로 한 번 더 남깁니다. 복구 후 남은 `-wal`·`-shm` 사이드카는 자동 제거합니다.
+- `data/` 는 `.gitignore` 대상이라 백업본도 커밋되지 않습니다. 운영 백업은 별도 스토리지로 옮기세요.
+
 ## 비-목표
 
 - 마이크로서비스, 별도 백엔드 분리
 - 메시지 큐 (필요할 때 BullMQ/Redis 도입 검토 — 지금은 함수 호출이면 충분)
 - GraphQL
 - 자체 IDE·코드 에디터
+
+## Phase 9 — 서비스 등록
+
+> 일상 도구로 굳히기. OS 부팅·로그인 시 자동 실행하고, 서비스 목록에서 켜고 끕니다. 클라우드 호스팅은 SQLite 영속화·long-running 작업 한계로 부적합해 로컬 머신에 서비스로 등록합니다.
+
+등록 스크립트는 `scripts/service/`에 있고, 모두 프로덕션 시작 명령(`npm run start` = `NODE_ENV=production tsx server.ts`)을 레포 디렉토리에서 실행합니다. 외부 도구(NSSM·launchd)는 번들하지 않으니 먼저 설치해주세요.
+
+### Windows (NSSM)
+
+NSSM은 임의 프로세스를 진짜 Windows 서비스로 감싸 부팅 시 자동 실행되게 합니다. 먼저 설치합니다.
+
+```
+winget install NSSM.NSSM      또는      choco install nssm
+```
+
+관리자 PowerShell에서 실행합니다.
+
+```
+./scripts/service/windows-install.ps1            설치 + 시작 (services.msc 에 "Cortex")
+./scripts/service/windows-uninstall.ps1          중지 + 제거
+```
+
+- 로그는 `%APPDATA%\Cortex\logs\`에 쌓이고 10MB 단위로 회전합니다.
+- 포트·서비스명은 `-Port`·`-ServiceName` 인자로 바꿀 수 있습니다.
+
+### macOS (launchd)
+
+`scripts/service/com.cortex.server.plist`는 placeholder가 있는 템플릿입니다. 파일 상단 주석의 `sed` 한 줄로 경로를 채워 `~/Library/LaunchAgents/`에 복사한 뒤 등록합니다.
+
+```
+launchctl load ~/Library/LaunchAgents/com.cortex.server.plist        로그인 시 자동 실행
+launchctl unload ~/Library/LaunchAgents/com.cortex.server.plist      해제
+```
+
+- `RunAtLoad`로 로그인 시 시작, `KeepAlive`로 비정상 종료 시 자동 재시작합니다.
+- 로그는 `~/Library/Logs/Cortex/`에 쌓입니다.
+
+### 업데이트 절차
+
+코드를 갱신할 때는 `git pull` 후 서비스를 재시작합니다 (자동 업데이트는 비-목표).
+
+- Windows: `nssm restart Cortex`
+- macOS: `launchctl unload` 후 다시 `launchctl load`

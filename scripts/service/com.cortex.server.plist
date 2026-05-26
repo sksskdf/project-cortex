@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.cortex.server.plist — launchd template for running Cortex at login on macOS.
+
+  This is a TEMPLATE. Replace the placeholders before installing:
+    __REPO_ROOT__   absolute path to the cloned repo (e.g. /Users/you/project-cortex)
+    __NPM_PATH__    absolute path to npm           (run: which npm)
+    __NODE_BIN__    directory holding node/npm     (run: dirname "$(which node)")
+    __LOG_DIR__     absolute log dir               (e.g. $HOME/Library/Logs/Cortex)
+
+  Install (per-user LaunchAgent — no sudo needed; runs as you at login):
+    mkdir -p "$HOME/Library/Logs/Cortex"
+    sed -e "s#__REPO_ROOT__#$PWD#g" \
+        -e "s#__NPM_PATH__#$(which npm)#g" \
+        -e "s#__NODE_BIN__#$(dirname "$(which node)")#g" \
+        -e "s#__LOG_DIR__#$HOME/Library/Logs/Cortex#g" \
+        scripts/service/com.cortex.server.plist \
+        > ~/Library/LaunchAgents/com.cortex.server.plist
+    launchctl load ~/Library/LaunchAgents/com.cortex.server.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.cortex.server.plist
+    rm ~/Library/LaunchAgents/com.cortex.server.plist
+
+  RunAtLoad starts it at login; KeepAlive restarts it if it ever exits.
+-->
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.cortex.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>__NPM_PATH__</string>
+      <string>run</string>
+      <string>start</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO_ROOT__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>NODE_ENV</key>
+      <string>production</string>
+      <key>PORT</key>
+      <string>3000</string>
+      <!-- Prepend the node bin dir so npm can resolve node when launchd runs us. -->
+      <key>PATH</key>
+      <string>__NODE_BIN__:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__LOG_DIR__/cortex.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__LOG_DIR__/cortex.err.log</string>
+  </dict>
+</plist>
