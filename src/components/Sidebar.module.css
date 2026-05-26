@@ -48,12 +48,13 @@
   text-decoration: none;
 }
 
-/* onSelect 액션 항목은 button 으로 렌더 — 기본 버튼 스타일 리셋. */
+/* onSelect 액션 항목은 button 으로 렌더 — 기본 버튼 스타일 리셋.
+   font 단축 속성은 .item 의 font-size 까지 덮으므로 font-family 만 상속. */
 .itemButton {
   width: 100%;
   background: none;
   border: none;
-  font: inherit;
+  font-family: inherit;
   text-align: left;
 }
 
