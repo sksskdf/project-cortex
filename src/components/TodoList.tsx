@@ -15,13 +15,51 @@ const priorityClass: Record<TodoPriority, string> = {
   high: styles.priorityHigh,
 };
 
-export function TodoList({ todos }: { todos: ReadonlyArray<TodoView> }) {
-  const open = todos.filter((t) => t.status !== 'done');
-  const done = todos.filter((t) => t.status === 'done');
+export type ProjectOption = { id: number; slug: string };
+
+// 'all' = 전체, 'personal' = 프로젝트 미연결(개인), number = 해당 프로젝트.
+type ProjectFilter = number | 'all' | 'personal';
+
+export function TodoList({
+  todos,
+  projects,
+}: {
+  todos: ReadonlyArray<TodoView>;
+  projects: ReadonlyArray<ProjectOption>;
+}) {
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
+
+  const visible = todos.filter((todo) => {
+    if (projectFilter === 'personal') return todo.projectId === null;
+    if (typeof projectFilter === 'number') return todo.projectId === projectFilter;
+    return true;
+  });
+  const open = visible.filter((t) => t.status !== 'done');
+  const done = visible.filter((t) => t.status === 'done');
 
   return (
     <div className={styles.wrap}>
-      <AddTodoForm />
+      <AddTodoForm projects={projects} />
+
+      <div className={styles.filterRow}>
+        <select
+          className={styles.addSelect}
+          value={String(projectFilter)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setProjectFilter(v === 'all' || v === 'personal' ? v : Number(v));
+          }}
+          aria-label={t.todos.projectLabel}
+        >
+          <option value="all">{t.todos.projectFilterAll}</option>
+          <option value="personal">{t.todos.projectPersonal}</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.slug}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <section className={styles.section}>
         <header className={styles.sectionHead}>
@@ -56,16 +94,22 @@ export function TodoList({ todos }: { todos: ReadonlyArray<TodoView> }) {
   );
 }
 
-function AddTodoForm() {
+function AddTodoForm({ projects }: { projects: ReadonlyArray<ProjectOption> }) {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TodoPriority>('normal');
+  // '' = 개인(프로젝트 미연결), 숫자 문자열 = 프로젝트 id.
+  const [projectId, setProjectId] = useState('');
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (title.trim().length === 0) return;
     startTransition(async () => {
-      const r = await createTodoAction({ title: title.trim(), priority });
+      const r = await createTodoAction({
+        title: title.trim(),
+        priority,
+        projectId: projectId === '' ? null : Number(projectId),
+      });
       if (r.kind === 'created') {
         setTitle('');
       }
@@ -93,6 +137,20 @@ function AddTodoForm() {
         <option value="low">{t.todos.priority.low}</option>
         <option value="normal">{t.todos.priority.normal}</option>
         <option value="high">{t.todos.priority.high}</option>
+      </select>
+      <select
+        className={styles.addSelect}
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+        disabled={pending}
+        aria-label={t.todos.projectLabel}
+      >
+        <option value="">{t.todos.projectPersonal}</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.slug}
+          </option>
+        ))}
       </select>
       <button
         type="submit"

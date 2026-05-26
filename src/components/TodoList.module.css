@@ -13,6 +13,11 @@
   padding: var(--ds-spacing-12);
 }
 
+.filterRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .addInput {
   flex: 1;
   padding: var(--ds-spacing-6) var(--ds-spacing-10);

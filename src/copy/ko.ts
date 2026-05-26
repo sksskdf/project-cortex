@@ -647,6 +647,10 @@ export const ko = {
     title: 'TODO',
     subtitle: '한 줄 작업을 빠르게 적고 관리합니다.',
     empty: '아직 등록된 TODO 가 없습니다.',
+    // 프로젝트별 관리 + 개인(미연결) — projectId null = 개인.
+    projectLabel: '프로젝트',
+    projectFilterAll: '전체',
+    projectPersonal: '개인',
     section: {
       open: '진행 중',
       done: '완료',
