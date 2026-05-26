@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import type { CurrentUser, SidebarCounts } from '@/lib/types';
 import { useAgentDrawer } from './AgentDrawer';
+import { useHelp } from './HelpOverlay';
 import styles from './Sidebar.module.css';
 
 type NavItem = {
@@ -225,11 +226,12 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 export function Sidebar({ counts, user }: { counts: SidebarCounts; user: CurrentUser }) {
   const pathname = usePathname();
   const { openDrawer } = useAgentDrawer();
+  const { openHelp } = useHelp();
 
   // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
   // /clusters: Phase 6 — 활성. /projects: Phase 8 — 활성.
   // /agents: Phase 13 — 라우트 이동 대신 전역 드로어 토글 (onSelect).
-  // /reports: Phase 7 — 활성. /help: 최하 우선순위 — 준비 중.
+  // /reports: Phase 7 — 활성. /help: Phase 14 — 라우트 이동 대신 도움말 오버레이 (onSelect).
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
     {
@@ -277,7 +279,8 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
 
   const utilityItems: ReadonlyArray<NavItem> = [
     { href: '/settings', label: t.nav.settings, icon: settingsIcon },
-    { href: '/help', label: t.nav.help, icon: helpIcon, comingSoon: true },
+    // 라우트가 아니라 현재 화면 위 오버레이 — '?' 단축키와 동일.
+    { href: '/help', label: t.nav.help, icon: helpIcon, onSelect: openHelp },
   ];
 
   return (

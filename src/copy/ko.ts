@@ -775,4 +775,61 @@ export const ko = {
       empty: '핀 고정한 메모가 없습니다.',
     },
   },
+  // Phase 14 — 인터랙티브 도움말. 헤더/사이드바 '도움말' 또는 '?' 단축키로 토글.
+  help: {
+    title: '도움말',
+    subtitle: '주요 화면과 단축키를 한눈에 봅니다.',
+    open: '도움말 열기',
+    close: '닫기',
+    shortcutHint: '단축키 ?',
+    // 화면 안내 — 사이드바 항목과 1:1.
+    screensTitle: '화면 안내',
+    screens: {
+      dashboard: '자동 머지 현황과 오늘 볼 일을 요약합니다.',
+      inbox: '검토가 필요한 PR을 우선순위 순으로 봅니다.',
+      projects: '연결한 레포와 로드맵을 관리합니다.',
+      todos: '프로젝트별 할 일과 개인 메모를 둡니다.',
+      notes: '자유 메모를 두고 핀으로 고정합니다.',
+      agents: 'Claude Code 세션을 어디서든 엽니다.',
+      clusters: '비슷한 PR을 묶어 한 번에 처리합니다.',
+      reports: '머지율과 추이를 그래프로 확인합니다.',
+    },
+    // 단축키 표.
+    shortcutsTitle: '단축키',
+    shortcuts: {
+      helpKey: '?',
+      helpDesc: '도움말 열기 / 닫기',
+      escKey: 'Esc',
+      escDesc: '도움말 닫기',
+      tourKey: '→',
+      tourDesc: '투어 다음 단계',
+    },
+    // 가이드 투어 — 사이드바 섹션을 차례로 안내.
+    tour: {
+      start: '둘러보기',
+      step: (current: number, total: number) => `${current} / ${total}`,
+      prev: '이전',
+      next: '다음',
+      done: '완료',
+      skip: '건너뛰기',
+      steps: {
+        inbox: {
+          title: '인박스에서 시작합니다',
+          desc: '검토가 필요한 PR이 우선순위 순으로 쌓입니다. 가장 먼저 보는 화면입니다.',
+        },
+        clusters: {
+          title: '비슷한 PR은 묶어서 처리합니다',
+          desc: '클러스터에서 닮은 변경을 한 번에 머지해 컨텍스트 전환을 줄입니다.',
+        },
+        agents: {
+          title: '에이전트를 어디서든 엽니다',
+          desc: '단축키로 드로어를 띄워 Claude Code 세션을 화면 이동에도 유지합니다.',
+        },
+        reports: {
+          title: '추이는 보고서에서 봅니다',
+          desc: '자동 머지율과 신뢰 점수 흐름을 그래프로 확인합니다.',
+        },
+      },
+    },
+  },
 } as const;
