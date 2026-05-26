@@ -43,11 +43,6 @@ export function AiToggle({ initial }: Props) {
         >
           <span className="ds-btn__label">{enabled ? t.settings.ai.on : t.settings.ai.off}</span>
         </button>
-        <span
-          className={`${styles.toggleLabel} ${enabled ? styles.toggleLabelOn : styles.toggleLabelOff}`}
-        >
-          {enabled ? t.settings.ai.statusOn : t.settings.ai.statusOff}
-        </span>
       </div>
       <SettingsResult state={state} />
     </>

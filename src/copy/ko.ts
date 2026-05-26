@@ -477,8 +477,6 @@ export const ko = {
       desc: 'Cortex 가 webhook 으로 들어오는 PR 을 Anthropic 으로 분석할지 여부. 끄면 Anthropic 크레딧 사용이 0 입니다.',
       on: 'ON',
       off: 'OFF',
-      statusOn: '활성',
-      statusOff: '비활성',
       impactTitle: '비활성 시 동작',
       impact: {
         analyze:
