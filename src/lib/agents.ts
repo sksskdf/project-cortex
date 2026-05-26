@@ -23,14 +23,19 @@ function resolveOnPath(command: string): string | null {
   return null;
 }
 
-// 화이트리스트 중 PATH 에 존재하는 첫 명령. 없으면 null.
-export function findClaudeCommand(): AllowedCommand | null {
-  for (const cmd of ALLOWED_COMMANDS) {
-    if (resolveOnPath(cmd)) return cmd;
+export type ResolvedClaude = { command: AllowedCommand; path: string };
+
+// 화이트리스트 중 PATH 에 존재하는 첫 명령 + 그 실행 파일의 전체 경로. 없으면 null.
+// 전체 경로를 반환하는 이유: Windows 전역 npm bin 은 claude.cmd 라 이름만으로는 node-pty
+// (ConPTY) 가 실행 못 함 — 호출측이 경로 + 확장자로 spawn 방식을 정한다.
+export function resolveClaude(): ResolvedClaude | null {
+  for (const command of ALLOWED_COMMANDS) {
+    const path = resolveOnPath(command);
+    if (path) return { command, path };
   }
   return null;
 }
 
 export function isClaudeAvailable(): boolean {
-  return findClaudeCommand() !== null;
+  return resolveClaude() !== null;
 }
