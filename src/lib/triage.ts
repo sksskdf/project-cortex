@@ -5,7 +5,6 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import type { TriageDecisionRow } from '@/db/schema';
-import { AUTO_MERGE_THRESHOLD } from './confidence';
 
 export type TriageDecision = TriageDecisionRow['decision'];
 
@@ -74,16 +73,12 @@ export function decideTriage(input: TriageInput): TriageResult {
     };
   }
 
-  if (input.confidence < AUTO_MERGE_THRESHOLD) {
-    return {
-      decision: 'human-review',
-      reason: `신뢰 점수 ${input.confidence}점으로 자동 머지 기준(${AUTO_MERGE_THRESHOLD}+) 미달.`,
-    };
-  }
-
+  // 정책: "위험 아니면 다 자동 머지". 신뢰 점수 임계값 게이트는 제거 — 위험 플래그·CI 실패/대기·
+  // 사람 작성·autoMerge off 만 차단하고, 그 외(신뢰 점수 무관)는 자동 머지. input.confidence 는
+  // 더 이상 결정에 쓰지 않으나 UI/표시용으로 입력에 남겨둔다.
   return {
     decision: 'auto-merge',
-    reason: '모든 자동 머지 조건 충족.',
+    reason: '위험 신호 없음 — 자동 머지.',
   };
 }
 
