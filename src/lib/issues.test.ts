@@ -3,7 +3,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs } from '@/db/schema';
-import { countOpenIssues, listIssues } from './issues';
+import { countOpenIssues, getIssueDetail, listIssues } from './issues';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -102,5 +102,74 @@ describe('countOpenIssues', () => {
     const doneId = seedIssue(repoId, 'c', 'open');
     db.update(issues).set({ status: 'done' }).where(eq(issues.id, doneId)).run();
     expect(countOpenIssues()).toBe(2);
+  });
+});
+
+describe('getIssueDetail', () => {
+  it('returns null for a missing issue', () => {
+    expect(getIssueDetail(999)).toBeNull();
+  });
+
+  it('maps fields, project, spec and empty runs', () => {
+    const repoId = seedProject('cortex-web');
+    const issueId = db
+      .insert(issues)
+      .values({
+        repoId,
+        title: 'detail issue',
+        spec: 'do the thing',
+        assigneeKind: 'human',
+        assigneeId: 'me',
+        status: 'open',
+      })
+      .returning({ id: issues.id })
+      .get().id;
+
+    const detail = getIssueDetail(issueId);
+    expect(detail).not.toBeNull();
+    expect(detail!.title).toBe('detail issue');
+    expect(detail!.spec).toBe('do the thing');
+    expect(detail!.projectSlug).toBe('cortex-web');
+    expect(detail!.assigneeKind).toBe('human');
+    expect(detail!.runs).toEqual([]);
+  });
+
+  it('includes agent runs newest-first with result PR number', () => {
+    const repoId = seedProject('api');
+    const issueId = seedIssue(repoId, 'delegated', 'in-progress');
+    const prId = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 7,
+        title: 'fix',
+        authorKind: 'agent',
+        authorId: 'claude-code',
+        headSha: 'abc',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+      })
+      .returning({ id: prs.id })
+      .get().id;
+    db.insert(agentRuns)
+      .values({ issueId, agent: 'claude', status: 'failed', startedAt: new Date('2026-01-01') })
+      .run();
+    db.insert(agentRuns)
+      .values({
+        issueId,
+        agent: 'claude',
+        status: 'completed',
+        outputPrId: prId,
+        startedAt: new Date('2026-02-01'),
+      })
+      .run();
+
+    const detail = getIssueDetail(issueId);
+    expect(detail!.runs).toHaveLength(2);
+    expect(detail!.runs[0].status).toBe('completed');
+    expect(detail!.runs[0].resultPrNumber).toBe(7);
+    expect(detail!.runs[1].status).toBe('failed');
+    expect(detail!.runs[1].resultPrNumber).toBeNull();
   });
 });
