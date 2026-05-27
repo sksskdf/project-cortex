@@ -50,24 +50,6 @@ const workloadBarClass: Record<WorkloadBarTone, string> = {
 
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 15;
 
-function startIcon() {
-  return (
-    <svg
-      width={16}
-      height={16}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx={12} cy={12} r={3} />
-      <path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
-    </svg>
-  );
-}
-
 function inboxStatIcon() {
   return (
     <svg
@@ -297,20 +279,8 @@ export default async function DashboardPage() {
         </div>
         <div className={styles.headerActions}>
           {/* 알림은 Phase 7 활성화 — NotificationDropdown 가 자체 BellIcon + 카운트 배지 렌더.
-              에이전트 시작은 /agents (Claude Code 세션 매니저) 로 이동.
               새 이슈는 NewIssueDialog 모달 — Claude Code 위임 토글 포함 (Phase 13). */}
           <NotificationDropdown notifications={notifications} unreadCount={unreadCount} />
-          <Link
-            href="/agents"
-            className="ds-btn ds-btn--md ds-btn--outlined-basic"
-            aria-label={t.dashboard.header.startAgentHint}
-            title={t.dashboard.header.startAgentHint}
-          >
-            <span className="ds-btn__icon" aria-hidden="true">
-              {startIcon()}
-            </span>
-            <span className="ds-btn__label">{t.dashboard.startAgent}</span>
-          </Link>
           <NewIssueDialog repos={issueRepos} />
         </div>
       </header>

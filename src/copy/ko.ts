@@ -23,12 +23,10 @@ export const ko = {
     greeting: (name: string) => `안녕하세요, ${name}님`,
     greetingSub: (count: number) => `오늘 검토할 PR이 ${count}건 있습니다. 평균보다 적은 양이에요.`,
     notifications: '알림',
-    startAgent: '에이전트 시작',
     newIssue: '새 이슈',
-    // 알림 hint 는 미구현/예정 안내. 에이전트 시작은 /agents 로 이동, 새 이슈는 모달 작성.
+    // 알림 hint 는 미구현/예정 안내. 새 이슈는 모달 작성.
     header: {
       notificationsHint: '알림 — Phase 7 (운영 메트릭 + 이벤트) 예정',
-      startAgentHint: '에이전트 — Claude Code 세션 매니저로 이동',
       newIssueHint: '새 이슈 작성 — Claude Code 위임 가능',
     },
     // 새 이슈 모달 — 레포·제목·내용 + Claude Code 위임 토글.
@@ -745,7 +743,6 @@ export const ko = {
     stop: '세션 종료',
     restart: '다시 시작',
     placeholder: '워크스페이스를 고르고 시작을 누르면 터미널이 열립니다.',
-    hint: 'claude CLI 가 선택한 경로에서 실행됩니다. 사용자 Claude 플랜을 사용하며 별도 크레딧이 들지 않습니다.',
     notReady: 'claude CLI 를 찾을 수 없습니다. 설치 후 다시 시도해 주세요.',
     status: {
       connecting: '연결 중…',

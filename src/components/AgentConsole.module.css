@@ -62,12 +62,6 @@
   font-size: var(--ds-typography-font-size-13);
 }
 
-.hint {
-  margin: 0;
-  font-size: var(--ds-typography-font-size-11);
-  color: var(--ds-color-text-02);
-}
-
 .pane {
   display: flex;
   flex-direction: column;
