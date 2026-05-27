@@ -12,7 +12,7 @@
 // - cwd 는 DB 에 등록된 워크스페이스 localPath 만 (getWorkspaceById 조회가 곧 화이트리스트).
 // - 동시 세션 수 상한. cwd 미존재 시 거부. localhost 단일 사용자라 sessionId(UUID)면 충분.
 
-import type { IncomingMessage } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -21,6 +21,11 @@ import { getWorkspaceById } from '@/lib/workspace';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
 
 export const PTY_PATH = '/api/pty';
+// 세션 관리 HTTP 엔드포인트 (목록·이름 변경·종료). ws 와 달리 일반 GET/POST 라
+// server.ts 가 Next 핸들러보다 먼저 가로채 이 모듈의 in-memory 레지스트리에 접근한다.
+export const SESSIONS_PATH = '/api/sessions';
+const MAX_NAME = 60;
+const MAX_BODY = 10_000;
 const MAX_SESSIONS = 8;
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -37,6 +42,8 @@ type ClientMessage =
 
 type Session = {
   id: string;
+  // 사용자에게 보이는 이름 (세션 전환 목록용). 생성 시 클라이언트가 지정, 이후 rename 가능.
+  name: string;
   workspaceId: number;
   proc: IPty;
   buffer: string;
@@ -44,6 +51,20 @@ type Session = {
   reapTimer: ReturnType<typeof setTimeout> | null;
   dataSub: { dispose(): void };
   exitSub: { dispose(): void };
+  createdAt: number;
+  // 마지막 입출력 시각 — 목록에서 활동 여부 표시 + 가장 최근 세션 정렬용.
+  lastActivityAt: number;
+};
+
+// 세션 관리 엔드포인트가 클라이언트에 내보내는 메타 (proc/ws 등 내부 핸들 제외).
+export type SessionMeta = {
+  id: string;
+  name: string;
+  workspaceId: number;
+  createdAt: number;
+  lastActivityAt: number;
+  // 현재 구독 중인 ws 가 있으면 true (어떤 탭이 보고 있음). false 면 detached(백그라운드).
+  connected: boolean;
 };
 
 const wss = new WebSocketServer({ noServer: true });
@@ -135,6 +156,7 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
 
   const cols = clampDim(params.get('cols'), DEFAULT_COLS);
   const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
+  const name = sanitizeName(params.get('name')) || `세션 ${sessions.size + 1}`;
 
   // Windows 전역 npm bin 은 claude.cmd/.bat (배치 스크립트) — node-pty(ConPTY)가 직접
   // CreateProcess 로 실행 못 하므로 cmd.exe /c 로 감쌉니다. POSIX 는 resolve 된 경로 직접 실행.
@@ -156,8 +178,10 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
     return;
   }
 
+  const now = Date.now();
   const session: Session = {
     id: sessionId,
+    name,
     workspaceId,
     proc,
     buffer: '',
@@ -165,10 +189,13 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
     reapTimer: null,
     dataSub: { dispose() {} },
     exitSub: { dispose() {} },
+    createdAt: now,
+    lastActivityAt: now,
   };
 
   session.dataSub = proc.onData((d) => {
     session.buffer = (session.buffer + d).slice(-BUFFER_CAP);
+    session.lastActivityAt = Date.now();
     if (session.ws && session.ws.readyState === WebSocket.OPEN) {
       session.ws.send(JSON.stringify({ type: 'output', data: d }));
     }
@@ -192,6 +219,7 @@ function wireClient(session: Session, ws: WebSocket) {
       return;
     }
     if (msg.type === 'input' && typeof msg.data === 'string') {
+      session.lastActivityAt = Date.now();
       session.proc.write(msg.data);
     } else if (msg.type === 'resize') {
       session.proc.resize(clampInt(msg.cols, DEFAULT_COLS), clampInt(msg.rows, DEFAULT_ROWS));
@@ -226,6 +254,116 @@ function destroy(session: Session) {
   }
   if (session.ws && session.ws.readyState === WebSocket.OPEN) session.ws.close();
   sessions.delete(session.id);
+}
+
+// 세션 관리 HTTP 핸들러 — server.ts 가 Next 핸들러보다 먼저 호출. 우리 경로면 처리하고
+// true, 아니면 false (호출측이 Next 로 위임). ws(/api/pty)와 같은 모듈이라 in-memory
+// 레지스트리를 공유한다 (App Router route handler 는 별도 모듈 그래프라 이 map 을 못 봄).
+// localhost 단일 사용자 — 인증 없음. 입력은 길이/타입 검증만.
+export function handlePtyControl(req: IncomingMessage, res: ServerResponse): boolean {
+  const url = new URL(req.url ?? '', 'http://localhost');
+  if (url.pathname !== SESSIONS_PATH) return false;
+
+  if (req.method === 'GET') {
+    sendJson(res, 200, { sessions: listSessionMeta() });
+    return true;
+  }
+  if (req.method === 'POST') {
+    readJsonBody(req, res, (body) => handleControlAction(res, body));
+    return true;
+  }
+  sendJson(res, 405, { error: 'method not allowed' });
+  return true;
+}
+
+// 최근 활동 순 — 활성 세션이 위로.
+function listSessionMeta(): SessionMeta[] {
+  return [...sessions.values()]
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      workspaceId: s.workspaceId,
+      createdAt: s.createdAt,
+      lastActivityAt: s.lastActivityAt,
+      connected: s.ws !== null && s.ws.readyState === WebSocket.OPEN,
+    }))
+    .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+}
+
+function handleControlAction(
+  res: ServerResponse,
+  body: { action?: unknown; id?: unknown; name?: unknown },
+) {
+  const id = typeof body.id === 'string' ? body.id : null;
+  if (!id) {
+    sendJson(res, 400, { error: 'id required' });
+    return;
+  }
+  const session = sessions.get(id);
+  if (!session) {
+    sendJson(res, 404, { error: 'session not found' });
+    return;
+  }
+  if (body.action === 'rename') {
+    const name = sanitizeName(typeof body.name === 'string' ? body.name : null);
+    if (!name) {
+      sendJson(res, 400, { error: 'name required' });
+      return;
+    }
+    session.name = name;
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+  if (body.action === 'terminate') {
+    destroy(session);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+  sendJson(res, 400, { error: 'unknown action' });
+}
+
+// 제어문자 제거 + 트림 + 길이 제한. 비면 빈 문자열 (호출측이 기본값 처리).
+function sanitizeName(raw: string | null): string {
+  if (!raw) return '';
+  // eslint-disable-next-line no-control-regex
+  return raw
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, MAX_NAME);
+}
+
+function sendJson(res: ServerResponse, status: number, payload: unknown) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(body);
+}
+
+function readJsonBody(
+  req: IncomingMessage,
+  res: ServerResponse,
+  onParsed: (body: { action?: unknown; id?: unknown; name?: unknown }) => void,
+) {
+  let data = '';
+  let aborted = false;
+  req.on('data', (chunk) => {
+    data += chunk;
+    if (data.length > MAX_BODY) {
+      aborted = true;
+      sendJson(res, 413, { error: 'body too large' });
+      req.destroy();
+    }
+  });
+  req.on('end', () => {
+    if (aborted) return;
+    try {
+      onParsed(JSON.parse(data || '{}'));
+    } catch {
+      sendJson(res, 400, { error: 'invalid json' });
+    }
+  });
+  req.on('error', () => {
+    if (!aborted) sendJson(res, 400, { error: 'request error' });
+  });
 }
 
 function clampDim(raw: string | null, fallback: number): number {

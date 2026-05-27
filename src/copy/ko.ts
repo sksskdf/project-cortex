@@ -793,6 +793,20 @@ export const ko = {
       desc: '프로젝트에 로컬 워크스페이스를 먼저 등록해 주세요.',
       cta: '프로젝트로 이동',
     },
+    // 다중 세션 관리 — 목록·전환·이름 변경·종료. 서버 detached 세션이 source of truth.
+    sessions: {
+      newSession: '새 세션',
+      listLabel: '세션 목록',
+      switchAria: (name: string) => `${name} 세션 보기`,
+      rename: '이름 변경',
+      renamePlaceholder: '세션 이름',
+      terminate: '세션 종료',
+      terminateAria: (name: string) => `${name} 세션 종료`,
+      active: '보는 중',
+      emptyList: '실행 중인 세션이 없습니다.',
+      // 새 세션 기본 이름 — 워크스페이스 slug.
+      defaultName: (slug: string) => slug,
+    },
   },
   // Phase 11 후속 — 자유 마크다운 메모.
   notes: {

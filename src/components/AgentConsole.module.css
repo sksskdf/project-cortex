@@ -49,6 +49,115 @@
   font-size: var(--ds-typography-font-size-12);
 }
 
+/* 세션 목록 — 전환·이름 변경·종료. 활성 세션은 강조 + 라벨. */
+.sessionList {
+  margin: 0;
+  padding: var(--ds-spacing-4);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.sessionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-6);
+  border-radius: var(--ds-border-radius-input);
+}
+
+.sessionRowActive {
+  background: var(--ds-color-bg-01);
+}
+
+.sessionMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-6) var(--ds-spacing-8);
+  background: transparent;
+  border: none;
+  border-radius: var(--ds-border-radius-input);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.sessionMain:hover {
+  background: var(--ds-color-bg-01);
+}
+
+.sessionName {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionWs {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+  white-space: nowrap;
+}
+
+.sessionBadge {
+  margin-left: auto;
+  font-size: var(--ds-typography-font-size-10);
+  color: var(--ds-color-state-info-accent, var(--ds-color-text-02));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sessionActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-right: var(--ds-spacing-4);
+}
+
+.sessionAction {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--ds-border-radius-input);
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-13);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sessionAction:hover {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-03-high);
+}
+
+.renameInput {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  margin: 2px var(--ds-spacing-4);
+  padding: 0 var(--ds-spacing-8);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-input);
+  color: var(--ds-color-text-03-high);
+  font-size: var(--ds-typography-font-size-13);
+}
+
 .placeholder {
   display: flex;
   align-items: center;

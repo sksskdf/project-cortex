@@ -5,7 +5,7 @@
 
 import { createServer } from 'node:http';
 import next from 'next';
-import { handlePtyUpgrade } from '@/server/pty';
+import { handlePtyControl, handlePtyUpgrade } from '@/server/pty';
 
 const dev = process.env.NODE_ENV !== 'production';
 const port = Number(process.env.PORT ?? 3000);
@@ -19,6 +19,9 @@ app.prepare().then(() => {
   const upgradeNext = app.getUpgradeHandler();
 
   const server = createServer((req, res) => {
+    // 세션 관리(/api/sessions)는 pty 매니저가 직접 처리 — Next route handler 와 다른 모듈
+    // 그래프라 in-memory 세션 레지스트리를 공유하려면 여기서 가로채야 한다.
+    if (handlePtyControl(req, res)) return;
     handle(req, res);
   });
 
