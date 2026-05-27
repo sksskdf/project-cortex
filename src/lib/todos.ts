@@ -20,6 +20,8 @@ export type TodoView = {
   projectSlug: string | null;
   prId: number | null;
   prNumber: number | null;
+  // 이슈/TODO/로드맵 통합 1단계 — 이 TODO 가 속한 이슈 (옵션).
+  issueId: number | null;
   completedAt: Date | null;
   createdAt: Date;
 };
@@ -40,6 +42,7 @@ function rowToView(
     projectSlug: row.projectId !== null ? (projectById.get(row.projectId) ?? null) : null,
     prId: row.prId,
     prNumber: row.prId !== null ? (prNumberById.get(row.prId) ?? null) : null,
+    issueId: row.issueId,
     completedAt: row.completedAt,
     createdAt: row.createdAt,
   };
@@ -149,6 +152,18 @@ export function updateTodo(
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(todos.id, todoId))
     .run();
+  return { kind: 'updated' };
+}
+
+// 이슈/TODO/로드맵 통합 1단계 — TODO 를 이슈에 연결 (null 이면 연결 해제).
+// 읽기는 TodoView.issueId 로.
+export function linkTodoToIssue(
+  todoId: number,
+  issueId: number | null,
+): { kind: 'updated' } | { kind: 'not-found' } {
+  const existing = db.select({ id: todos.id }).from(todos).where(eq(todos.id, todoId)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(todos).set({ issueId, updatedAt: new Date() }).where(eq(todos.id, todoId)).run();
   return { kind: 'updated' };
 }
 

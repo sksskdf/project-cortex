@@ -2,11 +2,12 @@ import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { agentRuns, issues, projects, prs } from '@/db/schema';
+import { agentRuns, issues, projects, prs, roadmapItems, roadmapPhases } from '@/db/schema';
 import {
   countOpenIssues,
   finishAgentRun,
   getIssueDetail,
+  linkIssueToRoadmapItem,
   listIssues,
   startAgentRun,
 } from './issues';
@@ -16,12 +17,25 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  // FK 순서대로 정리 — agent_runs → prs → issues → projects.
+  // FK 순서대로 정리 — agent_runs → prs → issues → roadmap_items → roadmap_phases → projects.
+  // issues 가 roadmap_items 를 참조하므로 roadmap_items 보다 먼저 지운다.
   db.delete(agentRuns).run();
   db.delete(prs).run();
   db.delete(issues).run();
+  db.delete(roadmapItems).run();
+  db.delete(roadmapPhases).run();
   db.delete(projects).run();
 });
+
+function seedRoadmapItem(projectId: number, title: string): number {
+  const phaseId = db
+    .insert(roadmapPhases)
+    .values({ projectId, key: 'p1', title: 'phase 1' })
+    .returning({ id: roadmapPhases.id })
+    .get().id;
+  return db.insert(roadmapItems).values({ phaseId, title }).returning({ id: roadmapItems.id }).get()
+    .id;
+}
 
 function seedProject(slug: string): number {
   return db.insert(projects).values({ slug, name: slug }).returning({ id: projects.id }).get().id;
@@ -171,6 +185,31 @@ describe('getIssueDetail', () => {
     expect(detail!.projectSlug).toBe('cortex-web');
     expect(detail!.assigneeKind).toBe('human');
     expect(detail!.runs).toEqual([]);
+  });
+
+  it('roadmap 링크 기본값은 null', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'no link');
+    const detail = getIssueDetail(issueId)!;
+    expect(detail.roadmapItemId).toBeNull();
+    expect(detail.roadmapItemTitle).toBeNull();
+  });
+
+  it('linkIssueToRoadmapItem 후 상세에 id + title 노출', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'linked');
+    const itemId = seedRoadmapItem(repoId, '산출물 A');
+
+    linkIssueToRoadmapItem(issueId, itemId);
+    const detail = getIssueDetail(issueId)!;
+    expect(detail.roadmapItemId).toBe(itemId);
+    expect(detail.roadmapItemTitle).toBe('산출물 A');
+
+    // null 로 연결 해제.
+    linkIssueToRoadmapItem(issueId, null);
+    const cleared = getIssueDetail(issueId)!;
+    expect(cleared.roadmapItemId).toBeNull();
+    expect(cleared.roadmapItemTitle).toBeNull();
   });
 
   it('includes agent runs newest-first with result PR number', () => {
