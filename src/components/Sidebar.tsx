@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import type { CurrentUser, SidebarCounts } from '@/lib/types';
-import { useAgentDrawer } from './AgentDrawer';
 import { useHelp } from './HelpOverlay';
 import styles from './Sidebar.module.css';
 
@@ -60,20 +59,6 @@ const projectsIcon = (
   >
     <rect x={3} y={4} width={18} height={16} rx={2} />
     <line x1={3} y1={9} x2={21} y2={9} />
-  </svg>
-);
-
-const agentsIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx={12} cy={12} r={3} />
-    <path d="M12 1v6m0 10v6m11-11h-6M7 12H1m15.36-7.36-4.24 4.24m-4.24 4.24-4.24 4.24m12.72 0-4.24-4.24M7.76 7.76 3.52 3.52" />
   </svg>
 );
 
@@ -225,12 +210,11 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 
 export function Sidebar({ counts, user }: { counts: SidebarCounts; user: CurrentUser }) {
   const pathname = usePathname();
-  const { openDrawer } = useAgentDrawer();
   const { openHelp } = useHelp();
 
   // comingSoon: 라우트가 아직 없는 항목들. 해당 Phase 진입 시 false 로 전환.
   // /clusters: Phase 6 — 활성. /projects: Phase 8 — 활성.
-  // /agents: Phase 13 — 라우트 이동 대신 전역 드로어 토글 (onSelect).
+  // 에이전트는 사이드바 항목 제거 — 우하단 런처로 드로어를 연다.
   // /reports: Phase 7 — 활성. /help: Phase 14 — 라우트 이동 대신 도움말 오버레이 (onSelect).
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
@@ -259,14 +243,6 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       label: t.nav.notes,
       icon: notesIcon,
       count: counts.notes,
-    },
-    {
-      href: '/agents',
-      label: t.nav.agents,
-      icon: agentsIcon,
-      count: counts.agents,
-      // 라우트 이동 대신 전역 드로어 — 어느 화면에서든 세션 유지.
-      onSelect: openDrawer,
     },
     {
       href: '/clusters',

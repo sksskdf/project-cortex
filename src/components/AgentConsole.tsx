@@ -154,8 +154,6 @@ export function AgentConsole({
       ) : (
         <div className={styles.placeholder}>{t.agents.placeholder}</div>
       )}
-
-      <p className={styles.hint}>{t.agents.hint}</p>
     </div>
   );
 }
