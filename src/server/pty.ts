@@ -223,7 +223,6 @@ function startPty(
   cols: number,
   rows: number,
   mode: 'new' | 'resume',
-  initialPrompt?: string,
 ): IPty | null {
   const workspace = getWorkspaceById(workspaceId);
   if (!workspace) {
@@ -242,9 +241,8 @@ function startPty(
   }
   // 세션 연속성: --session-id 로 우리 UUID 를 claude 세션 id 로 고정 → 재시작 후 --resume 가능.
   const claudeArgs = mode === 'resume' ? ['--resume', sessionId] : ['--session-id', sessionId];
-  // 위임 세션: 초기 작업 지시를 positional prompt 로 전달 → 대화형으로 열리며 바로 처리(권한은
-  // 대화형으로 사용자가 승인). 줄바꿈 포함 문자열도 단일 argv 로 그대로 전달된다.
-  if (mode === 'new' && initialPrompt) claudeArgs.push(initialPrompt);
+  // 위임 세션 초기 작업 지시는 positional prompt 가 아니라 REPL 주입으로 전달한다(sendInitialPrompt)
+  // — v2.1.x 대화형에서 positional prompt 가 자동 실행되지 않고 초기 화면만 뜨는 동작 우회.
   // Windows 전역 npm bin 은 claude.cmd/.bat (배치 스크립트) — node-pty(ConPTY)가 직접
   // CreateProcess 로 실행 못 하므로 cmd.exe /c 로 감쌉니다. POSIX 는 resolve 된 경로 직접 실행.
   const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claude.path);
@@ -306,7 +304,7 @@ function createSession(
   const runIdRaw = Number(params.get('runId'));
   const runId = Number.isInteger(runIdRaw) && runIdRaw > 0 ? runIdRaw : null;
 
-  const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new', initialPrompt);
+  const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new');
   if (!proc) return;
 
   const now = Date.now();
@@ -326,7 +324,20 @@ function createSession(
   };
   sessions.set(sessionId, session);
   wireProc(session);
+  // 위임 세션: REPL 이 뜬 뒤 초기 작업 지시를 입력으로 주입(아래 sendInitialPrompt).
+  if (initialPrompt) sendInitialPrompt(session, initialPrompt);
   persistAll();
+}
+
+// 위임 세션 초기 작업 지시 — claude 대화형 REPL 에 bracketed paste(ESC[200~ … ESC[201~)로
+// prompt 를 한 번에 입력하고 CR 로 제출한다(여러 줄도 줄마다 제출되지 않음). positional 초기
+// prompt 가 v2.1.x 대화형에서 자동 실행되지 않는 동작을 우회. REPL 준비 신호가 없어 짧은 지연 후
+// 1회 주입한다 (claude 초기 렌더 완료 대기).
+const PROMPT_PASTE_DELAY_MS = 1500;
+function sendInitialPrompt(session: Session, prompt: string) {
+  setTimeout(() => {
+    if (session.proc) session.proc.write(`\x1b[200~${prompt}\x1b[201~\r`);
+  }, PROMPT_PASTE_DELAY_MS);
 }
 
 // 재시작 후 dormant(프로세스 없는) 세션에 재접속 — claude --resume 로 대화 재개. 실패 시
