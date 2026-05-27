@@ -142,6 +142,7 @@ function passesCategory(
 export async function listInboxQueue(
   category: InboxCategoryId = 'all',
   search: string = '',
+  project: string = '',
 ): Promise<PR[]> {
   // 카테고리에 따라 SQL where 분기:
   // - done: status IN ('merged','closed'), clusterId 무관 (클러스터로 머지된 PR 도 노출).
@@ -161,10 +162,12 @@ export async function listInboxQueue(
   // 검색은 PR 제목 + repo slug 부분 일치 (대소문자 무시 — SQLite 기본 LIKE).
   // 빈 문자열이면 검색 안 함. 트림 후 빈 것도 동일.
   const trimmed = search.trim();
-  const whereClause =
+  const searchWhere =
     trimmed.length > 0
       ? and(baseWhere, or(like(prs.title, `%${trimmed}%`), like(projects.slug, `%${trimmed}%`)))
       : baseWhere;
+  // 프로젝트 레일 선택 시 해당 slug 로 추가 필터 — 인박스 큐 룰·카테고리·검색과 AND.
+  const whereClause = project ? and(searchWhere, eq(projects.slug, project)) : searchWhere;
 
   const baseQuery = db
     .select({

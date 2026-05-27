@@ -145,14 +145,14 @@ function searchIcon() {
   );
 }
 
-// 인박스 자체 흐름과 의미가 다른 카테고리들의 동작:
-// - cluster: /clusters 목록으로 navigate (PR #45 화면이 더 적합).
-// - mentioned: PR body 에 @<currentUser.githubLogin> 매칭 (SQL LIKE — review comments 후속).
-// - done: status IN (merged, closed) 별도 SQL 분기. 머지 후 PR 직접 접근.
-function categoryHref(id: InboxCategoryId): string | null {
-  if (id === 'cluster') return '/clusters';
-  if (id === 'all') return '/inbox';
-  return `/inbox?category=${id}`;
+// 인박스 필터 링크 — category(all 은 생략) · project 슬러그를 쿼리로 합성, 둘은 AND 조합.
+// cluster 카테고리만 예외로 /clusters 목록으로 navigate (호출부에서 분기).
+function inboxHref(params: { category?: InboxCategoryId; project?: string }): string {
+  const sp = new URLSearchParams();
+  if (params.category && params.category !== 'all') sp.set('category', params.category);
+  if (params.project) sp.set('project', params.project);
+  const qs = sp.toString();
+  return qs ? `/inbox?${qs}` : '/inbox';
 }
 
 const FILTERABLE_CATEGORIES: ReadonlyArray<InboxCategoryId> = [
@@ -176,17 +176,27 @@ function parseSearch(raw: string | string[] | undefined): string {
   return (value ?? '').slice(0, 100);
 }
 
+function parseProject(raw: string | string[] | undefined): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return (value ?? '').slice(0, 100);
+}
+
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string | string[]; q?: string | string[] }>;
+  searchParams: Promise<{
+    category?: string | string[];
+    q?: string | string[];
+    project?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
   const activeCategory = parseCategory(params.category);
   const searchQuery = parseSearch(params.q);
+  const activeProject = parseProject(params.project);
 
   const [inboxQueue, inboxCategories, inboxProjects, inboxClusterBanner] = await Promise.all([
-    listInboxQueue(activeCategory, searchQuery),
+    listInboxQueue(activeCategory, searchQuery, activeProject),
     getInboxCategories(),
     getInboxProjects(),
     getInboxClusterBanner(),
@@ -198,35 +208,21 @@ export default async function InboxPage({
         <div className={styles.railTitle}>{t.inbox.rail.categoryTitle}</div>
         <ul className={styles.railList}>
           {inboxCategories.map((cat) => {
-            const href = categoryHref(cat.id);
+            // cluster 만 /clusters 로 이탈, 나머지는 현재 project 필터를 유지하며 category 전환.
+            const href =
+              cat.id === 'cluster'
+                ? '/clusters'
+                : inboxHref({ category: cat.id, project: activeProject });
             const isActive = cat.id === activeCategory;
-            const body = (
-              <>
-                {categoryIcon(cat.id)}
-                <span className={styles.railLabel}>{categoryLabel[cat.id]}</span>
-                <span className={styles.railCount}>{cat.count}</span>
-              </>
-            );
-            if (href === null) {
-              // mentioned — 미구현, 클릭 비활성.
-              return (
-                <li key={cat.id}>
-                  <span
-                    className={`${styles.railItem} ${styles.railItemDisabled}`}
-                    aria-disabled="true"
-                  >
-                    {body}
-                  </span>
-                </li>
-              );
-            }
             return (
               <li key={cat.id}>
                 <Link
                   href={href}
                   className={`${styles.railItem} ${isActive ? styles.railItemActive : ''}`}
                 >
-                  {body}
+                  {categoryIcon(cat.id)}
+                  <span className={styles.railLabel}>{categoryLabel[cat.id]}</span>
+                  <span className={styles.railCount}>{cat.count}</span>
                 </Link>
               </li>
             );
@@ -237,22 +233,29 @@ export default async function InboxPage({
           {t.inbox.rail.projectTitle}
         </div>
         <ul className={styles.railList}>
-          {/* /projects/[id] 라우트는 Phase 8 onboarding 진입 시 활성. 그전엔 클릭 비활성. */}
-          {inboxProjects.map((project) => (
-            <li key={project.id}>
-              <span
-                className={`${styles.railItem} ${styles.railItemDisabled}`}
-                aria-disabled="true"
-              >
-                <span
-                  className={`${styles.projectDot} ${projectDotClass[project.dot]}`}
-                  aria-hidden="true"
-                />
-                <span className={styles.railLabel}>{project.name}</span>
-                <span className={styles.railCount}>{project.count}</span>
-              </span>
-            </li>
-          ))}
+          {inboxProjects.map((project) => {
+            const isActive = project.id === activeProject;
+            // 활성 프로젝트를 다시 클릭하면 필터 해제(project 제거). category 는 유지.
+            const href = inboxHref({
+              category: activeCategory,
+              project: isActive ? undefined : project.id,
+            });
+            return (
+              <li key={project.id}>
+                <Link
+                  href={href}
+                  className={`${styles.railItem} ${isActive ? styles.railItemActive : ''}`}
+                >
+                  <span
+                    className={`${styles.projectDot} ${projectDotClass[project.dot]}`}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.railLabel}>{project.name}</span>
+                  <span className={styles.railCount}>{project.count}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
@@ -306,6 +309,7 @@ export default async function InboxPage({
             {activeCategory !== 'all' && (
               <input type="hidden" name="category" value={activeCategory} />
             )}
+            {activeProject && <input type="hidden" name="project" value={activeProject} />}
             <div className="ds-input ds-input--md ds-input--full-width ds-input--with-icon">
               <input
                 className="ds-input__field"
