@@ -56,6 +56,26 @@ export function buildDelegatePrompt(title: string, spec: string): string {
   return `이슈: ${title.trim()}\n\n${spec.trim()}`;
 }
 
+// 위임 시작 — 이슈에 claude 세션 실행 기록(agent_run)을 running 으로 생성하고 id 반환.
+// 이 id 를 spawn 되는 pty 세션에 runId 로 전달해, 세션 종료 시 finishAgentRun 으로 상태를
+// 마감한다 (이슈 목록/상세에 실시간 반영).
+export function startAgentRun(issueId: number): number {
+  const row = db
+    .insert(agentRuns)
+    .values({ issueId, agent: CLAUDE_ASSIGNEE_ID, status: 'running', startedAt: new Date() })
+    .returning({ id: agentRuns.id })
+    .get();
+  return row.id;
+}
+
+// 세션 종료 시 호출 — 정상 종료(exit code 0)면 completed, 아니면 failed 로 마감.
+export function finishAgentRun(runId: number, ok: boolean): void {
+  db.update(agentRuns)
+    .set({ status: ok ? 'completed' : 'failed', completedAt: new Date() })
+    .where(eq(agentRuns.id, runId))
+    .run();
+}
+
 export type IssueStatus = 'open' | 'in-progress' | 'done' | 'closed';
 // agent_runs.status — 이슈에 위임된 claude 세션의 최신 상태. 위임 안 된 이슈는 null.
 export type SessionStatus = 'queued' | 'running' | 'completed' | 'failed';

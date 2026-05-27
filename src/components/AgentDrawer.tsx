@@ -15,7 +15,10 @@ import { ko as t } from '@/copy/ko';
 import { AgentConsole, type WorkspaceOption } from './AgentConsole';
 import styles from './AgentDrawer.module.css';
 
-type AgentDrawerCtx = { openDrawer: () => void };
+// 위임 자동 실행 — openDrawer 에 넘기면 드로어를 열면서 이슈명 세션을 자동 spawn 하고
+// agentRunId 를 세션에 묶는다 (세션 종료 시 agent_run 마감용).
+export type PendingStart = { workspaceId: number; sessionName: string; agentRunId: number };
+type AgentDrawerCtx = { openDrawer: (pending?: PendingStart) => void };
 const Ctx = createContext<AgentDrawerCtx | null>(null);
 
 export function useAgentDrawer(): AgentDrawerCtx {
@@ -127,6 +130,12 @@ export function AgentDrawerProvider({
 }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // 위임 시 자동 spawn 할 세션 정보 (1회성). AgentConsole 이 소비하면 null 로 비운다.
+  const [pendingStart, setPendingStart] = useState<PendingStart | null>(null);
+  const openDrawer = useCallback((pending?: PendingStart) => {
+    if (pending) setPendingStart(pending);
+    setOpen(true);
+  }, []);
   const [dock, setDock] = useState<Dock>('right');
   const [dragging, setDragging] = useState(false);
   // 도킹별 사용자 지정 크기(px). null = 미지정(CSS 기본값 사용).
@@ -245,7 +254,7 @@ export function AgentDrawerProvider({
         : {};
 
   return (
-    <Ctx.Provider value={{ openDrawer: () => setOpen(true) }}>
+    <Ctx.Provider value={{ openDrawer }}>
       {children}
 
       {!open && (
@@ -321,7 +330,13 @@ export function AgentDrawerProvider({
               </Link>
             </div>
           ) : (
-            <AgentConsole workspaces={workspaces} claudeReady={claudeReady} open={open} />
+            <AgentConsole
+              workspaces={workspaces}
+              claudeReady={claudeReady}
+              open={open}
+              pendingStart={pendingStart}
+              onPendingConsumed={() => setPendingStart(null)}
+            />
           )}
         </div>
       </aside>

@@ -23,7 +23,14 @@ export type WorkspaceOption = {
 
 type Status = 'connecting' | 'open' | 'closed' | 'error';
 // 터미널 패널에 표시 중인 세션. 새로 만들면 intent='new', 기존 전환/복원은 'resume'.
-type ActiveSession = { id: string; workspaceId: number; name: string; intent: 'new' | 'resume' };
+// runId: 이슈 위임으로 spawn 된 세션이면 agent_run id — 종료 시 서버가 그 run 을 마감한다.
+type ActiveSession = {
+  id: string;
+  workspaceId: number;
+  name: string;
+  intent: 'new' | 'resume';
+  runId?: number;
+};
 // 서버 /api/sessions 응답 메타 (pty.ts SessionMeta 와 일치).
 type SessionMeta = {
   id: string;
@@ -99,11 +106,16 @@ export function AgentConsole({
   workspaces,
   claudeReady,
   open = true,
+  pendingStart = null,
+  onPendingConsumed,
 }: {
   workspaces: ReadonlyArray<WorkspaceOption>;
   claudeReady: boolean;
   // 드로어 열림 여부 — 열려 있을 때만 세션 목록을 폴링한다(닫혀 있으면 불필요한 부하 방지).
   open?: boolean;
+  // 위임 자동 실행 — 있으면 이슈명 세션을 1회 spawn (agentRunId 를 세션에 묶는다).
+  pendingStart?: { workspaceId: number; sessionName: string; agentRunId: number } | null;
+  onPendingConsumed?: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number>(workspaces[0]?.id ?? 0);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
@@ -152,6 +164,24 @@ export function AgentConsole({
     const timer = window.setInterval(() => void refresh(), 4000);
     return () => window.clearInterval(timer);
   }, [open, refresh]);
+
+  // 위임 자동 실행 — 드로어가 pendingStart 를 주면 이슈명 세션을 1회 spawn 하고 소비한다.
+  // runId 를 세션에 묶어 종료 시 서버가 agent_run 을 마감하게 한다.
+  useEffect(() => {
+    if (!pendingStart) return;
+    const next: ActiveSession = {
+      id: crypto.randomUUID(),
+      workspaceId: pendingStart.workspaceId,
+      name: pendingStart.sessionName,
+      intent: 'new',
+      runId: pendingStart.agentRunId,
+    };
+    setActive(next);
+    saveActive(next);
+    setSelectedId(pendingStart.workspaceId);
+    onPendingConsumed?.();
+    window.setTimeout(() => void refresh(), 600);
+  }, [pendingStart, onPendingConsumed, refresh]);
 
   function onNew() {
     if (selectedId === 0) return;
@@ -382,10 +412,12 @@ function TerminalPane({
       fit.fit();
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      // 위임 세션이면 runId 를 함께 전달 — 서버가 세션 종료 시 그 agent_run 을 마감한다.
+      const runIdParam = session.runId != null ? `&runId=${session.runId}` : '';
       const url =
         `${proto}://${window.location.host}/api/pty?sessionId=${encodeURIComponent(session.id)}` +
         `&workspaceId=${session.workspaceId}&intent=${session.intent}` +
-        `&name=${encodeURIComponent(session.name)}&cols=${xterm.cols}&rows=${xterm.rows}`;
+        `&name=${encodeURIComponent(session.name)}${runIdParam}&cols=${xterm.cols}&rows=${xterm.rows}`;
       const sock = new WebSocket(url);
       socket = sock;
 
