@@ -2,9 +2,68 @@ import { describe, expect, it } from 'vitest';
 import {
   mapCheckEvent,
   mapPullRequestEvent,
+  mapReviewEvent,
   type GithubCheckEventPartial,
   type GithubPullRequestEventPartial,
+  type GithubReviewEventPartial,
 } from './webhook-payload';
+
+function reviewEvent(overrides: Partial<GithubReviewEventPartial> = {}): GithubReviewEventPartial {
+  return {
+    action: 'submitted',
+    review: { state: 'changes_requested', body: '버튼 색을 바꿔주세요', user: { login: 'owner' } },
+    pull_request: { number: 42 },
+    repository: { name: 'web', full_name: 'acme/web' },
+    installation: { id: 99 },
+    ...overrides,
+  };
+}
+
+describe('mapReviewEvent', () => {
+  it('changes_requested 리뷰를 매핑한다', () => {
+    expect(mapReviewEvent(reviewEvent())).toEqual({
+      repoSlug: 'acme/web',
+      installationId: 99,
+      prNumber: 42,
+      reviewer: 'owner',
+      body: '버튼 색을 바꿔주세요',
+    });
+  });
+
+  it('submitted 가 아니면 null', () => {
+    expect(mapReviewEvent(reviewEvent({ action: 'dismissed' }))).toBeNull();
+  });
+
+  it('approved/commented state 는 null', () => {
+    expect(
+      mapReviewEvent(
+        reviewEvent({ review: { state: 'approved', body: '', user: { login: 'o' } } }),
+      ),
+    ).toBeNull();
+    expect(
+      mapReviewEvent(
+        reviewEvent({ review: { state: 'commented', body: 'x', user: { login: 'o' } } }),
+      ),
+    ).toBeNull();
+  });
+
+  it('PR 번호가 없으면 null', () => {
+    expect(mapReviewEvent(reviewEvent({ pull_request: undefined }))).toBeNull();
+  });
+
+  it('body/installation/reviewer 누락은 안전 기본값', () => {
+    const r = mapReviewEvent(
+      reviewEvent({ review: { state: 'changes_requested' }, installation: undefined }),
+    );
+    expect(r).toEqual({
+      repoSlug: 'acme/web',
+      installationId: null,
+      prNumber: 42,
+      reviewer: 'unknown',
+      body: '',
+    });
+  });
+});
 
 function baseEvent(
   overrides: Partial<GithubPullRequestEventPartial> = {},

@@ -100,3 +100,40 @@ export function mapCheckEvent(event: GithubCheckEventPartial): WebhookCheckPaylo
     headSha,
   };
 }
+
+// Phase 13.1 — pull_request_review 이벤트. submitted + state=changes_requested 만 의미 있음
+// (approved/commented/dismissed 는 무시). review.body 가 변경 요청 본문.
+export type GithubReviewEventPartial = {
+  action: string;
+  review?: {
+    state?: string;
+    body?: string | null;
+    user?: { login: string } | null;
+  };
+  pull_request?: { number: number };
+  repository: { name: string; full_name: string };
+  installation?: { id: number };
+};
+
+export type WebhookReviewPayload = {
+  repoSlug: string;
+  installationId: number | null;
+  prNumber: number;
+  reviewer: string;
+  body: string;
+};
+
+export function mapReviewEvent(event: GithubReviewEventPartial): WebhookReviewPayload | null {
+  if (event.action !== 'submitted') return null;
+  // GitHub 은 state 를 소문자로 보냄 (changes_requested / approved / commented).
+  if (event.review?.state?.toLowerCase() !== 'changes_requested') return null;
+  const prNumber = event.pull_request?.number;
+  if (!prNumber) return null;
+  return {
+    repoSlug: event.repository.full_name,
+    installationId: event.installation?.id ?? null,
+    prNumber,
+    reviewer: event.review?.user?.login ?? 'unknown',
+    body: event.review?.body ?? '',
+  };
+}

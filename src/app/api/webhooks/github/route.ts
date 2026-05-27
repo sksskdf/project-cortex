@@ -5,11 +5,14 @@ import { captureError } from '@/lib/sentry';
 import { handlePushEvent } from '@/lib/project-meta';
 import { logger } from '@/lib/logger';
 import { handleCheckWebhook, handlePullRequestWebhook } from '@/lib/sync';
+import { attemptAddressReview } from '@/lib/review-fix';
 import {
   mapCheckEvent,
   mapPullRequestEvent,
+  mapReviewEvent,
   type GithubCheckEventPartial,
   type GithubPullRequestEventPartial,
+  type GithubReviewEventPartial,
 } from '@/lib/webhook-payload';
 import { verifyGithubSignature } from '@/lib/webhook-verify';
 
@@ -35,6 +38,9 @@ export async function POST(req: Request) {
   }
   if (eventName === 'push') {
     return handlePush(rawBody);
+  }
+  if (eventName === 'pull_request_review') {
+    return handleReview(rawBody);
   }
   // ping / 기타 이벤트 — 의도적 무시. 200으로 응답해야 GitHub가 재시도 안 함.
   return NextResponse.json({ ok: true, skipped: eventName ?? 'no-event-header' });
@@ -154,4 +160,37 @@ async function handleCheck(rawBody: string) {
     captureError(err, { handler: 'check' });
     return NextResponse.json({ error: 'sync failed' }, { status: 500 });
   }
+}
+
+// Phase 13.1 — changes_requested 리뷰 자동 반영. claude 수정은 수 분 걸릴 수 있어 응답을
+// 막지 않도록 best-effort 백그라운드로 띄우고 즉시 200. 토글 OFF(디폴트)면 즉시 skip.
+async function handleReview(rawBody: string) {
+  let event: GithubReviewEventPartial;
+  try {
+    event = JSON.parse(rawBody) as GithubReviewEventPartial;
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 });
+  }
+
+  const payload = mapReviewEvent(event);
+  if (!payload) {
+    return NextResponse.json({
+      ok: true,
+      skipped: `review:${event.action}/${event.review?.state ?? '?'}`,
+    });
+  }
+
+  attemptAddressReview({
+    repoSlug: payload.repoSlug,
+    prNumber: payload.prNumber,
+    feedback: payload.body,
+    reviewer: payload.reviewer,
+  }).catch((err) => {
+    logger.error(
+      { source: 'webhook/github', event: 'pull_request_review', number: payload.prNumber, err },
+      'attemptAddressReview unexpected error',
+    );
+    captureError(err, { handler: 'pull_request_review' });
+  });
+  return NextResponse.json({ ok: true, queued: payload.prNumber });
 }
