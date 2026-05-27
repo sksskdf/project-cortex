@@ -132,6 +132,14 @@
 
 ## 8. Git 워크플로우 (강한 룰)
 
+### 8.1 커밋·PR 컨벤션
+
+- **의미 있는 단위로 커밋.** 한 커밋 = 한 논리적 변경. WIP·노이즈 커밋은 지양하고, 필요하면 정리해서 올립니다.
+- **커밋 메시지는 한글.** 명령형 요약 한 줄 + 필요하면 '왜'를 설명하는 본문.
+- **PR 본문에 변경 요약(또는 커밋 로그 요약)과 검증 결과(typecheck·prettier·test)를 포함합니다.**
+
+### 8.2 브랜치·머지
+
 - 모든 작업은 별도 브랜치에서. **master 직접 푸시 금지.**
 - 브랜치명: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/` 접두사 + 짧은 이름.
   - 로드맵 phase 작업이면 **`feat/phase<key>-<짧은-이름>`** (예: `feat/phase11-todos`, `feat/phase11-12-todos-workspaces`). key 는 `.cortex/roadmap.md` 의 `## Phase <key>` 와 일치.
