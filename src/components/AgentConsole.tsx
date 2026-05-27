@@ -3,9 +3,11 @@
 // Phase 13 — 에이전트 터미널 콘솔. 워크스페이스 선택 → claude CLI 세션 spawn → xterm.js 로
 // PTY 스트림 입출력. WebSocket(/api/pty)으로 커스텀 서버의 node-pty 와 연결됩니다.
 //
-// 새로고침 유지(2단계): 세션마다 sessionId(UUID)를 localStorage 에 저장. 새로고침 후 마운트 시
-// 같은 sessionId 로 intent=resume 재접속 → 서버가 scrollback replay. 세션이 이미 끝났으면
-// 서버가 'gone' 통지 → 정리. '세션 종료' 는 서버에 'kill' 전송으로 즉시 정리.
+// 다중 세션 관리: 서버 detached 세션이 source of truth. /api/sessions (GET) 로 목록을
+// 받아 전환·이름 변경·종료한다. 터미널 패널엔 한 번에 active 세션 하나만 표시하고, 다른
+// 세션 클릭 시 intent=resume 으로 재접속(서버가 scrollback replay). 새 세션은 intent=new.
+//
+// 새로고침 유지: active 세션 id 를 localStorage 에 저장 → 마운트 시 목록에 살아 있으면 복원.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Terminal } from '@xterm/xterm';
@@ -20,9 +22,20 @@ export type WorkspaceOption = {
 };
 
 type Status = 'connecting' | 'open' | 'closed' | 'error';
-type SessionState = { id: string; workspaceId: number; intent: 'new' | 'resume' };
+// 터미널 패널에 표시 중인 세션. 새로 만들면 intent='new', 기존 전환/복원은 'resume'.
+type ActiveSession = { id: string; workspaceId: number; name: string; intent: 'new' | 'resume' };
+// 서버 /api/sessions 응답 메타 (pty.ts SessionMeta 와 일치).
+type SessionMeta = {
+  id: string;
+  name: string;
+  workspaceId: number;
+  createdAt: number;
+  lastActivityAt: number;
+  connected: boolean;
+};
 
 const SESSION_STORAGE_KEY = 'cortex:agentSession';
+const SESSIONS_API = '/api/sessions';
 // 디자인 시스템엔 코드용 monospace 폰트 토큰이 없음(number=Spoqa sans, digital=7세그). 터미널은
 // 열 정렬상 monospace 필수라 표준 mono 스택 사용 (색·크기만 DS 토큰).
 const TERMINAL_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
@@ -32,13 +45,13 @@ function cssVar(name: string, fallback: string): string {
   return v || fallback;
 }
 
-function loadSession(): SessionState | null {
+function loadActive(): { id: string; workspaceId: number } | null {
   try {
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as { id?: unknown; workspaceId?: unknown };
     if (typeof s.id === 'string' && typeof s.workspaceId === 'number') {
-      return { id: s.id, workspaceId: s.workspaceId, intent: 'resume' };
+      return { id: s.id, workspaceId: s.workspaceId };
     }
   } catch {
     // 무시.
@@ -46,13 +59,40 @@ function loadSession(): SessionState | null {
   return null;
 }
 
-function saveSession(s: SessionState | null) {
+function saveActive(s: ActiveSession | null) {
   if (s)
     localStorage.setItem(
       SESSION_STORAGE_KEY,
       JSON.stringify({ id: s.id, workspaceId: s.workspaceId }),
     );
   else localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+async function fetchSessions(): Promise<SessionMeta[]> {
+  try {
+    const res = await fetch(SESSIONS_API, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { sessions?: unknown };
+    return Array.isArray(data.sessions) ? (data.sessions as SessionMeta[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function postSessionAction(body: {
+  action: 'rename' | 'terminate';
+  id: string;
+  name?: string;
+}) {
+  try {
+    await fetch(SESSIONS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // 무시 — 다음 refresh 에서 실제 상태로 동기화.
+  }
 }
 
 export function AgentConsole({
@@ -63,45 +103,126 @@ export function AgentConsole({
   claudeReady: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<number>(workspaces[0]?.id ?? 0);
-  const [session, setSession] = useState<SessionState | null>(null);
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+  const [active, setActive] = useState<ActiveSession | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const killRef = useRef<(() => void) | null>(null);
 
-  // 새로고침 후 자동 재개 — 저장된 세션이 있으면 reattach.
+  const refresh = useCallback(async () => {
+    setSessions(await fetchSessions());
+  }, []);
+
+  // 마운트: 세션 목록 fetch + 저장된 active 가 아직 살아 있으면 복원.
   useEffect(() => {
-    const restored = loadSession();
-    if (restored) {
-      setSession(restored);
-      setSelectedId(restored.workspaceId);
+    let cancelled = false;
+    (async () => {
+      const list = await fetchSessions();
+      if (cancelled) return;
+      setSessions(list);
+      const stored = loadActive();
+      if (stored) {
+        const meta = list.find((s) => s.id === stored.id);
+        if (meta) {
+          setActive({
+            id: meta.id,
+            workspaceId: meta.workspaceId,
+            name: meta.name,
+            intent: 'resume',
+          });
+          setSelectedId(meta.workspaceId);
+        } else {
+          saveActive(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function onNew() {
+    if (selectedId === 0) return;
+    const ws = workspaces.find((w) => w.id === selectedId);
+    const next: ActiveSession = {
+      id: crypto.randomUUID(),
+      workspaceId: selectedId,
+      name: t.agents.sessions.defaultName(ws?.projectSlug ?? '세션'),
+      intent: 'new',
+    };
+    setActive(next);
+    saveActive(next);
+    // 새 세션은 ws 연결 시 서버에 생성됨 — 잠시 후 목록 갱신.
+    window.setTimeout(() => void refresh(), 600);
+  }
+
+  function onSwitch(meta: SessionMeta) {
+    if (active?.id === meta.id) return;
+    // 전환 — 현재 패널 unmount 가 ws 만 닫고 서버 세션은 유지(kill 아님). 새 패널이 resume.
+    const next: ActiveSession = {
+      id: meta.id,
+      workspaceId: meta.workspaceId,
+      name: meta.name,
+      intent: 'resume',
+    };
+    setActive(next);
+    saveActive(next);
+    setSelectedId(meta.workspaceId);
+  }
+
+  async function onTerminate(meta: SessionMeta) {
+    if (active?.id === meta.id) {
+      // 활성 세션 — ws 로 즉시 kill + 패널 정리.
+      killRef.current?.();
+      setActive(null);
+      saveActive(null);
+    } else {
+      await postSessionAction({ action: 'terminate', id: meta.id });
     }
-  }, []);
-
-  function startSession(id: string, workspaceId: number) {
-    const next: SessionState = { id, workspaceId, intent: 'new' };
-    setSession(next);
-    saveSession(next);
+    if (renamingId === meta.id) setRenamingId(null);
+    await refresh();
   }
 
-  function onStart() {
-    startSession(crypto.randomUUID(), selectedId);
+  function beginRename(meta: SessionMeta) {
+    setRenamingId(meta.id);
+    setRenameValue(meta.name);
   }
 
-  function onRestart() {
-    killRef.current?.();
-    startSession(crypto.randomUUID(), session?.workspaceId ?? selectedId);
+  async function commitRename(id: string) {
+    if (renamingId !== id) return; // 이미 처리됨 (Enter→blur 중복 방지).
+    const name = renameValue.trim();
+    setRenamingId(null);
+    if (!name) return;
+    await postSessionAction({ action: 'rename', id, name });
+    setActive((prev) => (prev && prev.id === id ? { ...prev, name } : prev));
+    await refresh();
   }
 
-  function onStop() {
-    killRef.current?.();
-    setSession(null);
-    saveSession(null);
-  }
+  // 세션 자연 종료(exit) 또는 서버에 세션 없음(gone) 처리. TerminalPane effect 의존성이라 안정 참조.
+  const onEnded = useCallback(
+    (reason: 'exit' | 'gone') => {
+      saveActive(null);
+      if (reason === 'gone') setActive(null); // 화면도 비움. exit 면 종료 메시지 보이게 유지.
+      void refresh();
+    },
+    [refresh],
+  );
 
-  // 세션 자연 종료(claude 종료=exit) 또는 서버에 세션 없음(gone) 처리.
-  // TerminalPane effect 의 의존성에 들어가므로 안정 참조 (useCallback) — 매 렌더 재연결 방지.
-  const onEnded = useCallback((reason: 'exit' | 'gone') => {
-    saveSession(null); // 죽은 세션을 새로고침 때 되살리지 않도록.
-    if (reason === 'gone') setSession(null); // 화면도 비움. exit 면 종료 메시지 보이게 유지.
-  }, []);
+  // 표시 목록 — 서버 세션 + 아직 목록에 안 뜬 갓 만든 active 세션(낙관적).
+  const displaySessions: SessionMeta[] =
+    active && !sessions.some((s) => s.id === active.id)
+      ? [
+          {
+            id: active.id,
+            name: active.name,
+            workspaceId: active.workspaceId,
+            createdAt: Date.now(),
+            lastActivityAt: Date.now(),
+            connected: true,
+          },
+          ...sessions,
+        ]
+      : sessions;
 
   return (
     <div className={styles.console}>
@@ -112,7 +233,6 @@ export function AgentConsole({
             className={styles.picker}
             value={selectedId}
             onChange={(e) => setSelectedId(Number(e.target.value))}
-            disabled={session !== null}
           >
             {workspaces.map((w) => (
               <option key={w.id} value={w.id} title={w.localPath}>
@@ -121,36 +241,86 @@ export function AgentConsole({
             ))}
           </select>
         </label>
-
-        {session ? (
-          <>
-            <button
-              type="button"
-              className="ds-btn ds-btn--sm ds-btn--outlined-basic"
-              onClick={onRestart}
-            >
-              <span className="ds-btn__label">{t.agents.restart}</span>
-            </button>
-            <button type="button" className="ds-btn ds-btn--sm ds-btn--filled-red" onClick={onStop}>
-              <span className="ds-btn__label">{t.agents.stop}</span>
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className="ds-btn ds-btn--sm ds-btn--filled-blue"
-            onClick={onStart}
-            disabled={!claudeReady || selectedId === 0}
-          >
-            <span className="ds-btn__label">{t.agents.start}</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className="ds-btn ds-btn--sm ds-btn--filled-blue"
+          onClick={onNew}
+          disabled={!claudeReady || selectedId === 0}
+        >
+          <span className="ds-btn__label">{t.agents.sessions.newSession}</span>
+        </button>
       </div>
 
       {!claudeReady && <p className={styles.notReady}>{t.agents.notReady}</p>}
 
-      {session ? (
-        <TerminalPane key={session.id} session={session} registerKill={killRef} onEnded={onEnded} />
+      {displaySessions.length > 0 && (
+        <ul className={styles.sessionList} aria-label={t.agents.sessions.listLabel}>
+          {displaySessions.map((s) => {
+            const wsOpt = workspaces.find((w) => w.id === s.workspaceId);
+            const isActive = active?.id === s.id;
+            return (
+              <li
+                key={s.id}
+                className={`${styles.sessionRow} ${isActive ? styles.sessionRowActive : ''}`}
+              >
+                {renamingId === s.id ? (
+                  <input
+                    className={styles.renameInput}
+                    value={renameValue}
+                    autoFocus
+                    maxLength={60}
+                    placeholder={t.agents.sessions.renamePlaceholder}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => void commitRename(s.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void commitRename(s.id);
+                      else if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.sessionMain}
+                    onClick={() => onSwitch(s)}
+                    aria-label={t.agents.sessions.switchAria(s.name)}
+                  >
+                    <span className={styles.sessionName}>{s.name}</span>
+                    <span className={styles.sessionWs}>
+                      {wsOpt?.projectSlug ?? `#${s.workspaceId}`}
+                    </span>
+                    {isActive && (
+                      <span className={styles.sessionBadge}>{t.agents.sessions.active}</span>
+                    )}
+                  </button>
+                )}
+                <div className={styles.sessionActions}>
+                  <button
+                    type="button"
+                    className={styles.sessionAction}
+                    onClick={() => beginRename(s)}
+                    aria-label={t.agents.sessions.rename}
+                    title={t.agents.sessions.rename}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.sessionAction}
+                    onClick={() => void onTerminate(s)}
+                    aria-label={t.agents.sessions.terminateAria(s.name)}
+                    title={t.agents.sessions.terminate}
+                  >
+                    ×
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {active ? (
+        <TerminalPane key={active.id} session={active} registerKill={killRef} onEnded={onEnded} />
       ) : (
         <div className={styles.placeholder}>{t.agents.placeholder}</div>
       )}
@@ -163,7 +333,7 @@ function TerminalPane({
   registerKill,
   onEnded,
 }: {
-  session: SessionState;
+  session: ActiveSession;
   registerKill: React.MutableRefObject<(() => void) | null>;
   onEnded: (reason: 'exit' | 'gone') => void;
 }) {
@@ -202,11 +372,12 @@ function TerminalPane({
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const url =
         `${proto}://${window.location.host}/api/pty?sessionId=${encodeURIComponent(session.id)}` +
-        `&workspaceId=${session.workspaceId}&intent=${session.intent}&cols=${xterm.cols}&rows=${xterm.rows}`;
+        `&workspaceId=${session.workspaceId}&intent=${session.intent}` +
+        `&name=${encodeURIComponent(session.name)}&cols=${xterm.cols}&rows=${xterm.rows}`;
       const sock = new WebSocket(url);
       socket = sock;
 
-      // '세션 종료'(stop)·재시작 시 부모가 호출 — 서버에 kill 전송 후 닫기.
+      // '세션 종료'·전환 시 부모가 호출 — 서버에 kill 전송 후 닫기.
       registerKill.current = () => {
         if (sock.readyState === WebSocket.OPEN) sock.send(JSON.stringify({ type: 'kill' }));
         sock.close();
@@ -257,7 +428,7 @@ function TerminalPane({
     })();
 
     return () => {
-      // 언마운트(화면 이동·새로고침)는 ws 만 닫음 — 서버는 세션 유지(reap 전까지). kill 은 stop 에서만.
+      // 언마운트(화면 이동·전환·새로고침)는 ws 만 닫음 — 서버는 세션 유지(reap 전까지). kill 은 종료에서만.
       disposed = true;
       registerKill.current = null;
       observer?.disconnect();
