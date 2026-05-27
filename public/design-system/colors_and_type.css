@@ -166,6 +166,9 @@
   --ds-typography-font-weight-semibold: 600;
   --ds-typography-font-weight-bold: 700;
 
+  /* 10·11px 는 캡션/배지 등 보조 텍스트용 — 기존 px 스케일을 그대로 이어감 */
+  --ds-typography-font-size-10: 10px;
+  --ds-typography-font-size-11: 11px;
   --ds-typography-font-size-12: 12px;
   --ds-typography-font-size-13: 13px;
   --ds-typography-font-size-14: 14px;
@@ -195,6 +198,8 @@
   --ds-typography-letter-spacing-neutral: -0.5px;
   --ds-typography-letter-spacing-loose: -0.3px;
   --ds-typography-letter-spacing-normal: 0;
+  /* normal(0) 다음의 양수 트래킹 — 대문자 라벨/배지 등 넓은 자간용 */
+  --ds-typography-letter-spacing-wide: 0.5px;
 
   /* ========== SPACING — non-uniform scale (matches Figma) ========== */
   --ds-spacing-1: 1px;
