@@ -124,6 +124,83 @@ export function listIssues(): IssueView[] {
   });
 }
 
+// 상세 보기 — 이슈 1건의 전체 내용(spec 포함) + 위임된 claude 세션(agent_run) 이력.
+export type AgentRunView = {
+  id: number;
+  agent: string;
+  status: SessionStatus;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  resultPrId: number | null;
+  resultPrNumber: number | null;
+};
+
+export type IssueDetail = {
+  id: number;
+  title: string;
+  spec: string;
+  status: IssueStatus;
+  assigneeKind: 'human' | 'agent';
+  assigneeId: string;
+  projectSlug: string | null;
+  projectName: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // 위임 이력 — 최신 순. 위임 안 된 이슈는 빈 배열.
+  runs: AgentRunView[];
+};
+
+export function getIssueDetail(id: number): IssueDetail | null {
+  const row = db.select().from(issues).where(eq(issues.id, id)).get();
+  if (!row) return null;
+
+  const project = db
+    .select({ slug: projects.slug, name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, row.repoId))
+    .get();
+
+  const prNumberById = new Map<number, number>();
+  const prRows = db.select({ id: prs.id, number: prs.number }).from(prs).all();
+  for (const p of prRows) prNumberById.set(p.id, p.number);
+
+  const runRows = db
+    .select({
+      id: agentRuns.id,
+      agent: agentRuns.agent,
+      status: agentRuns.status,
+      startedAt: agentRuns.startedAt,
+      completedAt: agentRuns.completedAt,
+      outputPrId: agentRuns.outputPrId,
+    })
+    .from(agentRuns)
+    .where(eq(agentRuns.issueId, id))
+    .orderBy(desc(agentRuns.startedAt), desc(agentRuns.id))
+    .all();
+
+  return {
+    id: row.id,
+    title: row.title,
+    spec: row.spec,
+    status: row.status as IssueStatus,
+    assigneeKind: row.assigneeKind,
+    assigneeId: row.assigneeId,
+    projectSlug: project?.slug ?? null,
+    projectName: project?.name ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    runs: runRows.map((r) => ({
+      id: r.id,
+      agent: r.agent,
+      status: r.status as SessionStatus,
+      startedAt: r.startedAt,
+      completedAt: r.completedAt,
+      resultPrId: r.outputPrId,
+      resultPrNumber: r.outputPrId !== null ? (prNumberById.get(r.outputPrId) ?? null) : null,
+    })),
+  };
+}
+
 // 사이드바 chip 용 — open 이슈 카운트.
 export function countOpenIssues(): number {
   const result = db

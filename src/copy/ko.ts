@@ -678,6 +678,22 @@ export const ko = {
     // 결과 PR 링크.
     pr: (number: number) => `#${number}`,
     project: (slug: string) => slug,
+    // 상세 보기.
+    detail: {
+      back: '이슈 목록',
+      spec: '스펙',
+      meta: '정보',
+      assignee: '담당',
+      assigneeAgent: 'Claude Code',
+      created: '생성',
+      updated: '수정',
+      runsTitle: 'Claude 세션 이력',
+      runsEmpty: '아직 위임 실행 기록이 없습니다.',
+      runStarted: '시작',
+      runCompleted: '완료',
+      runResult: '결과 PR',
+      notFound: '이슈를 찾을 수 없습니다.',
+    },
   },
   // Phase 11 — TODO 페이지 + 사이드바 위젯.
   todos: {
