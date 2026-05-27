@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
-import { resolveClaude } from '@/lib/agents';
+import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
 
 export const PTY_PATH = '/api/pty';
 const MAX_SESSIONS = 8;
@@ -149,7 +149,7 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
       cwd: workspace.localPath,
       cols,
       rows,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      env: claudeSpawnEnv(),
     });
   } catch (err) {
     sysClose(ws, `세션을 시작하지 못했습니다: ${errMsg(err)}`);

@@ -1,29 +1,23 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { Octokit } from '@octokit/rest';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { appSettings, preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { setAnthropic } from './anthropic';
 import { setClaudeRunner } from './claude-cli';
 import { setOctokit } from './github';
 import { analyzePR, extractPaths } from './pre-review';
 
-function makeAnthropic(response: unknown): Anthropic {
-  return { messages: { create: vi.fn().mockResolvedValue(response) } } as unknown as Anthropic;
+// 모든 LLM 호출은 claude CLI 경로 — runClaudeHeadless 를 setClaudeRunner 로 주입한다.
+// CLI 응답은 { ok: true, text: '<JSON 문자열>' } 형태.
+function makeRunner(payload: Record<string, unknown>) {
+  return vi.fn().mockResolvedValue({ ok: true, text: JSON.stringify(payload) });
 }
 
 function makeOctokitWithDiff(diff: string): Octokit {
   return {
     pulls: { get: vi.fn().mockResolvedValue({ data: diff }), merge: vi.fn() },
   } as unknown as Octokit;
-}
-
-function llmResponse(payload: Record<string, unknown>) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(payload) }],
-  };
 }
 
 beforeAll(() => {
@@ -36,16 +30,11 @@ beforeEach(() => {
   db.delete(prs).run();
   db.delete(projects).run();
   db.delete(appSettings).run();
-  // 이 블록의 테스트들은 mock Anthropic 으로 API 경로를 검증 — backend 를 'api' 로 고정.
-  // (디폴트는 'cli' = claude CLI spawn 이라 명시 안 하면 실제 spawn 을 시도함.)
-  process.env.CORTEX_PRE_REVIEW_BACKEND = 'api';
 });
 
 afterEach(() => {
-  setAnthropic(null);
   setOctokit(null);
   setClaudeRunner(null);
-  delete process.env.CORTEX_PRE_REVIEW_BACKEND;
 });
 
 function setupPR(opts: {
@@ -105,26 +94,24 @@ describe('extractPaths', () => {
   });
 });
 
-describe('analyzePR', () => {
+describe('analyzePR (claude CLI)', () => {
   it('skips when PR does not exist', async () => {
     const r = await analyzePR(9999);
     expect(r).toEqual({ kind: 'skipped', reason: 'no-pr' });
   });
 
-  it('calls Anthropic, stores result with combined flags', async () => {
+  it('claude CLI 를 호출하고 결과를 휴리스틱 플래그와 합쳐 저장', async () => {
     const diff =
       'diff --git a/src/payment/refund.ts b/src/payment/refund.ts\n+ const r = await fetch("https://api.stripe.com");';
     setOctokit(makeOctokitWithDiff(diff));
-    const anthropic = makeAnthropic(
-      llmResponse({
-        confidence: 75,
-        flags: ['payment-domain'],
-        summary: '환불 로직에 새 외부 호출 추가.',
-        comments: [{ path: 'src/payment/refund.ts', line: 1, body: '에러 처리 필요' }],
-        hunkAnnotations: [{ hunkId: 'src/payment/refund.ts:1', decision: 'review' }],
-      }),
-    );
-    setAnthropic(anthropic);
+    const runner = makeRunner({
+      confidence: 75,
+      flags: ['payment-domain'],
+      summary: '환불 로직에 새 외부 호출 추가.',
+      comments: [{ path: 'src/payment/refund.ts', line: 1, body: '에러 처리 필요' }],
+      hunkAnnotations: [{ hunkId: 'src/payment/refund.ts:1', decision: 'review' }],
+    });
+    setClaudeRunner(runner);
 
     const prId = setupPR({});
     const r = await analyzePR(prId);
@@ -139,298 +126,61 @@ describe('analyzePR', () => {
     expect(r.row.comments).toHaveLength(1);
     expect(r.row.hunkAnnotations).toHaveLength(1);
     expect(r.row.testsPassed).toBeNull();
+    // 사용자 Claude 플랜 모델로 호출 (크레딧 0).
+    expect(runner.mock.calls[0][0].model).toBe('claude-opus-4-7');
   });
 
-  it('returns cached row on second call without calling Anthropic', async () => {
+  it('두 번째 호출은 캐시 반환 — claude CLI 재호출 안 함', async () => {
     const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
     setOctokit(makeOctokitWithDiff(diff));
-    const createMock = vi.fn().mockResolvedValue(
-      llmResponse({
-        confidence: 95,
-        flags: [],
-        summary: '단순 변경.',
-        comments: [],
-        hunkAnnotations: [],
-      }),
-    );
-    setAnthropic({ messages: { create: createMock } } as unknown as Anthropic);
+    const runner = makeRunner({
+      confidence: 95,
+      flags: [],
+      summary: '단순 변경.',
+      comments: [],
+      hunkAnnotations: [],
+    });
+    setClaudeRunner(runner);
 
     const prId = setupPR({});
     const first = await analyzePR(prId);
     expect(first.kind).toBe('analyzed');
-    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(runner).toHaveBeenCalledTimes(1);
 
     const second = await analyzePR(prId);
     expect(second.kind).toBe('cached');
-    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(runner).toHaveBeenCalledTimes(1);
     if (second.kind === 'cached') {
       expect(second.row.confidence).toBe(95);
     }
   });
 
-  it('rejects responses that fail schema validation', async () => {
+  it('스키마 검증 실패 응답은 reject', async () => {
     setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
-    setAnthropic(
-      makeAnthropic(
-        llmResponse({
-          confidence: 200, // 0-100 범위 위반
-          flags: [],
-          summary: 'x',
-          comments: [],
-          hunkAnnotations: [],
-        }),
-      ),
-    );
-    await expect(analyzePR(setupPR({}))).rejects.toThrow();
-  });
-
-  it('rejects responses with unknown flag enum values', async () => {
-    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
-    setAnthropic(
-      makeAnthropic(
-        llmResponse({
-          confidence: 50,
-          flags: ['nuclear-codes'],
-          summary: 'x',
-          comments: [],
-          hunkAnnotations: [],
-        }),
-      ),
-    );
-    await expect(analyzePR(setupPR({}))).rejects.toThrow();
-  });
-
-  it('uses Opus 4.7 model with adaptive thinking and JSON schema output_config', async () => {
-    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
-    const createMock = vi.fn().mockResolvedValue(
-      llmResponse({
-        confidence: 80,
+    setClaudeRunner(
+      makeRunner({
+        confidence: 200, // 0-100 범위 위반
         flags: [],
-        summary: 'ok',
+        summary: 'x',
         comments: [],
         hunkAnnotations: [],
       }),
     );
-    setAnthropic({ messages: { create: createMock } } as unknown as Anthropic);
-
-    await analyzePR(setupPR({}));
-
-    expect(createMock).toHaveBeenCalledTimes(1);
-    const arg = createMock.mock.calls[0][0];
-    expect(arg.model).toBe('claude-opus-4-7');
-    expect(arg.thinking).toEqual({ type: 'adaptive' });
-    expect(arg.output_config.format.type).toBe('json_schema');
-    expect(arg.output_config.effort).toBe('high');
-    // system은 cache_control 가 박힌 TextBlockParam 배열.
-    expect(Array.isArray(arg.system)).toBe(true);
-    expect(arg.system[0].cache_control).toEqual({ type: 'ephemeral' });
+    await expect(analyzePR(setupPR({}))).rejects.toThrow();
   });
 
-  it('persists confidence-tier based on returned score', async () => {
+  it('알 수 없는 flag enum 값 응답은 reject', async () => {
     setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
-    setAnthropic(
-      makeAnthropic(
-        llmResponse({
-          confidence: 92,
-          flags: [],
-          summary: 'high tier',
-          comments: [],
-          hunkAnnotations: [],
-        }),
-      ),
-    );
-
-    const prId = setupPR({});
-    await analyzePR(prId);
-    const row = db.select().from(preReviews).where(eq(preReviews.prId, prId)).get();
-    expect(row?.confidenceTier).toBe('high');
-  });
-
-  it('settings.aiEnabled=false 면 ai-disabled 로 skip — Anthropic 호출 0', async () => {
-    db.insert(appSettings).values({ id: 1, aiEnabled: false }).run();
-    const createMock = vi.fn();
-    setAnthropic({ messages: { create: createMock } } as unknown as Anthropic);
-    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
-
-    const r = await analyzePR(setupPR({}));
-    expect(r).toEqual({ kind: 'skipped', reason: 'ai-disabled' });
-    expect(createMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('analyzePR — Phase 4.5b triage (CORTEX_TRIAGE_ENABLED=1)', () => {
-  // env.triageEnabled() 가 process.env 를 매번 lazy 평가하므로 set/restore 로 토글.
-  let originalEnv: string | undefined;
-
-  beforeEach(() => {
-    originalEnv = process.env.CORTEX_TRIAGE_ENABLED;
-    process.env.CORTEX_TRIAGE_ENABLED = '1';
-  });
-
-  afterEach(() => {
-    if (originalEnv === undefined) delete process.env.CORTEX_TRIAGE_ENABLED;
-    else process.env.CORTEX_TRIAGE_ENABLED = originalEnv;
-  });
-
-  function makeTwoStepAnthropic(triagePayload: unknown, deepPayload: unknown) {
-    const create = vi
-      .fn()
-      .mockResolvedValueOnce(llmResponse(triagePayload as Record<string, unknown>))
-      .mockResolvedValueOnce(llmResponse(deepPayload as Record<string, unknown>));
-    return {
-      create,
-      client: { messages: { create } } as unknown as Anthropic,
-    };
-  }
-
-  it('단순 PR (needsDeepReview=false + flags 비어있음 + confidence>=80) → Opus 호출 안 함', async () => {
-    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
-    const { create, client } = makeTwoStepAnthropic(
-      {
-        needsDeepReview: false,
-        confidence: 90,
-        flagCandidates: [],
-        summary: '단순 변수 추가.',
-      },
-      // Opus 호출되면 안 되지만 안전망.
-      {
+    setClaudeRunner(
+      makeRunner({
         confidence: 50,
-        flags: [],
-        summary: 'should-not-be-used',
-        comments: [],
-        hunkAnnotations: [],
-      },
-    );
-    setAnthropic(client);
-
-    const prId = setupPR({});
-    const r = await analyzePR(prId);
-
-    expect(r.kind).toBe('analyzed');
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(create.mock.calls[0][0].model).toBe('claude-haiku-4-5-20251001');
-    if (r.kind !== 'analyzed') return;
-    expect(r.row.confidence).toBe(90);
-    expect(r.row.summary).toBe('단순 변수 추가.');
-    expect(r.row.comments).toEqual([]);
-  });
-
-  it('복잡 PR (needsDeepReview=true) → Opus 로 재호출 + 그 결과 사용', async () => {
-    setOctokit(
-      makeOctokitWithDiff(
-        'diff --git a/src/payment/refund.ts b/src/payment/refund.ts\n+ const x = 1;',
-      ),
-    );
-    const { create, client } = makeTwoStepAnthropic(
-      {
-        needsDeepReview: true,
-        confidence: 60,
-        flagCandidates: ['payment-domain'],
-        summary: '결제 영역 의심.',
-      },
-      {
-        confidence: 55,
-        flags: ['payment-domain'],
-        summary: '결제 영역 환불 로직 변경.',
-        comments: [{ path: 'src/payment/refund.ts', line: 1, body: '검토 필요' }],
-        hunkAnnotations: [{ hunkId: 'src/payment/refund.ts:1', decision: 'review' }],
-      },
-    );
-    setAnthropic(client);
-
-    const r = await analyzePR(setupPR({}));
-
-    expect(r.kind).toBe('analyzed');
-    expect(create).toHaveBeenCalledTimes(2);
-    expect(create.mock.calls[0][0].model).toBe('claude-haiku-4-5-20251001');
-    expect(create.mock.calls[1][0].model).toBe('claude-opus-4-7');
-    if (r.kind !== 'analyzed') return;
-    // Opus 결과 사용.
-    expect(r.row.confidence).toBe(55);
-    expect(r.row.summary).toBe('결제 영역 환불 로직 변경.');
-    expect(r.row.comments).toHaveLength(1);
-  });
-
-  it('triage confidence<80 면 단순 조건 안 되므로 Opus 재호출', async () => {
-    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
-    const { create, client } = makeTwoStepAnthropic(
-      {
-        needsDeepReview: false,
-        confidence: 70, // 80 미만 → simple 아님
-        flagCandidates: [],
-        summary: '확신 부족.',
-      },
-      {
-        confidence: 75,
-        flags: [],
-        summary: 'opus 결과.',
-        comments: [],
-        hunkAnnotations: [],
-      },
-    );
-    setAnthropic(client);
-
-    const r = await analyzePR(setupPR({}));
-    expect(create).toHaveBeenCalledTimes(2);
-    if (r.kind === 'analyzed') expect(r.row.confidence).toBe(75);
-  });
-
-  it('triage 호출이 실패하면 Opus 로 안전 폴백', async () => {
-    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
-    const create = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('haiku rate limit'))
-      .mockResolvedValueOnce(
-        llmResponse({
-          confidence: 85,
-          flags: [],
-          summary: 'opus fallback ok.',
-          comments: [],
-          hunkAnnotations: [],
-        }),
-      );
-    setAnthropic({ messages: { create } } as unknown as Anthropic);
-
-    const r = await analyzePR(setupPR({}));
-    expect(r.kind).toBe('analyzed');
-    expect(create).toHaveBeenCalledTimes(2);
-    if (r.kind === 'analyzed') expect(r.row.summary).toBe('opus fallback ok.');
-  });
-});
-
-describe('analyzePR — CLI backend (CORTEX_PRE_REVIEW_BACKEND=cli)', () => {
-  // Phase 13 — claude CLI 비대화형 spawn 경로. 실제 spawn 대신 setClaudeRunner 로 주입.
-  beforeEach(() => {
-    process.env.CORTEX_PRE_REVIEW_BACKEND = 'cli';
-  });
-
-  it('claude CLI 응답(JSON 텍스트)을 파싱해 저장 — Anthropic API 호출 0', async () => {
-    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
-    const apiCreate = vi.fn();
-    setAnthropic({ messages: { create: apiCreate } } as unknown as Anthropic);
-    const runner = vi.fn().mockResolvedValue({
-      ok: true,
-      text: JSON.stringify({
-        confidence: 88,
-        flags: [],
-        summary: 'CLI 분석 결과.',
+        flags: ['nuclear-codes'],
+        summary: 'x',
         comments: [],
         hunkAnnotations: [],
       }),
-    });
-    setClaudeRunner(runner);
-
-    const r = await analyzePR(setupPR({}));
-
-    expect(r.kind).toBe('analyzed');
-    expect(apiCreate).not.toHaveBeenCalled();
-    expect(runner).toHaveBeenCalledTimes(1);
-    // claude CLI 호출은 사용자 Claude 플랜 모델로 (크레딧 0).
-    expect(runner.mock.calls[0][0].model).toBe('claude-opus-4-7');
-    if (r.kind === 'analyzed') {
-      expect(r.row.confidence).toBe(88);
-      expect(r.row.summary).toBe('CLI 분석 결과.');
-    }
+    );
+    await expect(analyzePR(setupPR({}))).rejects.toThrow();
   });
 
   it('코드펜스로 감싼 JSON 응답도 파싱', async () => {
@@ -453,5 +203,178 @@ describe('analyzePR — CLI backend (CORTEX_PRE_REVIEW_BACKEND=cli)', () => {
       vi.fn().mockResolvedValue({ ok: false, reason: 'claude CLI 를 찾을 수 없습니다.' }),
     );
     await expect(analyzePR(setupPR({}))).rejects.toThrow();
+  });
+
+  it('Opus 4.7 모델로 호출하고 도구 권한은 주지 않음 (분석 전용)', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
+    const runner = makeRunner({
+      confidence: 80,
+      flags: [],
+      summary: 'ok',
+      comments: [],
+      hunkAnnotations: [],
+    });
+    setClaudeRunner(runner);
+
+    await analyzePR(setupPR({}));
+
+    expect(runner).toHaveBeenCalledTimes(1);
+    const arg = runner.mock.calls[0][0];
+    expect(arg.model).toBe('claude-opus-4-7');
+    // 사전 리뷰는 분석만 — 파일 편집/도구 권한 없음 (충돌 해결·테스트 수정과 다름).
+    expect(arg.dangerouslyAllowAllTools).toBeFalsy();
+    expect(arg.cwd).toBeUndefined();
+  });
+
+  it('반환 점수 기준으로 confidence-tier 저장', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
+    setClaudeRunner(
+      makeRunner({
+        confidence: 92,
+        flags: [],
+        summary: 'high tier',
+        comments: [],
+        hunkAnnotations: [],
+      }),
+    );
+
+    const prId = setupPR({});
+    await analyzePR(prId);
+    const row = db.select().from(preReviews).where(eq(preReviews.prId, prId)).get();
+    expect(row?.confidenceTier).toBe('high');
+  });
+
+  it('settings.aiEnabled=false 면 ai-disabled 로 skip — claude 호출 0', async () => {
+    db.insert(appSettings).values({ id: 1, aiEnabled: false }).run();
+    const runner = vi.fn();
+    setClaudeRunner(runner);
+    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
+
+    const r = await analyzePR(setupPR({}));
+    expect(r).toEqual({ kind: 'skipped', reason: 'ai-disabled' });
+    expect(runner).not.toHaveBeenCalled();
+  });
+});
+
+describe('analyzePR — Phase 4.5b triage (CORTEX_TRIAGE_ENABLED=1)', () => {
+  // env.triageEnabled() 가 process.env 를 매번 lazy 평가하므로 set/restore 로 토글.
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.CORTEX_TRIAGE_ENABLED;
+    process.env.CORTEX_TRIAGE_ENABLED = '1';
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.CORTEX_TRIAGE_ENABLED;
+    else process.env.CORTEX_TRIAGE_ENABLED = originalEnv;
+  });
+
+  // triage(1차) → deep(2차) 두 단계 응답을 순서대로 돌려주는 runner.
+  function makeTwoStepRunner(triagePayload: unknown, deepPayload: unknown) {
+    const runner = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, text: JSON.stringify(triagePayload) })
+      .mockResolvedValueOnce({ ok: true, text: JSON.stringify(deepPayload) });
+    return runner;
+  }
+
+  it('단순 PR (needsDeepReview=false + flags 비어있음 + confidence>=80) → Opus 호출 안 함', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const runner = makeTwoStepRunner(
+      { needsDeepReview: false, confidence: 90, flagCandidates: [], summary: '단순 변수 추가.' },
+      // Opus 호출되면 안 되지만 안전망.
+      {
+        confidence: 50,
+        flags: [],
+        summary: 'should-not-be-used',
+        comments: [],
+        hunkAnnotations: [],
+      },
+    );
+    setClaudeRunner(runner);
+
+    const prId = setupPR({});
+    const r = await analyzePR(prId);
+
+    expect(r.kind).toBe('analyzed');
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(runner.mock.calls[0][0].model).toBe('claude-haiku-4-5-20251001');
+    if (r.kind !== 'analyzed') return;
+    expect(r.row.confidence).toBe(90);
+    expect(r.row.summary).toBe('단순 변수 추가.');
+    expect(r.row.comments).toEqual([]);
+  });
+
+  it('복잡 PR (needsDeepReview=true) → Opus 로 재호출 + 그 결과 사용', async () => {
+    setOctokit(
+      makeOctokitWithDiff(
+        'diff --git a/src/payment/refund.ts b/src/payment/refund.ts\n+ const x = 1;',
+      ),
+    );
+    const runner = makeTwoStepRunner(
+      {
+        needsDeepReview: true,
+        confidence: 60,
+        flagCandidates: ['payment-domain'],
+        summary: '결제 영역 의심.',
+      },
+      {
+        confidence: 55,
+        flags: ['payment-domain'],
+        summary: '결제 영역 환불 로직 변경.',
+        comments: [{ path: 'src/payment/refund.ts', line: 1, body: '검토 필요' }],
+        hunkAnnotations: [{ hunkId: 'src/payment/refund.ts:1', decision: 'review' }],
+      },
+    );
+    setClaudeRunner(runner);
+
+    const r = await analyzePR(setupPR({}));
+
+    expect(r.kind).toBe('analyzed');
+    expect(runner).toHaveBeenCalledTimes(2);
+    expect(runner.mock.calls[0][0].model).toBe('claude-haiku-4-5-20251001');
+    expect(runner.mock.calls[1][0].model).toBe('claude-opus-4-7');
+    if (r.kind !== 'analyzed') return;
+    // Opus 결과 사용.
+    expect(r.row.confidence).toBe(55);
+    expect(r.row.summary).toBe('결제 영역 환불 로직 변경.');
+    expect(r.row.comments).toHaveLength(1);
+  });
+
+  it('triage confidence<80 면 단순 조건 안 되므로 Opus 재호출', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const runner = makeTwoStepRunner(
+      { needsDeepReview: false, confidence: 70, flagCandidates: [], summary: '확신 부족.' },
+      { confidence: 75, flags: [], summary: 'opus 결과.', comments: [], hunkAnnotations: [] },
+    );
+    setClaudeRunner(runner);
+
+    const r = await analyzePR(setupPR({}));
+    expect(runner).toHaveBeenCalledTimes(2);
+    if (r.kind === 'analyzed') expect(r.row.confidence).toBe(75);
+  });
+
+  it('triage 호출이 실패하면 Opus 로 안전 폴백', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const runner = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'haiku rate limit' })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: JSON.stringify({
+          confidence: 85,
+          flags: [],
+          summary: 'opus fallback ok.',
+          comments: [],
+          hunkAnnotations: [],
+        }),
+      });
+    setClaudeRunner(runner);
+
+    const r = await analyzePR(setupPR({}));
+    expect(r.kind).toBe('analyzed');
+    expect(runner).toHaveBeenCalledTimes(2);
+    if (r.kind === 'analyzed') expect(r.row.summary).toBe('opus fallback ok.');
   });
 });

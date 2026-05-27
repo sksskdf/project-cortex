@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { db } from '@/db/client';
 import { preReviews, prs, projects } from '@/db/schema';
 import type { PreReviewRow } from '@/db/schema';
-import { getAnthropic, PRE_REVIEW_MODEL, PRE_REVIEW_TRIAGE_MODEL } from './anthropic';
 import { parseJsonFromText, runClaudeHeadless } from './claude-cli';
 import { confidenceTier } from './confidence';
 import { budgetDiff } from './diff-budget';
@@ -18,12 +17,15 @@ import { getSettings } from './settings';
 import {
   buildPreReviewTriagePrompt,
   buildPreReviewUserPrompt,
-  PRE_REVIEW_OUTPUT_SCHEMA,
   PRE_REVIEW_SYSTEM_PROMPT,
-  PRE_REVIEW_TRIAGE_SCHEMA,
   PRE_REVIEW_TRIAGE_SYSTEM_PROMPT,
   RISK_FLAGS,
 } from './prompts/pre-review';
+
+// claude CLI 에 전달할 모델 — 본 분석은 Opus, 1차 triage 는 Haiku.
+// (구 anthropic.ts 에서 이전 — API SDK 경로 제거 Phase.)
+const PRE_REVIEW_MODEL = 'claude-opus-4-7';
+const PRE_REVIEW_TRIAGE_MODEL = 'claude-haiku-4-5-20251001';
 import { precomputeFlags } from './risk-flags';
 import type { RiskFlag } from './types';
 
@@ -76,77 +78,31 @@ type PromptInput = {
   diff: string;
 };
 
-// LLM 호출 백엔드 분기 (env.preReviewBackend). 'cli' = claude CLI 비대화형 spawn (크레딧 0),
-// 'api' = Anthropic SDK. 두 경로 모두 같은 schema 의 JSON 을 돌려주고, 호출부는 동일하게 처리.
-// CLI 는 JSON schema 강제가 없어 프롬프트로 지시 + parseJsonFromText + zod 로 검증.
+// 사전 리뷰 LLM 호출 — claude CLI 비대화형 spawn (사용자 Claude 플랜, API 크레딧 0).
+// JSON schema 강제가 없어 프롬프트로 지시 + parseJsonFromText + zod 로 검증.
 
 async function callTriageLLM(
   promptInput: PromptInput,
 ): Promise<z.infer<typeof triageResultSchema>> {
-  if (env.preReviewBackend() === 'cli') {
-    const res = await runClaudeHeadless({
-      input: `${PRE_REVIEW_TRIAGE_SYSTEM_PROMPT}\n\n${buildPreReviewTriagePrompt(promptInput)}`,
-      instruction:
-        '위 입력의 규칙대로 PR 을 1차 분류하고, 지정 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
-      model: PRE_REVIEW_TRIAGE_MODEL,
-    });
-    if (!res.ok) throw new Error(`triage(CLI) 실패: ${res.reason}`);
-    return triageResultSchema.parse(parseJsonFromText(res.text));
-  }
-  const triageMessage = await getAnthropic().messages.create({
+  const res = await runClaudeHeadless({
+    input: `${PRE_REVIEW_TRIAGE_SYSTEM_PROMPT}\n\n${buildPreReviewTriagePrompt(promptInput)}`,
+    instruction:
+      '위 입력의 규칙대로 PR 을 1차 분류하고, 지정 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_TRIAGE_MODEL,
-    max_tokens: 1024,
-    output_config: {
-      format: {
-        type: 'json_schema',
-        schema: PRE_REVIEW_TRIAGE_SCHEMA as unknown as Record<string, unknown>,
-      },
-    },
-    system: [
-      {
-        type: 'text',
-        text: PRE_REVIEW_TRIAGE_SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    messages: [{ role: 'user', content: buildPreReviewTriagePrompt(promptInput) }],
   });
-  return triageResultSchema.parse(JSON.parse(extractText(triageMessage.content)));
+  if (!res.ok) throw new Error(`triage(CLI) 실패: ${res.reason}`);
+  return triageResultSchema.parse(parseJsonFromText(res.text));
 }
 
 async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llmResultSchema>> {
-  if (env.preReviewBackend() === 'cli') {
-    const res = await runClaudeHeadless({
-      input: `${PRE_REVIEW_SYSTEM_PROMPT}\n\n${buildPreReviewUserPrompt(promptInput)}`,
-      instruction:
-        '위 입력을 분석해 지정된 JSON 스키마에 맞는 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
-      model: PRE_REVIEW_MODEL,
-    });
-    if (!res.ok) throw new Error(`pre-review(CLI) 실패: ${res.reason}`);
-    return llmResultSchema.parse(parseJsonFromText(res.text));
-  }
-  const message = await getAnthropic().messages.create({
+  const res = await runClaudeHeadless({
+    input: `${PRE_REVIEW_SYSTEM_PROMPT}\n\n${buildPreReviewUserPrompt(promptInput)}`,
+    instruction:
+      '위 입력을 분석해 지정된 JSON 스키마에 맞는 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_MODEL,
-    max_tokens: 4096,
-    thinking: { type: 'adaptive' },
-    output_config: {
-      effort: 'high',
-      format: {
-        type: 'json_schema',
-        schema: PRE_REVIEW_OUTPUT_SCHEMA as unknown as Record<string, unknown>,
-      },
-    },
-    // system은 stable — 마지막 텍스트 블록에 cache_control 박아 prefix 캐시 활성.
-    system: [
-      {
-        type: 'text',
-        text: PRE_REVIEW_SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    messages: [{ role: 'user', content: buildPreReviewUserPrompt(promptInput) }],
   });
-  return parseLLMResponse(message.content);
+  if (!res.ok) throw new Error(`pre-review(CLI) 실패: ${res.reason}`);
+  return llmResultSchema.parse(parseJsonFromText(res.text));
 }
 
 export async function analyzePR(prId: number): Promise<AnalyzeResult> {
@@ -296,28 +252,6 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     .get();
 
   return { kind: 'analyzed', row };
-}
-
-// JSON schema 응답에서 첫 text block 본문 추출 헬퍼 — triage / 본 분석 공통.
-function extractText(content: ReadonlyArray<ContentBlock>): string {
-  const textBlock = content.find((b) => b.type === 'text' && typeof b.text === 'string');
-  if (!textBlock?.text) {
-    throw new Error('Anthropic 응답에 text 블록이 없습니다.');
-  }
-  return textBlock.text;
-}
-
-// Anthropic 응답에서 첫 text 블록을 꺼내 JSON 파싱 → zod 검증.
-// output_config.format=json_schema 일 때 모델은 text 블록에 JSON 본문을 넣는다.
-type ContentBlock = { type: string; text?: string };
-function parseLLMResponse(content: ReadonlyArray<ContentBlock>): z.infer<typeof llmResultSchema> {
-  let json: unknown;
-  try {
-    json = JSON.parse(extractText(content));
-  } catch (err) {
-    throw new Error(`Anthropic 응답 JSON 파싱 실패: ${(err as Error).message}`);
-  }
-  return llmResultSchema.parse(json);
 }
 
 // diff 본문에서 변경된 파일 경로 추출 — `diff --git a/x b/x` 줄.
