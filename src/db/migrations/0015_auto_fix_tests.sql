@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `auto_fix_tests_enabled` integer DEFAULT false NOT NULL;

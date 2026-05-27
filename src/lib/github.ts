@@ -136,6 +136,56 @@ export async function mergePR(
   return { merged: data.merged, sha: data.sha };
 }
 
+// PR 의 머지 가능 상태 + head/base 브랜치 ref. Phase 13.2 충돌 자동 해결의 입력.
+// mergeableState: 'dirty' = base 와 충돌. 'clean'/'unstable'/'behind'/'blocked'/'unknown' 등.
+// GitHub 가 mergeable 을 비동기로 계산하므로 push 직후엔 'unknown'/null 일 수 있음.
+// headRepoFullName 으로 fork/cross-repo 판별 (로컬 워크스페이스가 base 레포 클론이라
+// fork PR 브랜치는 직접 push 불가 → 자동 해결 비대상).
+export type PRMergeStatus = {
+  mergeableState: string;
+  mergeable: boolean | null;
+  headRef: string;
+  baseRef: string;
+  headRepoFullName: string | undefined;
+};
+
+export async function getPRMergeStatus(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<PRMergeStatus> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.get({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+  });
+  return {
+    mergeableState: data.mergeable_state,
+    mergeable: data.mergeable,
+    headRef: data.head.ref,
+    baseRef: data.base.ref,
+    headRepoFullName: data.head.repo?.full_name,
+  };
+}
+
+// PR(=issue) 에 일반 코멘트 작성. 충돌 자동 해결 실패 시 사람에게 사유 회신용.
+export async function addPRComment(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+  body: string,
+): Promise<{ id: number }> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.issues.createComment({
+    owner: ref.owner,
+    repo: ref.repo,
+    issue_number: number,
+    body,
+  });
+  return { id: data.id };
+}
+
 // 머지된 PR 의 head 브랜치를 삭제. octokit.pulls.get 으로 head.ref 조회 후 git.deleteRef.
 // fork / cross-repo PR 은 base 레포에 브랜치가 없어 skip — head.repo.full_name 비교로 판단.
 export type DeleteBranchResult =
