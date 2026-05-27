@@ -4,6 +4,7 @@
 // RSC 인 ReportsPage 가 server-side 에서 데이터를 prep 한 뒤 prop 으로 넘기고,
 // 이 컴포넌트가 client-side 에서 ResponsiveContainer + 인터랙티브 시각화 렌더.
 
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -24,14 +25,30 @@ export type DailyMergePoint = { date: string; auto: number; human: number; githu
 export type DailyConfidencePoint = { date: string; avg: number | null };
 
 // 차트 색상 — Recharts 가 SVG fill attribute 에 CSS var() 를 일부 브라우저에서
-// 검정 fallback 으로 처리하는 케이스 회피. dark.css 의 디자인 토큰 값과 동일한 hex 를
-// 직접 사용 (Decision Log 박제). 토큰 동기화 책임은 이 파일 주석에서 유지.
-const COLOR_BLUE = '#93b0f8'; // var(--ds-color-secondary-01) — 자동 머지 (brand blue)
-const COLOR_YELLOW = '#ffc60a'; // var(--ds-color-state-warning-base) — 수동 머지
-const COLOR_GRAY = '#6c728f'; // var(--ds-color-primary-03) — 외부 머지 (다크 배경 가시성 위해 한 단계 진한 그레이)
-const COLOR_AXIS = '#9aa0c2'; // var(--ds-color-text-02) — 축 라벨
-const COLOR_GRID = '#252a45'; // var(--ds-color-line-02) — 격자선
-const COLOR_TOOLTIP_CURSOR = 'rgba(180, 199, 246, 0.06)'; // hover 영역 (다크 배경에 자연스러운 highlight)
+// 검정 fallback 으로 처리하는 케이스 회피. 디자인 토큰(--ds-color-*) 값을 런타임에
+// getComputedStyle 로 읽어 실제 hex 문자열로 변환해 넘긴다(AgentConsole.cssVar 패턴).
+// SSR/마운트 전엔 getComputedStyle 이 없으므로 dark.css 토큰과 동일한 hex 를 fallback 으로 둔다.
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+// 차트가 쓰는 토큰을 한 번에 해석. 각 차트 컴포넌트가 useMemo 로 호출(렌더 시 클라이언트에서 평가).
+function useChartColors() {
+  return useMemo(
+    () => ({
+      blue: cssVar('--ds-color-secondary-01', '#93b0f8'), // 자동 머지 (brand blue)
+      yellow: cssVar('--ds-color-state-warning-base', '#ffc60a'), // 수동 머지
+      gray: cssVar('--ds-color-primary-03', '#6c728f'), // 외부 머지
+      axis: cssVar('--ds-color-text-02', '#9aa0c2'), // 축 라벨
+      grid: cssVar('--ds-color-line-02', '#252a45'), // 격자선
+      // hover 영역 — 정확히 대응하는 단일 토큰이 없어 기존 highlight 값 유지.
+      tooltipCursor: 'rgba(180, 199, 246, 0.06)',
+    }),
+    [],
+  );
+}
 
 // Recharts 의 Tooltip 기본 스타일은 라이트 모드 가정 — 커스텀 컨텐츠로 대체.
 type TooltipProps = {
@@ -69,25 +86,26 @@ function shortDate(iso: string): string {
 }
 
 export function DailyIncomingChart({ points }: { points: DailyIncomingPoint[] }) {
+  const colors = useChartColors();
   const data = points.map((p) => ({ date: shortDate(p.date), count: p.count }));
   return (
     <div className={styles.chartWrap}>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke={COLOR_GRID} vertical={false} strokeDasharray="3 3" />
-          <XAxis dataKey="date" stroke={COLOR_AXIS} fontSize={11} tickLine={false} />
+          <CartesianGrid stroke={colors.grid} vertical={false} strokeDasharray="3 3" />
+          <XAxis dataKey="date" stroke={colors.axis} fontSize={11} tickLine={false} />
           <YAxis
-            stroke={COLOR_AXIS}
+            stroke={colors.axis}
             fontSize={11}
             tickLine={false}
             allowDecimals={false}
             width={28}
           />
-          <Tooltip cursor={{ fill: COLOR_TOOLTIP_CURSOR }} content={<ChartTooltip />} />
+          <Tooltip cursor={{ fill: colors.tooltipCursor }} content={<ChartTooltip />} />
           <Bar
             dataKey="count"
             name={t.reports.section.dailyIncoming}
-            fill={COLOR_BLUE}
+            fill={colors.blue}
             radius={[3, 3, 0, 0]}
           />
         </BarChart>
@@ -97,6 +115,7 @@ export function DailyIncomingChart({ points }: { points: DailyIncomingPoint[] })
 }
 
 export function DailyMergeChart({ points }: { points: DailyMergePoint[] }) {
+  const colors = useChartColors();
   const data = points.map((p) => ({
     date: shortDate(p.date),
     auto: p.auto,
@@ -107,27 +126,27 @@ export function DailyMergeChart({ points }: { points: DailyMergePoint[] }) {
     <div className={styles.chartWrap}>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke={COLOR_GRID} vertical={false} strokeDasharray="3 3" />
-          <XAxis dataKey="date" stroke={COLOR_AXIS} fontSize={11} tickLine={false} />
+          <CartesianGrid stroke={colors.grid} vertical={false} strokeDasharray="3 3" />
+          <XAxis dataKey="date" stroke={colors.axis} fontSize={11} tickLine={false} />
           <YAxis
-            stroke={COLOR_AXIS}
+            stroke={colors.axis}
             fontSize={11}
             tickLine={false}
             allowDecimals={false}
             width={28}
           />
           <Tooltip
-            cursor={{ fill: COLOR_TOOLTIP_CURSOR }}
+            cursor={{ fill: colors.tooltipCursor }}
             content={<ChartTooltip totalLabel="합계" />}
           />
           <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-          <Bar dataKey="auto" name={t.reports.legend.auto} stackId="m" fill={COLOR_BLUE} />
-          <Bar dataKey="human" name={t.reports.legend.human} stackId="m" fill={COLOR_YELLOW} />
+          <Bar dataKey="auto" name={t.reports.legend.auto} stackId="m" fill={colors.blue} />
+          <Bar dataKey="human" name={t.reports.legend.human} stackId="m" fill={colors.yellow} />
           <Bar
             dataKey="github"
             name={t.reports.legend.github}
             stackId="m"
-            fill={COLOR_GRAY}
+            fill={colors.gray}
             radius={[3, 3, 0, 0]}
           />
         </BarChart>
@@ -137,23 +156,24 @@ export function DailyMergeChart({ points }: { points: DailyMergePoint[] }) {
 }
 
 export function AvgConfidenceChart({ points }: { points: DailyConfidencePoint[] }) {
+  const colors = useChartColors();
   const data = points.map((p) => ({ date: shortDate(p.date), avg: p.avg }));
   // null 인 일자가 있어도 connectNulls=false 로 자연스러운 gap.
   return (
     <div className={styles.chartWrap}>
       <ResponsiveContainer width="100%" height={200}>
         <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke={COLOR_GRID} vertical={false} strokeDasharray="3 3" />
-          <XAxis dataKey="date" stroke={COLOR_AXIS} fontSize={11} tickLine={false} />
-          <YAxis stroke={COLOR_AXIS} fontSize={11} tickLine={false} domain={[0, 100]} width={28} />
-          <Tooltip cursor={{ stroke: COLOR_GRID }} content={<ChartTooltip />} />
+          <CartesianGrid stroke={colors.grid} vertical={false} strokeDasharray="3 3" />
+          <XAxis dataKey="date" stroke={colors.axis} fontSize={11} tickLine={false} />
+          <YAxis stroke={colors.axis} fontSize={11} tickLine={false} domain={[0, 100]} width={28} />
+          <Tooltip cursor={{ stroke: colors.grid }} content={<ChartTooltip />} />
           <Line
             type="monotone"
             dataKey="avg"
             name={t.reports.section.avgConfidence}
-            stroke={COLOR_BLUE}
+            stroke={colors.blue}
             strokeWidth={2}
-            dot={{ r: 3, fill: COLOR_BLUE, strokeWidth: 0 }}
+            dot={{ r: 3, fill: colors.blue, strokeWidth: 0 }}
             activeDot={{ r: 5 }}
             connectNulls={false}
           />
