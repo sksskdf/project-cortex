@@ -8,6 +8,7 @@ import { db } from '@/db/client';
 import { preReviews, prs, projects } from '@/db/schema';
 import type { PreReviewRow } from '@/db/schema';
 import { getAnthropic, PRE_REVIEW_MODEL, PRE_REVIEW_TRIAGE_MODEL } from './anthropic';
+import { parseJsonFromText, runClaudeHeadless } from './claude-cli';
 import { confidenceTier } from './confidence';
 import { budgetDiff } from './diff-budget';
 import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
@@ -64,6 +65,89 @@ export type AnalyzeResult =
   | { kind: 'cached'; row: PreReviewRow }
   | { kind: 'analyzed'; row: PreReviewRow }
   | { kind: 'skipped'; reason: 'no-pr' | 'no-project' | 'no-installation' | 'ai-disabled' };
+
+type PromptInput = {
+  prTitle: string;
+  repoSlug: string;
+  authorKind: 'agent' | 'human';
+  linesAdded: number;
+  linesRemoved: number;
+  filesChanged: number;
+  diff: string;
+};
+
+// LLM 호출 백엔드 분기 (env.preReviewBackend). 'cli' = claude CLI 비대화형 spawn (크레딧 0),
+// 'api' = Anthropic SDK. 두 경로 모두 같은 schema 의 JSON 을 돌려주고, 호출부는 동일하게 처리.
+// CLI 는 JSON schema 강제가 없어 프롬프트로 지시 + parseJsonFromText + zod 로 검증.
+
+async function callTriageLLM(
+  promptInput: PromptInput,
+): Promise<z.infer<typeof triageResultSchema>> {
+  if (env.preReviewBackend() === 'cli') {
+    const res = await runClaudeHeadless({
+      input: `${PRE_REVIEW_TRIAGE_SYSTEM_PROMPT}\n\n${buildPreReviewTriagePrompt(promptInput)}`,
+      instruction:
+        '위 입력의 규칙대로 PR 을 1차 분류하고, 지정 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
+      model: PRE_REVIEW_TRIAGE_MODEL,
+    });
+    if (!res.ok) throw new Error(`triage(CLI) 실패: ${res.reason}`);
+    return triageResultSchema.parse(parseJsonFromText(res.text));
+  }
+  const triageMessage = await getAnthropic().messages.create({
+    model: PRE_REVIEW_TRIAGE_MODEL,
+    max_tokens: 1024,
+    output_config: {
+      format: {
+        type: 'json_schema',
+        schema: PRE_REVIEW_TRIAGE_SCHEMA as unknown as Record<string, unknown>,
+      },
+    },
+    system: [
+      {
+        type: 'text',
+        text: PRE_REVIEW_TRIAGE_SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [{ role: 'user', content: buildPreReviewTriagePrompt(promptInput) }],
+  });
+  return triageResultSchema.parse(JSON.parse(extractText(triageMessage.content)));
+}
+
+async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llmResultSchema>> {
+  if (env.preReviewBackend() === 'cli') {
+    const res = await runClaudeHeadless({
+      input: `${PRE_REVIEW_SYSTEM_PROMPT}\n\n${buildPreReviewUserPrompt(promptInput)}`,
+      instruction:
+        '위 입력을 분석해 지정된 JSON 스키마에 맞는 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
+      model: PRE_REVIEW_MODEL,
+    });
+    if (!res.ok) throw new Error(`pre-review(CLI) 실패: ${res.reason}`);
+    return llmResultSchema.parse(parseJsonFromText(res.text));
+  }
+  const message = await getAnthropic().messages.create({
+    model: PRE_REVIEW_MODEL,
+    max_tokens: 4096,
+    thinking: { type: 'adaptive' },
+    output_config: {
+      effort: 'high',
+      format: {
+        type: 'json_schema',
+        schema: PRE_REVIEW_OUTPUT_SCHEMA as unknown as Record<string, unknown>,
+      },
+    },
+    // system은 stable — 마지막 텍스트 블록에 cache_control 박아 prefix 캐시 활성.
+    system: [
+      {
+        type: 'text',
+        text: PRE_REVIEW_SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [{ role: 'user', content: buildPreReviewUserPrompt(promptInput) }],
+  });
+  return parseLLMResponse(message.content);
+}
 
 export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   // 안전망 — settings.aiEnabled=false 면 호출 자체 차단 (Anthropic 크레딧 0).
@@ -127,8 +211,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     coverage: null,
   });
 
-  const client = getAnthropic();
-  const promptInput = {
+  const promptInput: PromptInput = {
     prTitle: pr.title,
     repoSlug: project.slug,
     authorKind: pr.authorKind,
@@ -142,27 +225,9 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
   if (env.triageEnabled()) {
     let triage: z.infer<typeof triageResultSchema> | null = null;
     try {
-      const triageMessage = await client.messages.create({
-        model: PRE_REVIEW_TRIAGE_MODEL,
-        max_tokens: 1024,
-        output_config: {
-          format: {
-            type: 'json_schema',
-            schema: PRE_REVIEW_TRIAGE_SCHEMA as unknown as Record<string, unknown>,
-          },
-        },
-        system: [
-          {
-            type: 'text',
-            text: PRE_REVIEW_TRIAGE_SYSTEM_PROMPT,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        messages: [{ role: 'user', content: buildPreReviewTriagePrompt(promptInput) }],
-      });
-      triage = triageResultSchema.parse(JSON.parse(extractText(triageMessage.content)));
+      triage = await callTriageLLM(promptInput);
     } catch (err) {
-      console.error(`triage(Haiku) failed for PR ${prId}, falling back to Opus:`, err);
+      console.error(`triage failed for PR ${prId}, falling back to deep review:`, err);
     }
 
     if (triage && isSimpleByTriage(triage)) {
@@ -201,34 +266,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     // triage 가 'complex' 거나 호출 실패 → Opus 로 폴 스루.
   }
 
-  const message = await client.messages.create({
-    model: PRE_REVIEW_MODEL,
-    max_tokens: 4096,
-    thinking: { type: 'adaptive' },
-    output_config: {
-      effort: 'high',
-      format: {
-        type: 'json_schema',
-        schema: PRE_REVIEW_OUTPUT_SCHEMA as unknown as Record<string, unknown>,
-      },
-    },
-    // system은 stable — 마지막 텍스트 블록에 cache_control 박아 prefix 캐시 활성.
-    system: [
-      {
-        type: 'text',
-        text: PRE_REVIEW_SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    messages: [
-      {
-        role: 'user',
-        content: buildPreReviewUserPrompt(promptInput),
-      },
-    ],
-  });
-
-  const parsed = parseLLMResponse(message.content);
+  const parsed = await callMainLLM(promptInput);
 
   // LLM flags + 휴리스틱 union (중복 제거).
   const combinedFlags = Array.from(new Set<RiskFlag>([...parsed.flags, ...heuristicFlags]));
