@@ -9,6 +9,7 @@ import { createNotification, isRevertPR } from './notifications';
 import { analyzePR } from './pre-review';
 import { matchAndApplyDoneFromPR } from './roadmap';
 import { getSettings } from './settings';
+import { attemptTestFix } from './test-fix';
 import { runTriage } from './triage';
 
 // 외부 GitHub webhook 페이로드를 lib/github의 분류 결과로 정규화한 입력.
@@ -326,6 +327,9 @@ export async function handleCheckWebhook(payload: {
   // CI 실패가 처음 감지된 시점에만 알림 — 같은 PR 에 여러 check_run 이 완료될 때 중복 방지.
   if (testsPassed === false && prevTestsPassed?.testsPassed !== false) {
     safeNotify({ kind: 'ci-failed', prId: pr.id });
+    // 자동 테스트 수정 시도 (토글 ON·agent PR 만). 백그라운드 실행 — claude 가 테스트를
+    // 돌리고 고치는 데 수 분 걸릴 수 있어 webhook 응답을 막지 않는다. 토글 OFF(디폴트)면 즉시 skip.
+    safeAutoFixTests(pr.id);
   }
 
   // 결과가 true 가 되면 자동 머지 후보가 됐을 수 있음 — 재트라이아지 + 시도.
@@ -349,4 +353,15 @@ function safeNotify(input: Parameters<typeof createNotification>[0]): void {
       'createNotification failed',
     );
   }
+}
+
+// CI 실패 시 자동 테스트 수정 — best-effort 백그라운드. 토글 OFF(디폴트)면 attemptTestFix
+// 가 즉시 skip 하므로 비용 0. 성공 시 push 가 새 CI 를 발사해 재트라이아지+머지로 이어짐.
+function safeAutoFixTests(prId: number): void {
+  attemptTestFix(prId).catch((err) => {
+    logger.error(
+      { source: 'sync', op: 'attemptTestFix', prId, err },
+      'attemptTestFix unexpected error',
+    );
+  });
 }

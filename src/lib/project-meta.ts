@@ -31,6 +31,8 @@ export type ProjectMetaV1 = {
     auto_resolve_changes?: boolean;
     // Phase 13.2 — 머지 충돌을 claude CLI 로 자동 해결할지. 디폴트 OFF.
     auto_resolve_conflicts?: boolean;
+    // Phase 13.x — CI 테스트 실패를 claude CLI 로 자동 수정할지. 디폴트 OFF.
+    auto_fix_tests?: boolean;
   };
 };
 
@@ -324,6 +326,9 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
   }
   if (meta.automation?.auto_resolve_conflicts !== undefined) {
     updateFields.autoResolveConflictsEnabled = meta.automation.auto_resolve_conflicts;
+  }
+  if (meta.automation?.auto_fix_tests !== undefined) {
+    updateFields.autoFixTestsEnabled = meta.automation.auto_fix_tests;
   }
   db.update(projects).set(updateFields).where(eq(projects.id, projectId)).run();
 
