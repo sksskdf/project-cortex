@@ -62,6 +62,21 @@ const projectsIcon = (
   </svg>
 );
 
+const issuesIcon = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx={12} cy={12} r={9} />
+    <line x1={12} y1={8} x2={12} y2={12} />
+    <line x1={12} y1={16} x2={12.01} y2={16} />
+  </svg>
+);
+
 const todosIcon = (
   <svg
     viewBox="0 0 24 24"
@@ -231,6 +246,12 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       icon: projectsIcon,
       count: counts.projects,
       comingSoon: false,
+    },
+    {
+      href: '/issues',
+      label: t.nav.issues,
+      icon: issuesIcon,
+      count: counts.issues,
     },
     {
       href: '/todos',

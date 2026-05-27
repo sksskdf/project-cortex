@@ -69,6 +69,7 @@ export type PR = {
 export type SidebarCounts = {
   inbox: number;
   projects: number;
+  issues: number;
   agents: number;
   clusters: number;
   todos: number;

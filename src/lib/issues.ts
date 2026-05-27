@@ -3,9 +3,9 @@
 // 워크스페이스에서 claude CLI 세션을 spawn 한다 (PTY 서버). 위임 prompt 는
 // buildDelegatePrompt 로 이슈 spec 에서 구성.
 
-import { asc } from 'drizzle-orm';
+import { asc, count, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { issues, projects } from '@/db/schema';
+import { agentRuns, issues, projects, prs } from '@/db/schema';
 
 export const CLAUDE_ASSIGNEE_ID = 'claude-code';
 
@@ -54,4 +54,82 @@ export function createIssue(
 // claude CLI 세션에 처음 보낼 prompt. 이슈 제목 + 수용 기준(spec)을 자연어로 전달.
 export function buildDelegatePrompt(title: string, spec: string): string {
   return `이슈: ${title.trim()}\n\n${spec.trim()}`;
+}
+
+export type IssueStatus = 'open' | 'in-progress' | 'done' | 'closed';
+// agent_runs.status — 이슈에 위임된 claude 세션의 최신 상태. 위임 안 된 이슈는 null.
+export type SessionStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+// 목록 뷰 1행 — 이슈 + 프로젝트 slug + 최신 claude 세션 상태 + 결과 PR.
+export type IssueView = {
+  id: number;
+  title: string;
+  status: IssueStatus;
+  projectSlug: string | null;
+  // 이슈에 연결된 가장 최근 agent_run 의 상태. 위임/실행 이력이 없으면 null.
+  sessionStatus: SessionStatus | null;
+  // 그 세션이 만들어낸 PR (있을 때만). 클릭 시 /pr/<id> 이동.
+  resultPrId: number | null;
+  resultPrNumber: number | null;
+  createdAt: Date;
+};
+
+// 이슈 목록 — 최신 생성 순. 각 이슈마다 프로젝트 slug, 최신 세션 상태, 결과 PR 을 join.
+// 읽기 전용 v1 — 편집/삭제 없음.
+export function listIssues(): IssueView[] {
+  // createdAt 은 초 단위라 같은 초 삽입 시 동률 — id 로 tiebreak (큰 id = 더 최근).
+  const rows = db.select().from(issues).orderBy(desc(issues.createdAt), desc(issues.id)).all();
+  if (rows.length === 0) return [];
+
+  // project slug 한 번에.
+  const projectById = new Map<number, string>();
+  const pRows = db.select({ id: projects.id, slug: projects.slug }).from(projects).all();
+  for (const p of pRows) projectById.set(p.id, p.slug);
+
+  // 각 이슈의 최신 agent_run (startedAt → id 순). 한 번에 받아 이슈별로 첫 행만 사용.
+  const runRows = db
+    .select({
+      issueId: agentRuns.issueId,
+      status: agentRuns.status,
+      outputPrId: agentRuns.outputPrId,
+      startedAt: agentRuns.startedAt,
+      id: agentRuns.id,
+    })
+    .from(agentRuns)
+    .orderBy(desc(agentRuns.startedAt), desc(agentRuns.id))
+    .all();
+  const latestRunByIssue = new Map<number, (typeof runRows)[number]>();
+  for (const run of runRows) {
+    if (!latestRunByIssue.has(run.issueId)) latestRunByIssue.set(run.issueId, run);
+  }
+
+  // 결과 PR 번호.
+  const prNumberById = new Map<number, number>();
+  const prRows = db.select({ id: prs.id, number: prs.number }).from(prs).all();
+  for (const p of prRows) prNumberById.set(p.id, p.number);
+
+  return rows.map((row) => {
+    const run = latestRunByIssue.get(row.id) ?? null;
+    const resultPrId = run?.outputPrId ?? null;
+    return {
+      id: row.id,
+      title: row.title,
+      status: row.status as IssueStatus,
+      projectSlug: projectById.get(row.repoId) ?? null,
+      sessionStatus: (run?.status as SessionStatus | undefined) ?? null,
+      resultPrId,
+      resultPrNumber: resultPrId !== null ? (prNumberById.get(resultPrId) ?? null) : null,
+      createdAt: row.createdAt,
+    };
+  });
+}
+
+// 사이드바 chip 용 — open 이슈 카운트.
+export function countOpenIssues(): number {
+  const result = db
+    .select({ n: count() })
+    .from(issues)
+    .where(or(eq(issues.status, 'open'), eq(issues.status, 'in-progress')))
+    .get();
+  return result?.n ?? 0;
 }
