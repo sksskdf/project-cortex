@@ -330,6 +330,9 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
   if (meta.automation?.auto_fix_tests !== undefined) {
     updateFields.autoFixTestsEnabled = meta.automation.auto_fix_tests;
   }
+  if (meta.automation?.auto_resolve_changes !== undefined) {
+    updateFields.autoResolveChangesEnabled = meta.automation.auto_resolve_changes;
+  }
   db.update(projects).set(updateFields).where(eq(projects.id, projectId)).run();
 
   const metaUpdated = true;
