@@ -23,9 +23,15 @@ export type ClaudeRunOptions = {
   instruction: string;
   // --model. alias(opus/sonnet/haiku) 또는 full id.
   model?: string;
-  // 작업 디렉토리 — repo 접근이 필요한 경우. 사전 리뷰(분석만)는 불필요.
+  // 작업 디렉토리 — 충돌 해결처럼 repo 접근이 필요한 경우. 사전 리뷰는 불필요.
   cwd?: string;
   timeoutMs?: number;
+  // 도구(파일 편집·Bash 등) 사용 허용 + 권한 프롬프트 우회. 충돌 해결처럼 claude 가
+  // cwd 안에서 파일을 직접 고쳐야 하는 경우만 true. 사전 리뷰(분석만)는 false.
+  // 비대화형이라 권한 프롬프트로 멈추면 안 되므로 --dangerously-skip-permissions 필요.
+  // 위험: cwd 안에서 임의 파일 수정/명령 실행이 가능 — 호출부가 cwd 화이트리스트(등록된
+  // 워크스페이스)로 제한해야 함.
+  dangerouslyAllowAllTools?: boolean;
 };
 
 export type ClaudeRunResult = { ok: true; text: string } | { ok: false; reason: string };
@@ -52,6 +58,9 @@ function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
   // 정상 완료를 실패로 오인할 위험이 있어 사용 안 함 — 자기완결 프롬프트라 도구 루프 위험 낮음.)
   const cliArgs = ['-p', '--output-format', 'json'];
   if (opts.model) cliArgs.push('--model', opts.model);
+  // 충돌 해결 등 파일 수정이 필요한 작업만 도구 허용 + 권한 우회 (비대화형이라 프롬프트
+  // 로 멈추면 안 됨). 분석 전용(사전 리뷰)은 이 플래그 없이 순수 텍스트 응답.
+  if (opts.dangerouslyAllowAllTools) cliArgs.push('--dangerously-skip-permissions');
   cliArgs.push(opts.instruction);
 
   // Windows 전역 npm bin 은 claude.cmd (배치) — Node 가 .cmd 를 직접 spawn 못 하므로

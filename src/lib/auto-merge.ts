@@ -5,6 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions, type PRRecord } from '@/db/schema';
+import { attemptConflictResolution } from './conflict-resolve';
 import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
 import { createNotification } from './notifications';
 import { matchAndApplyDoneFromPR } from './roadmap';
@@ -20,7 +21,9 @@ export type AutoMergeResult =
         | 'wrong-status'
         | 'no-decision'
         | 'not-auto-merge'
-        | 'in-progress';
+        | 'in-progress'
+        // Phase 13.2 — 충돌을 자동 해결 중. push 가 새 webhook 을 발사해 재트라이아지+재머지.
+        | 'conflict-resolving';
     }
   | { kind: 'failed'; reason: string };
 
@@ -76,6 +79,28 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
   if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
 
   const [owner, repo] = project.slug.split('/');
+
+  // Phase 13.2 — 충돌 자동 해결 토글이 켜진 프로젝트는 머지 전에 충돌 여부를 확인하고
+  // dirty 면 claude CLI 로 해결 시도. 해결되면 push 가 새 webhook 을 발사해 재트라이아지+
+  // 재머지가 일어나므로 이번 시도는 보류. 토글 OFF 면 추가 API 호출 없이 기존 흐름.
+  if (project.autoResolveConflictsEnabled) {
+    const resolution = await attemptConflictResolution(prId);
+    if (resolution.kind === 'resolved') {
+      return { kind: 'skipped', reason: 'conflict-resolving' };
+    }
+    if (resolution.kind === 'failed') {
+      // conflict-resolve 가 이미 PR 코멘트 + 알림을 남김 — 중복 알림 방지로 notify=false.
+      return revertToReviewNeeded(prId, `충돌 자동 해결 실패: ${resolution.reason}`, false);
+    }
+    if (resolution.kind === 'skipped' && resolution.reason === 'too-large') {
+      return revertToReviewNeeded(
+        prId,
+        '머지 충돌 — 충돌 규모가 커 사람 검토가 필요합니다.',
+        false,
+      );
+    }
+    // 그 외 skipped(not-dirty 등) — 충돌이 아니므로 정상 머지 흐름 계속.
+  }
 
   try {
     // commitTitle 미전송 — GitHub default ('<PR title> (#<number>)') 를 그대로 사용.
@@ -137,7 +162,8 @@ async function safeDeleteBranch(prId: number): Promise<void> {
 }
 
 // 머지 실패 시 사람 검토로 되돌림 — triage_decisions.reason 갱신해서 UI 에 사유 노출.
-function revertToReviewNeeded(prId: number, reason: string): AutoMergeResult {
+// notify=false 는 호출부(충돌 해결 흐름)가 이미 알림을 남긴 경우 중복 방지용.
+function revertToReviewNeeded(prId: number, reason: string, notify = true): AutoMergeResult {
   db.update(prs)
     .set({ status: 'review-needed', updatedAt: new Date() })
     .where(eq(prs.id, prId))
@@ -146,7 +172,7 @@ function revertToReviewNeeded(prId: number, reason: string): AutoMergeResult {
     .set({ decision: 'human-review', reason, decidedBy: 'system', decidedAt: new Date() })
     .where(eq(triageDecisions.prId, prId))
     .run();
-  safeNotify({ kind: 'auto-merge-failed', prId, reason });
+  if (notify) safeNotify({ kind: 'auto-merge-failed', prId, reason });
   return { kind: 'failed', reason };
 }
 

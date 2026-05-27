@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `auto_resolve_conflicts_enabled` integer DEFAULT false NOT NULL;
