@@ -26,11 +26,30 @@ export function useAgentDrawer(): AgentDrawerCtx {
 
 type Dock = 'right' | 'bottom';
 const DOCK_STORAGE_KEY = 'cortex:agentDock';
+const WIDTH_STORAGE_KEY = 'cortex:agentDrawerWidth';
+const HEIGHT_STORAGE_KEY = 'cortex:agentDrawerHeight';
+
+// 크기 조절 경계: 가로 320px–90vw, 세로 240px–90vh.
+const MIN_WIDTH = 320;
+const MIN_HEIGHT = 240;
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(Math.max(v, min), max);
+}
 
 function loadDock(): Dock | null {
   try {
     const v = localStorage.getItem(DOCK_STORAGE_KEY);
     return v === 'right' || v === 'bottom' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadSize(key: string): number | null {
+  try {
+    const v = Number(localStorage.getItem(key));
+    return Number.isFinite(v) && v > 0 ? v : null;
   } catch {
     return null;
   }
@@ -110,14 +129,30 @@ export function AgentDrawerProvider({
   const [expanded, setExpanded] = useState(false);
   const [dock, setDock] = useState<Dock>('right');
   const [dragging, setDragging] = useState(false);
+  // 도킹별 사용자 지정 크기(px). null = 미지정(CSS 기본값 사용).
+  const [width, setWidth] = useState<number | null>(null);
+  const [height, setHeight] = useState<number | null>(null);
   const dockRef = useRef<Dock>('right');
   const draggingRef = useRef(false);
+  const resizingRef = useRef(false);
+  const widthRef = useRef<number | null>(null);
+  const heightRef = useRef<number | null>(null);
 
-  // 첫 마운트: 저장된 위치 우선, 없으면 화면 비율로 결정 (SSR 안전 — 클라이언트에서만).
+  // 첫 마운트: 저장된 위치/크기 우선, 위치 없으면 화면 비율로 결정 (SSR 안전 — 클라이언트에서만).
   useEffect(() => {
     const initial = loadDock() ?? responsiveDock();
     dockRef.current = initial;
     setDock(initial);
+    const w = loadSize(WIDTH_STORAGE_KEY);
+    const h = loadSize(HEIGHT_STORAGE_KEY);
+    if (w !== null) {
+      widthRef.current = w;
+      setWidth(w);
+    }
+    if (h !== null) {
+      heightRef.current = h;
+      setHeight(h);
+    }
   }, []);
 
   const onHeadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -154,6 +189,61 @@ export function AgentDrawerProvider({
     }
   }, []);
 
+  // 크기 조절 — 헤더 드래그와 동일하게 포인터 캡처 사용. 오른쪽=가로(왼쪽 가장자리),
+  // 하단=세로(위쪽 가장자리). 전체화면(expanded)에선 핸들이 숨겨져 호출되지 않는다.
+  const onResizePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = true;
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onResizePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizingRef.current) return;
+    if (dockRef.current === 'right') {
+      // 왼쪽 가장자리를 끌면 패널 우측은 고정 → 폭 = 화면너비 - 포인터X.
+      const next = clamp(window.innerWidth - e.clientX, MIN_WIDTH, window.innerWidth * 0.9);
+      widthRef.current = next;
+      setWidth(next);
+    } else {
+      // 위쪽 가장자리를 끌면 패널 하단은 고정 → 높이 = 화면높이 - 포인터Y.
+      const next = clamp(window.innerHeight - e.clientY, MIN_HEIGHT, window.innerHeight * 0.9);
+      heightRef.current = next;
+      setHeight(next);
+    }
+  }, []);
+
+  const onResizePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizingRef.current) return;
+    resizingRef.current = false;
+    setDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // 이미 해제됨 — 무시.
+    }
+    try {
+      if (widthRef.current !== null)
+        localStorage.setItem(WIDTH_STORAGE_KEY, String(widthRef.current));
+      if (heightRef.current !== null)
+        localStorage.setItem(HEIGHT_STORAGE_KEY, String(heightRef.current));
+    } catch {
+      // 저장 실패해도 동작엔 영향 없음.
+    }
+  }, []);
+
+  // 전체화면이면 인라인 크기 무시(CSS 가 전체화면 처리). 도킹별로 해당 축만 적용.
+  const panelStyle: React.CSSProperties = expanded
+    ? {}
+    : dock === 'right'
+      ? width !== null
+        ? { width }
+        : {}
+      : height !== null
+        ? { height }
+        : {};
+
   return (
     <Ctx.Provider value={{ openDrawer: () => setOpen(true) }}>
       {children}
@@ -180,7 +270,17 @@ export function AgentDrawerProvider({
         ].join(' ')}
         aria-hidden={!open}
         aria-label={t.agents.title}
+        style={panelStyle}
       >
+        <div
+          className={styles.resizeHandle}
+          role="separator"
+          aria-label={t.agents.resize}
+          aria-orientation={dock === 'right' ? 'vertical' : 'horizontal'}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+        />
         <div
           className={styles.head}
           onPointerDown={onHeadPointerDown}
