@@ -19,6 +19,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
+import { finishAgentRun } from '@/lib/issues';
 import {
   defaultSessionStorePath,
   loadPersistedSessions,
@@ -62,6 +63,9 @@ type Session = {
   createdAt: number;
   // 마지막 입출력 시각 — 목록에서 활동 여부 표시 + 가장 최근 세션 정렬용.
   lastActivityAt: number;
+  // 이슈 위임으로 spawn 된 세션이면 agent_run id. 프로세스 종료 시 finishAgentRun 으로 마감.
+  // (in-memory 만 — 재시작 후 복원 세션엔 없음. 그 경우 run 은 running 으로 남음, 비치명적.)
+  runId: number | null;
 };
 
 // 세션 관리 엔드포인트가 클라이언트에 내보내는 메타 (proc/ws 등 내부 핸들 제외).
@@ -97,6 +101,7 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
     exitSub: NO_SUB,
     createdAt: meta.createdAt,
     lastActivityAt: meta.lastActivityAt,
+    runId: null,
   });
 }
 
@@ -231,6 +236,8 @@ function wireProc(session: Session) {
   });
   session.exitSub = proc.onExit(({ exitCode }) => {
     if (session.ws) send(session.ws, { type: 'exit', data: String(exitCode) });
+    // 위임 세션이면 agent_run 마감 (정상 종료 0 → completed, 그 외 → failed).
+    if (session.runId != null) finishAgentRun(session.runId, exitCode === 0);
     destroy(session);
   });
   if (session.ws) wireClient(session, session.ws);
@@ -249,6 +256,9 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
   const cols = clampDim(params.get('cols'), DEFAULT_COLS);
   const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
   const name = sanitizeName(params.get('name')) || `세션 ${sessions.size + 1}`;
+  // 이슈 위임 세션이면 agent_run id 동봉 — 종료 시 그 run 을 마감한다.
+  const runIdRaw = Number(params.get('runId'));
+  const runId = Number.isInteger(runIdRaw) && runIdRaw > 0 ? runIdRaw : null;
 
   const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new');
   if (!proc) return;
@@ -266,6 +276,7 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
     exitSub: NO_SUB,
     createdAt: now,
     lastActivityAt: now,
+    runId,
   };
   sessions.set(sessionId, session);
   wireProc(session);

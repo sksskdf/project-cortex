@@ -3,7 +3,13 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs } from '@/db/schema';
-import { countOpenIssues, getIssueDetail, listIssues } from './issues';
+import {
+  countOpenIssues,
+  finishAgentRun,
+  getIssueDetail,
+  listIssues,
+  startAgentRun,
+} from './issues';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -102,6 +108,39 @@ describe('countOpenIssues', () => {
     const doneId = seedIssue(repoId, 'c', 'open');
     db.update(issues).set({ status: 'done' }).where(eq(issues.id, doneId)).run();
     expect(countOpenIssues()).toBe(2);
+  });
+});
+
+describe('startAgentRun / finishAgentRun', () => {
+  it('startAgentRun 은 running run 을 만들고 상세에 노출된다', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'delegated', 'in-progress');
+
+    const runId = startAgentRun(issueId);
+    expect(runId).toBeGreaterThan(0);
+
+    const run = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+    expect(run?.status).toBe('running');
+    expect(run?.startedAt).not.toBeNull();
+    expect(run?.completedAt).toBeNull();
+
+    expect(getIssueDetail(issueId)!.runs[0].status).toBe('running');
+  });
+
+  it('finishAgentRun(ok=true) → completed + completedAt', () => {
+    const repoId = seedProject('repo');
+    const runId = startAgentRun(seedIssue(repoId, 'x', 'in-progress'));
+    finishAgentRun(runId, true);
+    const run = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+    expect(run?.status).toBe('completed');
+    expect(run?.completedAt).not.toBeNull();
+  });
+
+  it('finishAgentRun(ok=false) → failed', () => {
+    const repoId = seedProject('repo');
+    const runId = startAgentRun(seedIssue(repoId, 'x', 'in-progress'));
+    finishAgentRun(runId, false);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe('failed');
   });
 });
 

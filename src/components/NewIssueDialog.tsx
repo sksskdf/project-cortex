@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { createIssueAction } from '@/actions/issues';
 import type { IssueRepo } from '@/lib/issues';
-import { useAgentDrawer } from './AgentDrawer';
+import { useAgentDrawer, type PendingStart } from './AgentDrawer';
 import styles from './NewIssueDialog.module.css';
 
 const f = t.dashboard.newIssueForm;
@@ -46,7 +46,7 @@ function NewIssueModal({
 }: {
   repos: ReadonlyArray<IssueRepo>;
   onClose: () => void;
-  openDrawer: () => void;
+  openDrawer: (pending?: PendingStart) => void;
 }) {
   const [repoId, setRepoId] = useState<number | ''>(repos[0]?.id ?? '');
   const [title, setTitle] = useState('');
@@ -75,8 +75,13 @@ function NewIssueModal({
       const res = await createIssueAction({ repoId, title, spec, delegateToClaude: delegate });
       if (res.kind === 'created') {
         if (res.delegate) {
-          openDrawer();
-          setDelegatedPrompt(res.delegate.prompt);
+          // 워크스페이스가 있으면 이슈명 세션을 자동 spawn (수동 복사 불필요). 없으면 프롬프트만.
+          openDrawer(res.delegate.autoStart ?? undefined);
+          if (res.delegate.autoStart) {
+            onClose();
+          } else {
+            setDelegatedPrompt(res.delegate.prompt);
+          }
         } else {
           onClose();
         }

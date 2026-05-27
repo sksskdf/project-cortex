@@ -6,7 +6,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { currentUser } from '@/lib/config';
-import { buildDelegatePrompt, createIssue } from '@/lib/issues';
+import { buildDelegatePrompt, createIssue, startAgentRun } from '@/lib/issues';
+import { getWorkspace } from '@/lib/workspace';
 
 const schema = z.object({
   repoId: z.number().int().positive(),
@@ -15,9 +16,17 @@ const schema = z.object({
   delegateToClaude: z.boolean(),
 });
 
+// 위임 시 반환. autoStart 가 있으면 클라이언트가 그 워크스페이스에서 이슈명 세션을 자동
+// spawn 하고 agentRunId 를 세션에 묶는다. 등록된 워크스페이스가 없으면 autoStart=null —
+// 자동 실행 불가하므로 prompt 만 띄워 수동 복사로 폴백.
+export type DelegateInfo = {
+  prompt: string;
+  autoStart: { workspaceId: number; sessionName: string; agentRunId: number } | null;
+};
+
 export type CreateIssueActionState =
   | { kind: 'idle' }
-  | { kind: 'created'; id: number; delegate: { prompt: string } | null }
+  | { kind: 'created'; id: number; delegate: DelegateInfo | null }
   | { kind: 'invalid'; message: string }
   | { kind: 'error'; message: string };
 
@@ -46,13 +55,21 @@ export async function createIssueAction(input: {
     });
     if (result.kind === 'error') return { kind: 'invalid', message: result.message };
 
+    let delegate: DelegateInfo | null = null;
+    if (delegateToClaude) {
+      const prompt = buildDelegatePrompt(title, spec);
+      // 레포에 등록된 로컬 워크스페이스가 있으면 세션을 자동 spawn 할 수 있다 — agent_run 을
+      // running 으로 만들고 autoStart 정보를 반환. 없으면 자동 실행 불가 → prompt 만(수동 폴백).
+      const workspace = getWorkspace(repoId);
+      const autoStart = workspace
+        ? { workspaceId: workspace.id, sessionName: title, agentRunId: startAgentRun(result.id) }
+        : null;
+      delegate = { prompt, autoStart };
+    }
+
     revalidatePath('/');
     revalidatePath('/inbox');
-    return {
-      kind: 'created',
-      id: result.id,
-      delegate: delegateToClaude ? { prompt: buildDelegatePrompt(title, spec) } : null,
-    };
+    return { kind: 'created', id: result.id, delegate };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
