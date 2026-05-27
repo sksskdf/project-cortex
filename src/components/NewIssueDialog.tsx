@@ -1,8 +1,8 @@
 'use client';
 
-// Phase 13 — '새 이슈' 작성 + Claude Code 위임. 대시보드 헤더 버튼이 이 모달을 연다.
-// 위임 토글 ON 이면 이슈를 assignee=agent 로 기록하고, 생성 후 에이전트 드로어를 열어
-// 반환된 위임 프롬프트로 Claude Code 세션을 시작하도록 안내한다 (PTY 세션 spawn 은 드로어).
+// Phase 13 — '새 이슈' 작성. 이슈는 항상 Claude Code 에 위임된다(토글 없음 — 에이전트 우선).
+// 생성 시 레포에 등록된 워크스페이스가 있으면 이슈명 세션을 자동 spawn(agent_run 기록),
+// 없으면 위임 프롬프트를 띄워 수동 시작하도록 안내한다 (PTY 세션 spawn 은 드로어).
 
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
@@ -51,7 +51,6 @@ function NewIssueModal({
   const [repoId, setRepoId] = useState<number | ''>(repos[0]?.id ?? '');
   const [title, setTitle] = useState('');
   const [spec, setSpec] = useState('');
-  const [delegate, setDelegate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // null = 폼 입력 중. 문자열 = 위임 생성 완료 — 세션 시작용 프롬프트.
   const [delegatedPrompt, setDelegatedPrompt] = useState<string | null>(null);
@@ -72,7 +71,7 @@ function NewIssueModal({
     if (repoId === '') return;
     setError(null);
     startTransition(async () => {
-      const res = await createIssueAction({ repoId, title, spec, delegateToClaude: delegate });
+      const res = await createIssueAction({ repoId, title, spec, delegateToClaude: true });
       if (res.kind === 'created') {
         if (res.delegate) {
           // 워크스페이스가 있으면 이슈명 세션을 자동 spawn (수동 복사 불필요). 없으면 프롬프트만.
@@ -203,20 +202,6 @@ function NewIssueModal({
                 maxLength={4000}
               />
             </label>
-
-            <div className={styles.delegateRow}>
-              <span className={styles.label}>{f.delegate}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={delegate}
-                className={`${styles.switch} ${delegate ? styles.switchOn : ''}`}
-                onClick={() => setDelegate((v) => !v)}
-                aria-label={f.delegate}
-              >
-                <span className={styles.switchKnob} />
-              </button>
-            </div>
 
             {error ? <p className={styles.error}>{error}</p> : null}
 

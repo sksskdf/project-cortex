@@ -21,7 +21,13 @@ const schema = z.object({
 // 자동 실행 불가하므로 prompt 만 띄워 수동 복사로 폴백.
 export type DelegateInfo = {
   prompt: string;
-  autoStart: { workspaceId: number; sessionName: string; agentRunId: number } | null;
+  // autoStart.prompt = claude 세션의 초기 prompt — 세션 spawn 시 작업 지시로 바로 전달된다.
+  autoStart: {
+    workspaceId: number;
+    sessionName: string;
+    agentRunId: number;
+    prompt: string;
+  } | null;
 };
 
 export type CreateIssueActionState =
@@ -62,7 +68,12 @@ export async function createIssueAction(input: {
       // running 으로 만들고 autoStart 정보를 반환. 없으면 자동 실행 불가 → prompt 만(수동 폴백).
       const workspace = getWorkspace(repoId);
       const autoStart = workspace
-        ? { workspaceId: workspace.id, sessionName: title, agentRunId: startAgentRun(result.id) }
+        ? {
+            workspaceId: workspace.id,
+            sessionName: title,
+            agentRunId: startAgentRun(result.id),
+            prompt,
+          }
         : null;
       delegate = { prompt, autoStart };
     }

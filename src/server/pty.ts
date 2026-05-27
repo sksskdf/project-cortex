@@ -15,7 +15,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { existsSync } from 'node:fs';
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
@@ -45,7 +45,9 @@ const IDLE_REAP_MS = 10 * 60_000;
 type ClientMessage =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
-  | { type: 'kill' };
+  | { type: 'kill' }
+  // 위임 세션 — 연결 직후 1회. claude 의 초기 작업 지시(positional prompt)로 쓰인다.
+  | { type: 'prompt'; data: string };
 
 type Session = {
   id: string;
@@ -158,7 +160,42 @@ function onConnect(ws: WebSocket, params: URLSearchParams) {
     ws.close();
     return;
   }
+  // 위임 세션(awaitPrompt=1): 연결 직후 받는 prompt 메시지를 claude 초기 prompt 로 넘겨 spawn.
+  if (params.get('awaitPrompt') === '1') {
+    awaitPromptThenCreate(ws, sessionId, params);
+    return;
+  }
   createSession(ws, sessionId, params);
+}
+
+// awaitPrompt 세션 — 클라이언트의 {type:'prompt'} 한 건을 받아 그 내용을 claude 초기 작업
+// 지시(positional prompt)로 넘겨 spawn 한다. 8초 안에 안 오면 prompt 없이 일반 세션으로 폴백.
+function awaitPromptThenCreate(ws: WebSocket, sessionId: string, params: URLSearchParams) {
+  let done = false;
+  const finish = (initialPrompt?: string) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    ws.off('message', onMsg);
+    ws.off('close', onClose);
+    createSession(ws, sessionId, params, initialPrompt);
+  };
+  const onMsg = (raw: RawData) => {
+    try {
+      const msg = JSON.parse(raw.toString()) as ClientMessage;
+      if (msg.type === 'prompt' && typeof msg.data === 'string') finish(msg.data);
+    } catch {
+      // 무시 — prompt 가 아닌 메시지(resize 등)는 spawn 전이라 버린다.
+    }
+  };
+  const onClose = () => {
+    done = true;
+    clearTimeout(timer);
+    ws.off('message', onMsg);
+  };
+  const timer = setTimeout(() => finish(undefined), 8000);
+  ws.on('message', onMsg);
+  ws.on('close', onClose);
 }
 
 function reattach(session: Session, ws: WebSocket) {
@@ -186,6 +223,7 @@ function startPty(
   cols: number,
   rows: number,
   mode: 'new' | 'resume',
+  initialPrompt?: string,
 ): IPty | null {
   const workspace = getWorkspaceById(workspaceId);
   if (!workspace) {
@@ -204,6 +242,9 @@ function startPty(
   }
   // 세션 연속성: --session-id 로 우리 UUID 를 claude 세션 id 로 고정 → 재시작 후 --resume 가능.
   const claudeArgs = mode === 'resume' ? ['--resume', sessionId] : ['--session-id', sessionId];
+  // 위임 세션: 초기 작업 지시를 positional prompt 로 전달 → 대화형으로 열리며 바로 처리(권한은
+  // 대화형으로 사용자가 승인). 줄바꿈 포함 문자열도 단일 argv 로 그대로 전달된다.
+  if (mode === 'new' && initialPrompt) claudeArgs.push(initialPrompt);
   // Windows 전역 npm bin 은 claude.cmd/.bat (배치 스크립트) — node-pty(ConPTY)가 직접
   // CreateProcess 로 실행 못 하므로 cmd.exe /c 로 감쌉니다. POSIX 는 resolve 된 경로 직접 실행.
   const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claude.path);
@@ -243,7 +284,12 @@ function wireProc(session: Session) {
   if (session.ws) wireClient(session, session.ws);
 }
 
-function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams) {
+function createSession(
+  ws: WebSocket,
+  sessionId: string,
+  params: URLSearchParams,
+  initialPrompt?: string,
+) {
   if (sessions.size >= MAX_SESSIONS) {
     sysClose(ws, '동시 실행 세션 한도를 초과했습니다.');
     return;
@@ -260,7 +306,7 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
   const runIdRaw = Number(params.get('runId'));
   const runId = Number.isInteger(runIdRaw) && runIdRaw > 0 ? runIdRaw : null;
 
-  const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new');
+  const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new', initialPrompt);
   if (!proc) return;
 
   const now = Date.now();

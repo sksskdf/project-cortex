@@ -30,6 +30,8 @@ type ActiveSession = {
   name: string;
   intent: 'new' | 'resume';
   runId?: number;
+  // 위임 세션의 초기 작업 지시 — 연결 직후 서버로 보내 claude 의 첫 prompt 로 전달.
+  prompt?: string;
 };
 // 서버 /api/sessions 응답 메타 (pty.ts SessionMeta 와 일치).
 type SessionMeta = {
@@ -113,8 +115,13 @@ export function AgentConsole({
   claudeReady: boolean;
   // 드로어 열림 여부 — 열려 있을 때만 세션 목록을 폴링한다(닫혀 있으면 불필요한 부하 방지).
   open?: boolean;
-  // 위임 자동 실행 — 있으면 이슈명 세션을 1회 spawn (agentRunId 를 세션에 묶는다).
-  pendingStart?: { workspaceId: number; sessionName: string; agentRunId: number } | null;
+  // 위임 자동 실행 — 있으면 이슈명 세션을 1회 spawn (agentRunId·초기 prompt 를 세션에 묶는다).
+  pendingStart?: {
+    workspaceId: number;
+    sessionName: string;
+    agentRunId: number;
+    prompt: string;
+  } | null;
   onPendingConsumed?: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number>(workspaces[0]?.id ?? 0);
@@ -175,6 +182,7 @@ export function AgentConsole({
       name: pendingStart.sessionName,
       intent: 'new',
       runId: pendingStart.agentRunId,
+      prompt: pendingStart.prompt,
     };
     setActive(next);
     saveActive(next);
@@ -414,10 +422,14 @@ function TerminalPane({
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
       // 위임 세션이면 runId 를 함께 전달 — 서버가 세션 종료 시 그 agent_run 을 마감한다.
       const runIdParam = session.runId != null ? `&runId=${session.runId}` : '';
+      // 위임 세션의 초기 prompt 는 URL 대신 연결 직후 메시지로 보낸다(긴 한글 prompt 의 URL 길이
+      // 제한 회피). awaitPrompt=1 이면 서버가 prompt 메시지를 받고서 claude 를 spawn 한다.
+      const awaitPromptParam = session.intent === 'new' && session.prompt ? '&awaitPrompt=1' : '';
       const url =
         `${proto}://${window.location.host}/api/pty?sessionId=${encodeURIComponent(session.id)}` +
         `&workspaceId=${session.workspaceId}&intent=${session.intent}` +
-        `&name=${encodeURIComponent(session.name)}${runIdParam}&cols=${xterm.cols}&rows=${xterm.rows}`;
+        `&name=${encodeURIComponent(session.name)}${runIdParam}${awaitPromptParam}` +
+        `&cols=${xterm.cols}&rows=${xterm.rows}`;
       const sock = new WebSocket(url);
       socket = sock;
 
@@ -437,6 +449,10 @@ function TerminalPane({
       sock.onopen = () => {
         if (disposed) return;
         setStatus('open');
+        // 위임 세션: 초기 작업 지시를 보낸다 → 서버가 이걸 받아 claude 를 spawn(positional prompt).
+        if (session.intent === 'new' && session.prompt) {
+          sock.send(JSON.stringify({ type: 'prompt', data: session.prompt }));
+        }
         sendResize();
         xterm.focus();
       };
