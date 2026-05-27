@@ -69,6 +69,14 @@ async function safeAnalyze(prId: number): Promise<void> {
     await analyzePR(prId);
   } catch (err) {
     logger.error({ source: 'sync', op: 'analyzePR', prId, err }, 'analyzePR failed');
+    // 분석 실패(LLM/claude CLI 오류 등) 는 preReview 없이 조용히 묻혀 사용자가 실패인지
+    // 대기인지 구분 못 함 — 전용 알림 kind 가 없어 'auto-merge-failed' 재사용 (다른 자동
+    // 수정 흐름과 동일 패턴). PR.status 는 호출부에서 review-needed 로 폴백.
+    safeNotify({
+      kind: 'auto-merge-failed',
+      prId,
+      reason: 'AI 사전 리뷰 분석 실패 — 사람이 직접 검토해 주세요.',
+    });
   }
 }
 
