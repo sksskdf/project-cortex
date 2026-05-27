@@ -1,0 +1,106 @@
+import { eq } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { db } from '@/db/client';
+import { agentRuns, issues, projects, prs } from '@/db/schema';
+import { countOpenIssues, listIssues } from './issues';
+
+beforeAll(() => {
+  migrate(db, { migrationsFolder: 'src/db/migrations' });
+});
+
+beforeEach(() => {
+  // FK 순서대로 정리 — agent_runs → prs → issues → projects.
+  db.delete(agentRuns).run();
+  db.delete(prs).run();
+  db.delete(issues).run();
+  db.delete(projects).run();
+});
+
+function seedProject(slug: string): number {
+  return db.insert(projects).values({ slug, name: slug }).returning({ id: projects.id }).get().id;
+}
+
+function seedIssue(repoId: number, title: string, status: 'open' | 'in-progress' = 'open'): number {
+  return db
+    .insert(issues)
+    .values({ repoId, title, spec: 'spec', assigneeKind: 'human', assigneeId: 'me', status })
+    .returning({ id: issues.id })
+    .get().id;
+}
+
+describe('listIssues', () => {
+  it('maps status + project slug', () => {
+    const repoId = seedProject('cortex-web');
+    seedIssue(repoId, 'first issue', 'in-progress');
+    const list = listIssues();
+    expect(list).toHaveLength(1);
+    expect(list[0].title).toBe('first issue');
+    expect(list[0].status).toBe('in-progress');
+    expect(list[0].projectSlug).toBe('cortex-web');
+    expect(list[0].sessionStatus).toBeNull();
+    expect(list[0].resultPrId).toBeNull();
+  });
+
+  it('joins latest agent run session status + result PR', () => {
+    const repoId = seedProject('api');
+    const issueId = seedIssue(repoId, 'delegated', 'in-progress');
+    const prId = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 42,
+        title: 'fix',
+        authorKind: 'agent',
+        authorId: 'claude-code',
+        headSha: 'abc',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+      })
+      .returning({ id: prs.id })
+      .get().id;
+    // 더 오래된 run 먼저, 최신 completed run 이 결과 PR 을 가짐.
+    db.insert(agentRuns)
+      .values({ issueId, agent: 'claude', status: 'failed', startedAt: new Date('2026-01-01') })
+      .run();
+    db.insert(agentRuns)
+      .values({
+        issueId,
+        agent: 'claude',
+        status: 'completed',
+        outputPrId: prId,
+        startedAt: new Date('2026-02-01'),
+      })
+      .run();
+
+    const list = listIssues();
+    expect(list).toHaveLength(1);
+    expect(list[0].sessionStatus).toBe('completed');
+    expect(list[0].resultPrId).toBe(prId);
+    expect(list[0].resultPrNumber).toBe(42);
+  });
+
+  it('orders newest first', () => {
+    const repoId = seedProject('repo');
+    seedIssue(repoId, 'older');
+    seedIssue(repoId, 'newer');
+    const list = listIssues();
+    expect(list.map((i) => i.title)).toEqual(['newer', 'older']);
+  });
+
+  it('returns empty list with no issues', () => {
+    expect(listIssues()).toEqual([]);
+  });
+});
+
+describe('countOpenIssues', () => {
+  it('counts open + in-progress only', () => {
+    const repoId = seedProject('repo');
+    seedIssue(repoId, 'a', 'open');
+    seedIssue(repoId, 'b', 'in-progress');
+    const doneId = seedIssue(repoId, 'c', 'open');
+    db.update(issues).set({ status: 'done' }).where(eq(issues.id, doneId)).run();
+    expect(countOpenIssues()).toBe(2);
+  });
+});

@@ -1,6 +1,15 @@
 import { and, count, desc, eq, inArray, isNull, like, or } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { clusters, notes, preReviews, prs, projects, todos, triageDecisions } from '@/db/schema';
+import {
+  clusters,
+  issues,
+  notes,
+  preReviews,
+  prs,
+  projects,
+  todos,
+  triageDecisions,
+} from '@/db/schema';
 import { currentUser } from '@/lib/config';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { orderInbox } from '@/lib/queue';
@@ -101,9 +110,17 @@ export async function getSidebarCounts(): Promise<SidebarCounts> {
   // notes 전체 카운트 — 사이드바 chip 에 표시.
   const notesCount = db.select({ n: count() }).from(notes).get();
 
+  // 이슈 open + in-progress 카운트 — 사이드바 chip.
+  const issuesCount = db
+    .select({ n: count() })
+    .from(issues)
+    .where(or(eq(issues.status, 'open'), eq(issues.status, 'in-progress')))
+    .get();
+
   return {
     inbox: inboxCount?.n ?? 0,
     projects: projectsCount?.n ?? 0,
+    issues: issuesCount?.n ?? 0,
     agents: agents.length,
     clusters: clustersCount?.n ?? 0,
     todos: todosCount?.n ?? 0,

@@ -10,6 +10,7 @@ export const ko = {
     dashboard: '대시보드',
     inbox: '인박스',
     projects: '프로젝트',
+    issues: '이슈',
     todos: 'TODO',
     notes: '메모',
     agents: '에이전트',
@@ -654,6 +655,30 @@ export const ko = {
       },
     },
   },
+  // 이슈 목록 (읽기 전용 v1) — '새 이슈' 로 만든 이슈와 위임된 claude 세션 상태를 한눈에.
+  issues: {
+    title: '이슈',
+    subtitle: '작성한 이슈와 위임한 Claude 세션 상태를 봅니다.',
+    empty: '아직 이슈가 없습니다. 대시보드에서 새 이슈를 작성해 보세요.',
+    // 이슈 상태 배지.
+    status: {
+      open: '열림',
+      'in-progress': '진행 중',
+      done: '완료',
+      closed: '닫힘',
+    },
+    // 최신 claude 세션 상태.
+    session: {
+      none: '세션 없음',
+      queued: '대기',
+      running: '실행 중',
+      completed: '완료',
+      failed: '실패',
+    },
+    // 결과 PR 링크.
+    pr: (number: number) => `#${number}`,
+    project: (slug: string) => slug,
+  },
   // Phase 11 — TODO 페이지 + 사이드바 위젯.
   todos: {
     title: 'TODO',
@@ -801,6 +826,7 @@ export const ko = {
       dashboard: '자동 머지 현황과 오늘 볼 일을 요약합니다.',
       inbox: '검토가 필요한 PR을 우선순위 순으로 봅니다.',
       projects: '연결한 레포와 로드맵을 관리합니다.',
+      issues: '작성한 이슈와 위임한 Claude 세션 상태를 봅니다.',
       todos: '프로젝트별 할 일과 개인 메모를 둡니다.',
       notes: '자유 메모를 두고 핀으로 고정합니다.',
       agents: 'Claude Code 세션을 어디서든 엽니다.',
