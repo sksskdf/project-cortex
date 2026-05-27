@@ -19,6 +19,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
+import {
+  defaultSessionStorePath,
+  loadPersistedSessions,
+  savePersistedSessions,
+  type PersistedSession,
+} from './session-store';
 
 export const PTY_PATH = '/api/pty';
 // 세션 관리 HTTP 엔드포인트 (목록·이름 변경·종료). ws 와 달리 일반 GET/POST 라
@@ -45,7 +51,9 @@ type Session = {
   // 사용자에게 보이는 이름 (세션 전환 목록용). 생성 시 클라이언트가 지정, 이후 rename 가능.
   name: string;
   workspaceId: number;
-  proc: IPty;
+  // null 이면 dormant — 서버 재시작 후 영속 메타에서 복원된 세션(프로세스 없음). 재접속 시
+  // claude --resume 로 살린다.
+  proc: IPty | null;
   buffer: string;
   ws: WebSocket | null;
   reapTimer: ReturnType<typeof setTimeout> | null;
@@ -69,6 +77,42 @@ export type SessionMeta = {
 
 const wss = new WebSocketServer({ noServer: true });
 const sessions = new Map<string, Session>();
+
+const NO_SUB = { dispose() {} };
+const STORE_PATH = defaultSessionStorePath();
+
+// 서버 재시작 후 복원 — 영속된 세션 메타를 dormant(프로세스 없음) 상태로 적재한다. 클라이언트가
+// 재접속하면 resumeDormant 가 `claude --resume` 로 대화를 잇는다. (라이브 pty 는 부모 프로세스와
+// 함께 죽었으므로 메타만 복원 가능.)
+for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
+  sessions.set(meta.id, {
+    id: meta.id,
+    name: meta.name,
+    workspaceId: meta.workspaceId,
+    proc: null,
+    buffer: '',
+    ws: null,
+    reapTimer: null,
+    dataSub: NO_SUB,
+    exitSub: NO_SUB,
+    createdAt: meta.createdAt,
+    lastActivityAt: meta.lastActivityAt,
+  });
+}
+
+function toPersisted(s: Session): PersistedSession {
+  return {
+    id: s.id,
+    name: s.name,
+    workspaceId: s.workspaceId,
+    createdAt: s.createdAt,
+    lastActivityAt: s.lastActivityAt,
+  };
+}
+// 현재 레지스트리 전체를 파일에 기록 (≤8개라 매 변경 시 전체 재기록해도 가볍다).
+function persistAll() {
+  savePersistedSessions(STORE_PATH, [...sessions.values()].map(toPersisted));
+}
 
 function send(ws: WebSocket, payload: { type: string; data: string }) {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
@@ -96,7 +140,9 @@ function onConnect(ws: WebSocket, params: URLSearchParams) {
 
   const existing = sessions.get(sessionId);
   if (existing) {
-    reattach(existing, ws);
+    // 라이브 세션이면 재접속, dormant(재시작 후 복원)면 claude --resume 로 되살린다.
+    if (existing.proc) reattach(existing, ws);
+    else resumeDormant(existing, ws, params);
     return;
   }
 
@@ -125,48 +171,41 @@ function reattach(session: Session, ws: WebSocket) {
   wireClient(session, ws);
 }
 
-function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams) {
-  if (sessions.size >= MAX_SESSIONS) {
-    sysClose(ws, '동시 실행 세션 한도를 초과했습니다.');
-    return;
-  }
-
-  const workspaceId = Number(params.get('workspaceId'));
-  if (!Number.isInteger(workspaceId) || workspaceId <= 0) {
-    sysClose(ws, '워크스페이스 ID 가 올바르지 않습니다.');
-    return;
-  }
-
+// 워크스페이스/claude 검증 후 claude pty 스폰. mode='new' 면 --session-id 로 우리 UUID 를
+// claude 세션 id 로 고정(→ 재시작 후 --resume 가능), mode='resume' 면 --resume 로 그 대화를
+// 잇는다. 실패 시 sysClose 로 사유를 통지하고 null 반환.
+function startPty(
+  ws: WebSocket,
+  sessionId: string,
+  workspaceId: number,
+  cols: number,
+  rows: number,
+  mode: 'new' | 'resume',
+): IPty | null {
   const workspace = getWorkspaceById(workspaceId);
   if (!workspace) {
     sysClose(ws, '등록된 워크스페이스를 찾을 수 없습니다.');
-    return;
+    return null;
   }
   if (!existsSync(workspace.localPath)) {
     sysClose(ws, '워크스페이스 경로가 존재하지 않습니다.');
-    return;
+    return null;
   }
-
   // 명령은 클라이언트가 못 고릅니다 — 서버가 화이트리스트에서 선택.
   const claude = resolveClaude();
   if (!claude) {
     sysClose(ws, 'claude CLI 를 찾을 수 없습니다.');
-    return;
+    return null;
   }
-
-  const cols = clampDim(params.get('cols'), DEFAULT_COLS);
-  const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
-  const name = sanitizeName(params.get('name')) || `세션 ${sessions.size + 1}`;
-
+  // 세션 연속성: --session-id 로 우리 UUID 를 claude 세션 id 로 고정 → 재시작 후 --resume 가능.
+  const claudeArgs = mode === 'resume' ? ['--resume', sessionId] : ['--session-id', sessionId];
   // Windows 전역 npm bin 은 claude.cmd/.bat (배치 스크립트) — node-pty(ConPTY)가 직접
   // CreateProcess 로 실행 못 하므로 cmd.exe /c 로 감쌉니다. POSIX 는 resolve 된 경로 직접 실행.
   const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claude.path);
   const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : claude.path;
-  const args = isWinScript ? ['/c', claude.path] : [];
-
-  let proc: IPty;
+  const args = isWinScript ? ['/c', claude.path, ...claudeArgs] : claudeArgs;
   try {
-    proc = spawn(file, args, {
+    return spawn(file, args, {
       name: 'xterm-256color',
       cwd: workspace.localPath,
       cols,
@@ -175,24 +214,14 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
     });
   } catch (err) {
     sysClose(ws, `세션을 시작하지 못했습니다: ${errMsg(err)}`);
-    return;
+    return null;
   }
+}
 
-  const now = Date.now();
-  const session: Session = {
-    id: sessionId,
-    name,
-    workspaceId,
-    proc,
-    buffer: '',
-    ws,
-    reapTimer: null,
-    dataSub: { dispose() {} },
-    exitSub: { dispose() {} },
-    createdAt: now,
-    lastActivityAt: now,
-  };
-
+// pty 의 출력/종료를 세션 버퍼·ws 에 연결하고 클라이언트 메시지 핸들러를 건다 (신규·재개 공통).
+function wireProc(session: Session) {
+  const proc = session.proc;
+  if (!proc) return;
   session.dataSub = proc.onData((d) => {
     session.buffer = (session.buffer + d).slice(-BUFFER_CAP);
     session.lastActivityAt = Date.now();
@@ -204,9 +233,66 @@ function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams
     if (session.ws) send(session.ws, { type: 'exit', data: String(exitCode) });
     destroy(session);
   });
+  if (session.ws) wireClient(session, session.ws);
+}
 
+function createSession(ws: WebSocket, sessionId: string, params: URLSearchParams) {
+  if (sessions.size >= MAX_SESSIONS) {
+    sysClose(ws, '동시 실행 세션 한도를 초과했습니다.');
+    return;
+  }
+  const workspaceId = Number(params.get('workspaceId'));
+  if (!Number.isInteger(workspaceId) || workspaceId <= 0) {
+    sysClose(ws, '워크스페이스 ID 가 올바르지 않습니다.');
+    return;
+  }
+  const cols = clampDim(params.get('cols'), DEFAULT_COLS);
+  const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
+  const name = sanitizeName(params.get('name')) || `세션 ${sessions.size + 1}`;
+
+  const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new');
+  if (!proc) return;
+
+  const now = Date.now();
+  const session: Session = {
+    id: sessionId,
+    name,
+    workspaceId,
+    proc,
+    buffer: '',
+    ws,
+    reapTimer: null,
+    dataSub: NO_SUB,
+    exitSub: NO_SUB,
+    createdAt: now,
+    lastActivityAt: now,
+  };
   sessions.set(sessionId, session);
-  wireClient(session, ws);
+  wireProc(session);
+  persistAll();
+}
+
+// 재시작 후 dormant(프로세스 없는) 세션에 재접속 — claude --resume 로 대화 재개. 실패 시
+// (워크스페이스 삭제·claude 없음·resume 불가) 해당 dormant 세션을 레지스트리에서 정리한다.
+function resumeDormant(session: Session, ws: WebSocket, params: URLSearchParams) {
+  const cols = clampDim(params.get('cols'), DEFAULT_COLS);
+  const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
+  const proc = startPty(ws, session.id, session.workspaceId, cols, rows, 'resume');
+  if (!proc) {
+    sessions.delete(session.id);
+    persistAll();
+    return;
+  }
+  if (session.reapTimer) {
+    clearTimeout(session.reapTimer);
+    session.reapTimer = null;
+  }
+  session.proc = proc;
+  session.ws = ws;
+  session.buffer = '';
+  session.lastActivityAt = Date.now();
+  wireProc(session);
+  persistAll();
 }
 
 // ws 한 개에 메시지/종료 핸들러를 건다. 재접속마다 새 ws 객체라 리스너 누수 없음.
@@ -220,9 +306,9 @@ function wireClient(session: Session, ws: WebSocket) {
     }
     if (msg.type === 'input' && typeof msg.data === 'string') {
       session.lastActivityAt = Date.now();
-      session.proc.write(msg.data);
+      session.proc?.write(msg.data);
     } else if (msg.type === 'resize') {
-      session.proc.resize(clampInt(msg.cols, DEFAULT_COLS), clampInt(msg.rows, DEFAULT_ROWS));
+      session.proc?.resize(clampInt(msg.cols, DEFAULT_COLS), clampInt(msg.rows, DEFAULT_ROWS));
     } else if (msg.type === 'kill') {
       destroy(session);
     }
@@ -237,6 +323,7 @@ function detach(session: Session, ws: WebSocket) {
   session.ws = null;
   if (session.reapTimer) clearTimeout(session.reapTimer);
   session.reapTimer = setTimeout(() => destroy(session), IDLE_REAP_MS);
+  persistAll(); // lastActivityAt 등 최신 메타를 디스크에 반영 (재시작 복원용).
 }
 
 // 세션 완전 종료 — pty kill + 레지스트리 제거 + 구독 해제.
@@ -248,12 +335,13 @@ function destroy(session: Session) {
   session.dataSub.dispose();
   session.exitSub.dispose();
   try {
-    session.proc.kill();
+    session.proc?.kill();
   } catch {
-    // 이미 종료됨 — 무시.
+    // 이미 종료됐거나 dormant(proc 없음) — 무시.
   }
   if (session.ws && session.ws.readyState === WebSocket.OPEN) session.ws.close();
   sessions.delete(session.id);
+  persistAll();
 }
 
 // 세션 관리 HTTP 핸들러 — server.ts 가 Next 핸들러보다 먼저 호출. 우리 경로면 처리하고
@@ -311,6 +399,7 @@ function handleControlAction(
       return;
     }
     session.name = name;
+    persistAll();
     sendJson(res, 200, { ok: true });
     return;
   }
