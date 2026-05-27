@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { AiToggle } from '@/components/AiToggle';
 import { getSettings } from '@/lib/settings';
@@ -31,18 +30,6 @@ export default async function SettingsPage() {
             <li>{t.settings.ai.impact.humanFlow}</li>
           </ul>
         </div>
-      </section>
-
-      <section className={styles.card} aria-label={t.settings.projectsLink.title}>
-        <div className={styles.cardHead}>
-          <div>
-            <div className={styles.cardTitle}>{t.settings.projectsLink.title}</div>
-            <div className={styles.cardDesc}>{t.settings.projectsLink.desc}</div>
-          </div>
-        </div>
-        <Link href="/projects" className="ds-btn ds-btn--md ds-btn--outlined-basic">
-          <span className="ds-btn__label">{t.settings.projectsLink.cta}</span>
-        </Link>
       </section>
     </div>
   );

@@ -499,13 +499,13 @@ export const ko = {
     ai: {
       title: 'AI 사전 리뷰',
       ariaLabel: 'AI 분석 토글',
-      desc: 'Cortex 가 webhook 으로 들어오는 PR 을 Anthropic 으로 분석할지 여부. 끄면 Anthropic 크레딧 사용이 0 입니다.',
+      desc: 'Cortex 가 webhook 으로 들어오는 PR 을 Claude 로 자동 분석할지 여부. 기본 백엔드는 로컬 Claude CLI 라 Anthropic API 크레딧을 쓰지 않습니다.',
       on: 'ON',
       off: 'OFF',
       impactTitle: '비활성 시 동작',
       impact: {
         analyze:
-          'Anthropic 호출 0 — 신규 PR 의 신뢰 점수 · 위험 플래그 · hunk 어노테이션이 채워지지 않음.',
+          'Claude 분석 실행 안 함 — 신규 PR 의 신뢰 점수 · 위험 플래그 · hunk 어노테이션이 채워지지 않음.',
         cluster: '자동 클러스터링 안 됨 (changedPaths 없어 자카드 계산 불가).',
         autoMerge:
           '자동 머지 안 됨 (preReview 없음). 단 현재 testsPassed 미연동이라 어차피 자동 머지는 비활성 상태.',
@@ -516,13 +516,8 @@ export const ko = {
         error: (message: string) => `설정 변경 실패: ${message}`,
       },
     },
-    // /projects 페이지로 이전된 프로젝트별 토글 안내. 컴포넌트가 result 메시지에 쓰는
-    // reconcile.button / pending / result 와 autoMerge.result 는 그대로 유지.
-    projectsLink: {
-      title: '프로젝트별 설정',
-      desc: '자동 머지 정책 · GitHub 와 동기화는 [프로젝트] 페이지에서 각 레포 카드에 모았습니다.',
-      cta: '프로젝트 페이지로 →',
-    },
+    // 컴포넌트가 result 메시지에 쓰는 reconcile.button / pending / result 와
+    // autoMerge.result 는 /projects 페이지의 레포 카드에서 그대로 사용.
     reconcile: {
       button: 'PR 동기화',
       pending: '동기화 중…',
