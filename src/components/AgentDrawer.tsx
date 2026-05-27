@@ -321,7 +321,7 @@ export function AgentDrawerProvider({
               </Link>
             </div>
           ) : (
-            <AgentConsole workspaces={workspaces} claudeReady={claudeReady} />
+            <AgentConsole workspaces={workspaces} claudeReady={claudeReady} open={open} />
           )}
         </div>
       </aside>

@@ -98,9 +98,12 @@ async function postSessionAction(body: {
 export function AgentConsole({
   workspaces,
   claudeReady,
+  open = true,
 }: {
   workspaces: ReadonlyArray<WorkspaceOption>;
   claudeReady: boolean;
+  // 드로어 열림 여부 — 열려 있을 때만 세션 목록을 폴링한다(닫혀 있으면 불필요한 부하 방지).
+  open?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<number>(workspaces[0]?.id ?? 0);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
@@ -140,6 +143,15 @@ export function AgentConsole({
       cancelled = true;
     };
   }, []);
+
+  // 드로어가 열려 있는 동안 세션 목록을 주기적으로 새로고침 — 다른 탭/세션의 생성·종료·idle
+  // reap 을 라이브로 반영해 "관리되고 있는지" 눈으로 확인 가능하게. 닫혀 있으면 폴링 안 함.
+  useEffect(() => {
+    if (!open) return;
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 4000);
+    return () => window.clearInterval(timer);
+  }, [open, refresh]);
 
   function onNew() {
     if (selectedId === 0) return;
