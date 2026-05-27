@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { db } from '@/db/client';
 import { appSettings, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { setAnthropic } from './anthropic';
+import { setClaudeRunner } from './claude-cli';
 import { setOctokit } from './github';
 import { analyzePR, extractPaths } from './pre-review';
 
@@ -35,11 +36,16 @@ beforeEach(() => {
   db.delete(prs).run();
   db.delete(projects).run();
   db.delete(appSettings).run();
+  // 이 블록의 테스트들은 mock Anthropic 으로 API 경로를 검증 — backend 를 'api' 로 고정.
+  // (디폴트는 'cli' = claude CLI spawn 이라 명시 안 하면 실제 spawn 을 시도함.)
+  process.env.CORTEX_PRE_REVIEW_BACKEND = 'api';
 });
 
 afterEach(() => {
   setAnthropic(null);
   setOctokit(null);
+  setClaudeRunner(null);
+  delete process.env.CORTEX_PRE_REVIEW_BACKEND;
 });
 
 function setupPR(opts: {
@@ -389,5 +395,63 @@ describe('analyzePR — Phase 4.5b triage (CORTEX_TRIAGE_ENABLED=1)', () => {
     expect(r.kind).toBe('analyzed');
     expect(create).toHaveBeenCalledTimes(2);
     if (r.kind === 'analyzed') expect(r.row.summary).toBe('opus fallback ok.');
+  });
+});
+
+describe('analyzePR — CLI backend (CORTEX_PRE_REVIEW_BACKEND=cli)', () => {
+  // Phase 13 — claude CLI 비대화형 spawn 경로. 실제 spawn 대신 setClaudeRunner 로 주입.
+  beforeEach(() => {
+    process.env.CORTEX_PRE_REVIEW_BACKEND = 'cli';
+  });
+
+  it('claude CLI 응답(JSON 텍스트)을 파싱해 저장 — Anthropic API 호출 0', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;'));
+    const apiCreate = vi.fn();
+    setAnthropic({ messages: { create: apiCreate } } as unknown as Anthropic);
+    const runner = vi.fn().mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({
+        confidence: 88,
+        flags: [],
+        summary: 'CLI 분석 결과.',
+        comments: [],
+        hunkAnnotations: [],
+      }),
+    });
+    setClaudeRunner(runner);
+
+    const r = await analyzePR(setupPR({}));
+
+    expect(r.kind).toBe('analyzed');
+    expect(apiCreate).not.toHaveBeenCalled();
+    expect(runner).toHaveBeenCalledTimes(1);
+    // claude CLI 호출은 사용자 Claude 플랜 모델로 (크레딧 0).
+    expect(runner.mock.calls[0][0].model).toBe('claude-opus-4-7');
+    if (r.kind === 'analyzed') {
+      expect(r.row.confidence).toBe(88);
+      expect(r.row.summary).toBe('CLI 분석 결과.');
+    }
+  });
+
+  it('코드펜스로 감싼 JSON 응답도 파싱', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
+    setClaudeRunner(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: '```json\n{"confidence":91,"flags":[],"summary":"ok","comments":[],"hunkAnnotations":[]}\n```',
+      }),
+    );
+
+    const r = await analyzePR(setupPR({}));
+    expect(r.kind).toBe('analyzed');
+    if (r.kind === 'analyzed') expect(r.row.confidenceTier).toBe('high');
+  });
+
+  it('CLI 실패(ok:false)면 throw — sync 의 safeAnalyze 가 잡아 폴백', async () => {
+    setOctokit(makeOctokitWithDiff('diff --git a/x b/x\n+ y'));
+    setClaudeRunner(
+      vi.fn().mockResolvedValue({ ok: false, reason: 'claude CLI 를 찾을 수 없습니다.' }),
+    );
+    await expect(analyzePR(setupPR({}))).rejects.toThrow();
   });
 });

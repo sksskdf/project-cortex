@@ -20,4 +20,9 @@ export const env = {
   // Phase 4.5b — Haiku 1차 필터 활성화 토글. '1' 일 때만 두 단계 분기.
   // 기본 비활성 — 기존 테스트·운영 흐름 영향 없음.
   triageEnabled: () => process.env.CORTEX_TRIAGE_ENABLED === '1',
+  // Phase 13 — 사전 리뷰 LLM 백엔드. 'cli' (디폴트) = claude CLI 비대화형 spawn (사용자
+  // Claude 플랜, Anthropic API 크레딧 0). 'api' = Anthropic SDK 직접 호출 (ANTHROPIC_API_KEY).
+  // 크레딧 0 가 기본이라 AI 분석을 켜둔 채로도 비용이 없어 자동 머지 흐름이 막히지 않음.
+  preReviewBackend: (): 'cli' | 'api' =>
+    process.env.CORTEX_PRE_REVIEW_BACKEND === 'api' ? 'api' : 'cli',
 };
