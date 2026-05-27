@@ -19,7 +19,5 @@ safeUnlink(`${TEST_DB}-shm`);
 
 process.env.CORTEX_DB_PATH = TEST_DB;
 
-// 사전 리뷰 LLM 백엔드는 테스트에선 'api' 디폴트 — mock Anthropic 으로 검증하기 위함.
-// 운영 디폴트는 'cli'(claude CLI spawn) 라 명시 안 하면 테스트가 실제 spawn 을 시도해
-// 실패한다. CLI 경로 전용 테스트는 자체 beforeEach 에서 'cli' 로 override.
-process.env.CORTEX_PRE_REVIEW_BACKEND = 'api';
+// 모든 LLM 작업은 claude CLI 경로 하나뿐 — 테스트는 setClaudeRunner 로 spawn 을 주입한다.
+// (Anthropic API SDK 경로는 제거됨.)

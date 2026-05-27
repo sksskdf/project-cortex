@@ -11,7 +11,7 @@
 // 테스트: setClaudeRunner 로 실제 spawn 을 대체 주입 (anthropic.ts/github.ts 와 동일 패턴).
 
 import { spawn } from 'node:child_process';
-import { resolveClaude } from './agents';
+import { claudeSpawnEnv, resolveClaude } from './agents';
 
 // 사전 리뷰(Opus thinking) 는 오래 걸릴 수 있어 넉넉히. 호출부가 override 가능.
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -74,7 +74,7 @@ function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
     try {
       child = spawn(file, args, {
         cwd: opts.cwd,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        env: claudeSpawnEnv(),
       });
     } catch (err) {
       resolve({ ok: false, reason: `claude spawn 실패: ${errMsg(err)}` });

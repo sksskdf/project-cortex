@@ -1,11 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { Octokit } from '@octokit/rest';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { notifications, preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { setAnthropic } from './anthropic';
+import { setClaudeRunner } from './claude-cli';
 import { setOctokit } from './github';
 import { handleCheckWebhook, handlePullRequestWebhook, type WebhookPRPayload } from './sync';
 
@@ -28,9 +27,9 @@ function mockOctokitDiff(
   } as unknown as Octokit;
 }
 
-function mockAnthropic(payload: Record<string, unknown> | null = null): {
-  client: Anthropic;
-  create: Mock;
+// claude CLI runner mock — analyzePR 이 runClaudeHeadless 로 호출. { ok, text } 형태 응답.
+function mockClaudeRunner(payload: Record<string, unknown> | null = null): {
+  runner: ReturnType<typeof vi.fn>;
 } {
   const response = payload ?? {
     confidence: 80,
@@ -39,10 +38,8 @@ function mockAnthropic(payload: Record<string, unknown> | null = null): {
     comments: [],
     hunkAnnotations: [],
   };
-  const create = vi.fn().mockResolvedValue({
-    content: [{ type: 'text', text: JSON.stringify(response) }],
-  });
-  return { client: { messages: { create } } as unknown as Anthropic, create };
+  const runner = vi.fn().mockResolvedValue({ ok: true, text: JSON.stringify(response) });
+  return { runner };
 }
 
 const NOW = new Date('2026-05-18T00:00:00Z');
@@ -89,12 +86,12 @@ beforeEach(() => {
   // sync 가 analyzePR 을 자동 호출하므로 Octokit·Anthropic 둘 다 주입 필요.
   // 개별 테스트에서 호출 횟수 검증이 필요하면 본문에서 다시 setAnthropic.
   setOctokit(mockOctokitDiff());
-  setAnthropic(mockAnthropic().client);
+  setClaudeRunner(mockClaudeRunner().runner);
 });
 
 afterEach(() => {
   setOctokit(null);
-  setAnthropic(null);
+  setClaudeRunner(null);
 });
 
 describe('handlePullRequestWebhook', () => {
@@ -236,14 +233,14 @@ describe('handlePullRequestWebhook', () => {
 
 describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
   it('opened → analyzePR 결과가 preReview 에 저장되고 runTriage 가 결정 생성', async () => {
-    setAnthropic(
-      mockAnthropic({
+    setClaudeRunner(
+      mockClaudeRunner({
         confidence: 95,
         flags: [],
         summary: 'safe change',
         comments: [],
         hunkAnnotations: [],
-      }).client,
+      }).runner,
     );
 
     const opened = await handlePullRequestWebhook(basePayload());
@@ -262,14 +259,14 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
   });
 
   it('preReview.testsPassed=true 백필 후 synchronize 면 자동 머지까지 실행됨', async () => {
-    setAnthropic(
-      mockAnthropic({
+    setClaudeRunner(
+      mockClaudeRunner({
         confidence: 95,
         flags: [],
         summary: 'safe',
         comments: [],
         hunkAnnotations: [],
-      }).client,
+      }).runner,
     );
     const opened = await handlePullRequestWebhook(basePayload());
     const prId = (opened as { kind: 'inserted'; prId: number }).prId;
@@ -289,14 +286,14 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
   it('자동 머지 실패 시 review-needed 로 폴백 + triage 사유 갱신', async () => {
     // 머지 API 가 merged=false 반환하는 슬롯으로 교체.
     setOctokit(mockOctokitDiff(undefined, { merged: false, sha: '' }));
-    setAnthropic(
-      mockAnthropic({
+    setClaudeRunner(
+      mockClaudeRunner({
         confidence: 95,
         flags: [],
         summary: 'safe',
         comments: [],
         hunkAnnotations: [],
-      }).client,
+      }).runner,
     );
     const opened = await handlePullRequestWebhook(basePayload());
     const prId = (opened as { kind: 'inserted'; prId: number }).prId;
@@ -310,10 +307,8 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     expect(td?.reason).toContain('GitHub 머지 거부');
   });
 
-  it('opened → Anthropic failure 시 review-needed 로 폴백 (사용자 시야에서 사라지지 않게)', async () => {
-    setAnthropic({
-      messages: { create: vi.fn().mockRejectedValue(new Error('rate-limited')) },
-    } as unknown as Anthropic);
+  it('opened → claude 호출 실패 시 review-needed 로 폴백 (사용자 시야에서 사라지지 않게)', async () => {
+    setClaudeRunner(vi.fn().mockRejectedValue(new Error('rate-limited')));
 
     const opened = await handlePullRequestWebhook(basePayload());
     expect(opened.kind).toBe('inserted');
@@ -328,13 +323,13 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
   });
 
   it('synchronize 는 새 SHA 에 대해 재분석 트리거 (cache miss)', async () => {
-    const initial = mockAnthropic();
+    const initial = mockClaudeRunner();
     setOctokit(mockOctokitDiff('diff --git a/x b/x\n+ old'));
-    setAnthropic(initial.client);
+    setClaudeRunner(initial.runner);
     await handlePullRequestWebhook(basePayload());
-    expect(initial.create).toHaveBeenCalledTimes(1);
+    expect(initial.runner).toHaveBeenCalledTimes(1);
 
-    const second = mockAnthropic({
+    const second = mockClaudeRunner({
       confidence: 60,
       flags: ['migration'],
       summary: 'risky change',
@@ -342,14 +337,14 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
       hunkAnnotations: [],
     });
     setOctokit(mockOctokitDiff('diff --git a/y b/y\n+ new'));
-    setAnthropic(second.client);
+    setClaudeRunner(second.runner);
 
     await handlePullRequestWebhook({
       ...basePayload({ headSha: 'sha-new' }),
       action: 'synchronize',
     });
 
-    expect(second.create).toHaveBeenCalledTimes(1);
+    expect(second.runner).toHaveBeenCalledTimes(1);
     const rows = db.select().from(preReviews).all();
     // (prId, headSha) 유니크 인덱스로 두 행 — sha-init / sha-new.
     expect(rows).toHaveLength(2);
@@ -358,24 +353,24 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
   it('closed 는 analyzePR 호출하지 않음', async () => {
     await handlePullRequestWebhook(basePayload());
 
-    const closing = mockAnthropic();
-    setAnthropic(closing.client);
+    const closing = mockClaudeRunner();
+    setClaudeRunner(closing.runner);
     await handlePullRequestWebhook({ ...basePayload({ merged: true }), action: 'closed' });
 
-    expect(closing.create).not.toHaveBeenCalled();
+    expect(closing.runner).not.toHaveBeenCalled();
   });
 
   it('edited 는 analyzePR 호출하지 않음 (제목 변경만)', async () => {
     await handlePullRequestWebhook(basePayload());
 
-    const editing = mockAnthropic();
-    setAnthropic(editing.client);
+    const editing = mockClaudeRunner();
+    setClaudeRunner(editing.runner);
     await handlePullRequestWebhook({
       ...basePayload({ title: 'Renamed' }),
       action: 'edited',
     });
 
-    expect(editing.create).not.toHaveBeenCalled();
+    expect(editing.runner).not.toHaveBeenCalled();
   });
 
   // Phase 6 DoD — 24시간 이내, 같은 에이전트, 유사도 0.85+ PR 3건 이상이 자동으로 클러스터됨.
@@ -428,14 +423,14 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     );
 
     // 3번째 PR 은 migration 플래그.
-    const flagged = mockAnthropic({
+    const flagged = mockClaudeRunner({
       confidence: 80,
       flags: ['migration'],
       summary: 'risky',
       comments: [],
       hunkAnnotations: [],
     });
-    setAnthropic(flagged.client);
+    setClaudeRunner(flagged.runner);
     await handlePullRequestWebhook(
       basePayload({ number: 1003, headSha: 'sha-c3', createdAt: now, updatedAt: now }),
     );

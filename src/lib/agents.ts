@@ -39,3 +39,13 @@ export function resolveClaude(): ResolvedClaude | null {
 export function isClaudeAvailable(): boolean {
   return resolveClaude() !== null;
 }
+
+// claude CLI / PTY spawn 용 환경변수. ANTHROPIC_API_KEY 를 제거해 claude 가 API 로
+// 과금하지 않고 사용자 구독(claude login)으로 동작하게 한다 → 모든 AI 작업 크레딧 0.
+// (key 가 환경에 있으면 claude CLI 가 -p / 대화형 무관하게 API 인증을 우선한다.)
+// GIT_TERMINAL_PROMPT=0 으로 git 자격증명 대화형 프롬프트도 차단.
+export function claudeSpawnEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  delete env.ANTHROPIC_API_KEY;
+  return env;
+}

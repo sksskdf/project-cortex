@@ -23,7 +23,6 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.96.0",
     "@octokit/auth-app": "^8.2.0",
     "@octokit/rest": "^21.0.0",
     "@octokit/webhooks-types": "^7.6.0",
