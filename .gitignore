@@ -38,3 +38,6 @@ yarn-error.log*
 # database
 data/
 
+# Claude Code 로컬 상태 (에이전트 worktree 격리 등 — 추적 대상 아님)
+.claude/
+
