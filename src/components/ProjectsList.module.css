@@ -34,6 +34,7 @@
   font-size: var(--ds-typography-font-size-15);
   font-weight: var(--ds-typography-font-weight-semibold);
   color: var(--ds-color-text-03-high);
+  flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -42,6 +43,11 @@
 .cardName {
   font-size: var(--ds-typography-font-size-12);
   color: var(--ds-color-text-02);
+  /* 긴 이름이 slug 옆에서 baseline 줄을 깨지 않도록 남는 폭만큼 말줄임. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .progressInline {
@@ -81,7 +87,8 @@
 .statRow {
   display: flex;
   align-items: center;
-  padding: var(--ds-spacing-8) 0;
+  /* WorkspaceCard separator 의 padding-top(--ds-spacing-10) 과 리듬 맞춤. */
+  padding: var(--ds-spacing-10) 0;
   border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
   border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
 }
@@ -90,6 +97,7 @@
   font-family: var(--ds-typography-font-family-number);
   font-size: var(--ds-typography-font-size-13);
   color: var(--ds-color-text-02);
+  line-height: 1.4;
 }
 
 .actionRow {
