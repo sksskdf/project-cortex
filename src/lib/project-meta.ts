@@ -25,7 +25,13 @@ export type ProjectMetaV1 = {
   owners?: string[];
   tech?: { language?: string; framework?: string; database?: string };
   links?: { homepage?: string; docs?: string; issue_tracker?: string };
-  automation?: { auto_merge?: boolean; ai_review?: boolean; auto_resolve_changes?: boolean };
+  automation?: {
+    auto_merge?: boolean;
+    ai_review?: boolean;
+    auto_resolve_changes?: boolean;
+    // Phase 13.2 — 머지 충돌을 claude CLI 로 자동 해결할지. 디폴트 OFF.
+    auto_resolve_conflicts?: boolean;
+  };
 };
 
 export type ParseYmlResult =
@@ -315,6 +321,9 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
   };
   if (meta.automation?.auto_merge !== undefined) {
     updateFields.autoMergeEnabled = meta.automation.auto_merge;
+  }
+  if (meta.automation?.auto_resolve_conflicts !== undefined) {
+    updateFields.autoResolveConflictsEnabled = meta.automation.auto_resolve_conflicts;
   }
   db.update(projects).set(updateFields).where(eq(projects.id, projectId)).run();
 
