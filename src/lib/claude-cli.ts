@@ -11,6 +11,7 @@
 // 테스트: setClaudeRunner 로 실제 spawn 을 대체 주입 (anthropic.ts/github.ts 와 동일 패턴).
 
 import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { claudeSpawnEnv, resolveClaude } from './agents';
 
 // 사전 리뷰(Opus thinking) 는 오래 걸릴 수 있어 넉넉히. 호출부가 override 가능.
@@ -73,7 +74,10 @@ function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(file, args, {
-        cwd: opts.cwd,
+        // cwd 미지정(사전 리뷰 등 분석 전용)이면 중립 tmpdir 에서 실행 — repo cwd 에서 돌리면
+        // claude 가 그 프로젝트의 CLAUDE.md·git 상태·도구 컨텍스트를 끌어와 코딩 에이전트로
+        // 변질(분석 대신 "파일 커밋할까요?" 같은 응답)된다. 충돌 해결은 cwd(워크스페이스)를 명시 전달.
+        cwd: opts.cwd ?? tmpdir(),
         env: claudeSpawnEnv(),
       });
     } catch (err) {
@@ -138,12 +142,45 @@ function extractResult(stdout: string): string | null {
   }
 }
 
-// 모델이 JSON 을 코드펜스로 감싸 출력해도 파싱되도록 ```json ... ``` 펜스를 벗긴다.
+// 모델 응답에서 JSON 을 꺼낸다. 코드펜스(```json ... ```)를 벗기고, 산문이 섞여 있어도
+// 첫 번째 균형 잡힌 {...} 객체를 추출해 파싱 (CLI 모델이 설명을 덧붙이는 경우 대비).
 export function parseJsonFromText(text: string): unknown {
   let t = text.trim();
-  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  // 코드펜스가 있으면 그 안쪽 우선 (앵커 없이 — 펜스 앞뒤 산문 허용).
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (fence) t = fence[1].trim();
-  return JSON.parse(t);
+  try {
+    return JSON.parse(t);
+  } catch {
+    const obj = extractFirstJsonObject(t);
+    if (obj !== null) return JSON.parse(obj);
+    throw new Error('응답에서 JSON 객체를 찾지 못했습니다.');
+  }
+}
+
+// 문자열에서 첫 번째 균형 잡힌 {...} 객체를 추출 (문자열 리터럴·이스케이프 고려).
+function extractFirstJsonObject(s: string): string | null {
+  const start = s.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < s.length; i += 1) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') {
+      inStr = true;
+    } else if (c === '{') {
+      depth += 1;
+    } else if (c === '}') {
+      depth -= 1;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
+  }
+  return null;
 }
 
 function errMsg(err: unknown): string {
