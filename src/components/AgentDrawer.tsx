@@ -17,7 +17,12 @@ import styles from './AgentDrawer.module.css';
 
 // 위임 자동 실행 — openDrawer 에 넘기면 드로어를 열면서 이슈명 세션을 자동 spawn 하고
 // agentRunId 를 세션에 묶는다 (세션 종료 시 agent_run 마감용).
-export type PendingStart = { workspaceId: number; sessionName: string; agentRunId: number };
+export type PendingStart = {
+  workspaceId: number;
+  sessionName: string;
+  agentRunId: number;
+  prompt: string;
+};
 type AgentDrawerCtx = { openDrawer: (pending?: PendingStart) => void };
 const Ctx = createContext<AgentDrawerCtx | null>(null);
 
