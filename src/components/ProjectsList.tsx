@@ -96,12 +96,20 @@ function ProjectCard({
         <div className={styles.masterSwitch}>
           <ProjectMuteToggle id={row.id} muted={row.muted} />
         </div>
-        {/* 뮤트 시 하위 자동화 스위치를 흐리게 — 관리 OFF 면 동작하지 않음을 시각화. */}
+        {/* 뮤트(Cortex 관리 OFF) 면 하위 자동화는 동작하지 않음 — 흐리게 + OFF + 비활성. */}
         <div className={`${styles.switches} ${row.muted ? styles.switchesDimmed : ''}`}>
-          <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} />
-          <ProjectAutoMergeToggle row={row} />
-          <ProjectAutoResolveToggle id={row.id} enabled={row.autoResolveConflictsEnabled} />
-          <ProjectBranchDeleteToggle id={row.id} enabled={row.autoDeleteBranchEnabled} />
+          <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} disabled={row.muted} />
+          <ProjectAutoMergeToggle row={row} disabled={row.muted} />
+          <ProjectAutoResolveToggle
+            id={row.id}
+            enabled={row.autoResolveConflictsEnabled}
+            disabled={row.muted}
+          />
+          <ProjectBranchDeleteToggle
+            id={row.id}
+            enabled={row.autoDeleteBranchEnabled}
+            disabled={row.muted}
+          />
         </div>
       </div>
 
