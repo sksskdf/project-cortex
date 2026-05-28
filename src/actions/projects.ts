@@ -9,7 +9,11 @@ import {
   type AddInstalledResult,
   type AddProjectResult,
 } from '@/lib/projects';
-import { listAppInstallationRepos, type InstallationWithRepos } from '@/lib/github';
+import {
+  listAppInstallationRepos,
+  type ImportNote,
+  type InstallationWithRepos,
+} from '@/lib/github';
 
 export type AddProjectActionState =
   | { kind: 'idle' }
@@ -35,13 +39,13 @@ export async function addProjectAction(input: {
 // Phase 8 — Cortex GitHub App 이 설치된 installation 의 접근 가능 리포 목록.
 // /projects 의 "App 설치 리포에서 가져오기" UI 가 호출.
 export type ListInstalledReposActionState =
-  | { kind: 'ok'; installations: InstallationWithRepos[] }
+  | { kind: 'ok'; installations: InstallationWithRepos[]; notes: ImportNote[] }
   | { kind: 'error'; message: string };
 
 export async function listInstalledReposAction(): Promise<ListInstalledReposActionState> {
   try {
-    const installations = await listAppInstallationRepos();
-    return { kind: 'ok', installations };
+    const { installations, notes } = await listAppInstallationRepos();
+    return { kind: 'ok', installations, notes };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

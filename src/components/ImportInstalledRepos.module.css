@@ -105,6 +105,32 @@
   font-size: var(--ds-typography-font-size-13);
 }
 
+.notes {
+  list-style: none;
+  margin: 0 0 var(--ds-spacing-12);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-4);
+}
+
+.noteInfo,
+.noteError {
+  padding: var(--ds-spacing-6) var(--ds-spacing-10);
+  border-radius: var(--ds-border-radius-input);
+  font-size: var(--ds-typography-font-size-12);
+}
+
+.noteInfo {
+  background: var(--ds-color-bg-01);
+  color: var(--ds-color-text-02);
+}
+
+.noteError {
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+}
+
 .installations {
   display: flex;
   flex-direction: column;

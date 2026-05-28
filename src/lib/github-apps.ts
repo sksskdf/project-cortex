@@ -179,5 +179,12 @@ export function listAppConfigsForAuth(): AppConfigForAuth[] {
   } catch {
     // env App 없음.
   }
-  return configs;
+  // 같은 GitHub App(동일 appId)을 DB 와 env 양쪽에 등록하면 import 에서 동일 installation·
+  // 리포가 중복 노출된다. appId 기준으로 첫 항목만 남겨 중복 제거 (DB 항목이 env 보다 우선).
+  const seen = new Set<string>();
+  return configs.filter((c) => {
+    if (seen.has(c.appId)) return false;
+    seen.add(c.appId);
+    return true;
+  });
 }

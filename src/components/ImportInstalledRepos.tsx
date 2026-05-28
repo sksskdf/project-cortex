@@ -151,12 +151,26 @@ function ImportModal({
           ) : list.kind === 'error' ? (
             <div className={styles.error}>{f.error(list.message)}</div>
           ) : list.kind === 'ok' ? (
-            <InstallationsView
-              installations={list.installations}
-              existing={existing}
-              selected={selected}
-              onToggle={toggle}
-            />
+            <>
+              {list.notes.length > 0 ? (
+                <ul className={styles.notes}>
+                  {list.notes.map((n) => (
+                    <li
+                      key={`${n.appName}:${n.kind}`}
+                      className={n.kind === 'error' ? styles.noteError : styles.noteInfo}
+                    >
+                      {f.note(n.appName, n.message)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <InstallationsView
+                installations={list.installations}
+                existing={existing}
+                selected={selected}
+                onToggle={toggle}
+              />
+            </>
           ) : null}
         </div>
 

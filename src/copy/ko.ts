@@ -179,6 +179,8 @@ export const ko = {
       org: 'Org',
       user: 'User',
       app: (name: string) => `App: ${name}`,
+      // App 별 진단 노트 (조회 실패 / 설치된 리포 없음).
+      note: (appName: string, message: string) => `App "${appName}": ${message}`,
       repoCount: (n: number) => `${n}개 리포`,
       private: 'private',
       registered: '등록됨',

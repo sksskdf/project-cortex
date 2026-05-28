@@ -7,6 +7,7 @@ import {
   allWebhookSecrets,
   createGithubApp,
   deleteGithubApp,
+  listAppConfigsForAuth,
   listGithubApps,
   resolveAppCredentials,
   updateGithubApp,
@@ -102,6 +103,15 @@ describe('allWebhookSecrets + verifyGithubSignatureAny', () => {
 
   it('rejects when there are no candidate secrets', () => {
     expect(verifyGithubSignatureAny('{}', 'sha256=abc', [])).toBe(false);
+  });
+});
+
+describe('listAppConfigsForAuth dedup', () => {
+  it('동일 appId 는 한 번만 — 중복 등록 시 import 중복 노출 방지', () => {
+    createGithubApp({ name: 'first', appId: '999', privateKey: PEM });
+    createGithubApp({ name: 'second', appId: '999', privateKey: PEM });
+    const configs = listAppConfigsForAuth().filter((c) => c.appId === '999');
+    expect(configs).toHaveLength(1);
   });
 });
 

@@ -85,21 +85,52 @@ export type InstallationWithRepos = {
   repos: InstalledRepo[];
 };
 
+// import 진단 노트 — App 별 조회 실패/빈 결과를 UI 에 표면화해 "왜 안 나오는지" 알려준다.
+// kind 'error': 그 App 자격증명/네트워크 문제로 조회 실패. 'empty': 조회는 됐으나 접근
+// 가능한 리포 0 (App 을 레포에 설치 안 했을 가능성).
+export type ImportNote = { appName: string; kind: 'error' | 'empty'; message: string };
+
+export type ListInstallationReposResult = {
+  installations: InstallationWithRepos[];
+  notes: ImportNote[];
+};
+
 // 등록된 모든 App 설정(+env 폴백)을 순회하며 각 App 의 installation·접근 가능 리포를 모은다.
+// 한 App 이 실패해도 나머지는 계속 — 실패/빈 App 은 notes 로 표면화해 진단을 돕는다.
 // 테스트 주입(setOctokit)이 있으면 단일 mock 으로 한 App(appConfigId=null) 만 순회.
-export async function listAppInstallationRepos(): Promise<InstallationWithRepos[]> {
-  const results: InstallationWithRepos[] = [];
+export async function listAppInstallationRepos(): Promise<ListInstallationReposResult> {
+  const installations: InstallationWithRepos[] = [];
+  const notes: ImportNote[] = [];
 
   if (_testOctokit) {
-    await collectInstallations(_testOctokit, null, '', results);
-    return results;
+    await collectInstallations(_testOctokit, null, '', installations);
+    return { installations, notes };
   }
 
   for (const config of listAppConfigsForAuth()) {
-    const appOctokit = buildAppOctokitFor(config.appId, config.privateKey);
-    await collectInstallations(appOctokit, config.appConfigId, config.name, results);
+    const before = installations.length;
+    try {
+      const appOctokit = buildAppOctokitFor(config.appId, config.privateKey);
+      await collectInstallations(appOctokit, config.appConfigId, config.name, installations);
+      const added = installations.slice(before);
+      const repoCount = added.reduce((n, i) => n + i.repos.length, 0);
+      if (repoCount === 0) {
+        notes.push({
+          appName: config.name,
+          kind: 'empty',
+          message:
+            '접근 가능한 리포가 없습니다 — 이 App 을 대상 레포/조직에 설치했는지 확인하세요.',
+        });
+      }
+    } catch (err) {
+      notes.push({
+        appName: config.name,
+        kind: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
-  return results;
+  return { installations, notes };
 }
 
 async function collectInstallations(
