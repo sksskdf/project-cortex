@@ -11,6 +11,7 @@ import {
 } from '@/fixtures/pr-detail';
 import { parseUnifiedDiff } from '@/lib/diff-parser';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { ciSatisfied } from '@/lib/merge-gate';
 import {
   getPRDiff,
   getPRMergeableState,
@@ -378,10 +379,12 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
   // dirty(충돌) 또는 blocked 면 머지 자체가 막힘 — 버튼 클릭해도 GitHub 가 거절.
   // canMerge 에 흡수해서 PRActions 가 disable 처리하게.
   const mergeBlockedByState = mergeableState === 'dirty' || mergeableState === 'blocked';
-  // CI 가 OK 가 아닐 때 머지 차단 — 대기 중 (null) 또는 실패 (false) 모두 막음.
+  // CI 가 OK 가 아닐 때 머지 차단 — 대기 중 (null) 또는 실패 (false) 막음. 단 CI 없는 레포
+  // (testsPassed null + mergeable_state 'clean') 는 머지 가능 — 영원히 CI 를 기다리지 않게.
   // installation 있는 레포만 CI 가능하므로 시드 PR (installationId=null) 은 자동 제외.
-  // 인박스/대시보드 행의 deriveRowActions 가드와 일관성 유지.
-  const mergeBlockedByCI = row.installationId !== null && row.pr.testsPassed !== true;
+  // 인박스/대시보드 행의 deriveRowActions(merge-gate) 와 동일 규칙.
+  const mergeBlockedByCI =
+    row.installationId !== null && !ciSatisfied(row.pr.testsPassed, mergeableState);
   const canMergeEffective = canMerge && !mergeBlockedByState && !mergeBlockedByCI;
   // 변경 요청은 PR 거절 의사라 CI 대기와 무관 — 머지 차단 (dirty/blocked) 만 따름.
   const canRequestChangesBase = canMerge && !mergeBlockedByState;

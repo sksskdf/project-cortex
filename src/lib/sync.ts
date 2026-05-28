@@ -3,7 +3,7 @@ import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
-import { listCheckRunsForRef } from './github';
+import { getPRMergeStatus, listCheckRunsForRef } from './github';
 import { logger } from './logger';
 import { createNotification, isRevertPR } from './notifications';
 import { analyzePR } from './pre-review';
@@ -102,6 +102,28 @@ async function safeAutoMerge(prId: number): Promise<void> {
     logger.error(
       { source: 'sync', op: 'attemptAutoMerge', prId, err },
       'attemptAutoMerge unexpected error',
+    );
+  }
+}
+
+// GitHub mergeable_state 를 PR 에 저장 — runTriage(CI 없는 레포 식별) + 인박스 행
+// 머지 게이팅(충돌/차단 사유)에 사용. runTriage 직전에 호출해 신선한 값으로 판정한다.
+// best-effort — 실패해도(예: GitHub 일시 오류) mergeableState 는 갱신 안 되고 흐름은 계속.
+// reconcile 대량 동기화 때는 호출하지 않는다(행마다 API 호출 회피) — webhook 경로 전용.
+async function safeStoreMergeState(
+  prId: number,
+  installationId: number,
+  slug: string,
+  number: number,
+): Promise<void> {
+  try {
+    const [owner, repo] = slug.split('/');
+    const status = await getPRMergeStatus(installationId, { owner, repo }, number);
+    db.update(prs).set({ mergeableState: status.mergeableState }).where(eq(prs.id, prId)).run();
+  } catch (err) {
+    logger.error(
+      { source: 'sync', op: 'getPRMergeStatus', prId, err },
+      'mergeable_state 갱신 실패 (무시하고 계속)',
     );
   }
 }
@@ -230,6 +252,16 @@ export async function handlePullRequestWebhook(
     if (shouldAnalyze(payload.action) && source !== 'reconcile') {
       await safeAnalyze(inserted.id);
     }
+    // 분석 직후 mergeable_state 저장 — GitHub 가 그새 머지 가능성을 계산해 둠. CI 없는
+    // 레포면 'clean' 이라 runTriage 가 영원히 CI 를 기다리지 않고 자동 머지로 진행.
+    if (source === 'webhook' && project.installationId !== null) {
+      await safeStoreMergeState(
+        inserted.id,
+        project.installationId,
+        payload.repoSlug,
+        payload.pr.number,
+      );
+    }
     const triage = await runTriage(inserted.id);
     if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
       await safeAutoMerge(inserted.id);
@@ -278,6 +310,14 @@ export async function handlePullRequestWebhook(
   // reconcile 은 분석 bypass.
   if (shouldAnalyze(payload.action) && source !== 'reconcile') {
     await safeAnalyze(existing.id);
+  }
+  if (source === 'webhook' && project.installationId !== null) {
+    await safeStoreMergeState(
+      existing.id,
+      project.installationId,
+      payload.repoSlug,
+      payload.pr.number,
+    );
   }
   // closed/merged면 runTriage가 status로 skip — 안전.
   const triage = await runTriage(existing.id);
@@ -336,7 +376,7 @@ export async function handleCheckWebhook(payload: {
   // head_sha 가 같은 PR 을 찾는다. 같은 SHA 의 PR 이 여러 개일 가능성은 거의 없음 (다른
   // 브랜치에서 cherry-pick 했어도 squash 머지로 SHA 가 달라짐). 최신 1개 매칭.
   const pr = db
-    .select({ id: prs.id })
+    .select({ id: prs.id, number: prs.number })
     .from(prs)
     .where(and(eq(prs.repoId, project.id), eq(prs.headSha, payload.headSha)))
     .orderBy(desc(prs.updatedAt))
@@ -361,6 +401,10 @@ export async function handleCheckWebhook(payload: {
   // CI 결과는 prs 컬럼에 직접 저장 — AI 분석 (preReview) 없이도 채워짐. AI off
   // 시에도 자동 머지 룰 #4 가 prs.testsPassed 를 읽으므로 정상 동작.
   db.update(prs).set({ testsPassed }).where(eq(prs.id, pr.id)).run();
+
+  // CI 완료로 mergeable_state 가 바뀌었을 수 있음 (unstable→clean 등) — 인박스 행 머지
+  // 게이팅·재트라이아지가 신선한 값을 쓰도록 갱신.
+  await safeStoreMergeState(pr.id, installationId, project.slug, pr.number);
 
   // CI 실패가 처음 감지된 시점에만 알림 — 같은 PR 에 여러 check_run 이 완료될 때 중복 방지.
   if (testsPassed === false && prevTestsPassed?.testsPassed !== false) {

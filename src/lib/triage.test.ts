@@ -11,6 +11,8 @@ function base(overrides: Partial<TriageInput> = {}): TriageInput {
     confidence: 95,
     flags: [],
     testsPassed: true,
+    // 기본은 비-clean — testsPassed null 테스트가 기존대로 CI 대기로 남도록.
+    mergeableState: 'unknown',
     autoMergeEnabled: true,
     ...overrides,
   };
@@ -70,8 +72,20 @@ describe('decideTriage', () => {
     expect(r.reason).toContain('테스트 실패');
   });
 
-  it('human-review when tests not run (null)', () => {
+  it('human-review when tests not run (null) and not clean (CI 진행/계산 중)', () => {
     const r = decideTriage(base({ testsPassed: null }));
+    expect(r.decision).toBe('human-review');
+    expect(r.reason).toContain('CI 결과');
+  });
+
+  it('auto-merge when no CI configured (testsPassed null + mergeable_state clean)', () => {
+    // CI 없는 레포 — GitHub 가 clean 으로 판정. 영원히 CI 를 기다리지 않고 자동 머지.
+    const r = decideTriage(base({ testsPassed: null, mergeableState: 'clean' }));
+    expect(r.decision).toBe('auto-merge');
+  });
+
+  it('human-review when null + unstable (CI 진행 중 — clean 아님)', () => {
+    const r = decideTriage(base({ testsPassed: null, mergeableState: 'unstable' }));
     expect(r.decision).toBe('human-review');
     expect(r.reason).toContain('CI 결과');
   });

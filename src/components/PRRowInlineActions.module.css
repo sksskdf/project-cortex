@@ -20,3 +20,10 @@
   font-size: var(--ds-typography-font-size-12);
   color: var(--ds-color-state-error-strong);
 }
+
+/* 머지 불가 사유 — disabled 버튼 옆 보조 텍스트. 위험 강조 아님(중립 muted). */
+.blockReason {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  white-space: nowrap;
+}

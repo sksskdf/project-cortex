@@ -121,6 +121,10 @@ export const prs = sqliteTable('prs', {
   // 무관 (preReview 없어도 채워질 수 있게 PR 에 직접 묶음). handleCheckWebhook 가
   // check_run/check_suite completed 시점에 갱신.
   testsPassed: integer('tests_passed', { mode: 'boolean' }),
+  // GitHub mergeable_state ('clean'/'dirty'/'blocked'/'unstable'/'behind'/'unknown').
+  // sync 가 getPRMergeStatus 로 갱신. 인박스 행 머지 게이팅(충돌/차단 사유) + 'CI 없는
+  // 레포(clean + testsPassed null)는 머지 가능' 판정(triage)에 사용. null 이면 미수신.
+  mergeableState: text('mergeable_state'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });

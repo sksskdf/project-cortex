@@ -11,31 +11,37 @@ import {
   triageDecisions,
 } from '@/db/schema';
 import { currentUser } from '@/lib/config';
+import { ko as t } from '@/copy/ko';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { computeMergeGate } from '@/lib/merge-gate';
 import { orderInbox } from '@/lib/queue';
 import type { PR, PRRowActionState, ReasonTone, SidebarCounts } from '@/lib/types';
 
-// 행 인라인 액션 활성 여부 — installation 있고 적절한 status + CI 통과/없음 일 때만 머지 활성.
-// 머지 성공 시 브랜치 자동 삭제이므로 별도 '브랜치 삭제' 액션 없음.
-// testsPassed: null=CI 결과 미수신 (대기 중), false=실패 → 머지 막음. true 또는 CI 없는 레포면 통과.
-// mergeable_state (dirty/blocked) 는 인박스 행에서 모름 — DB 캐시 없음, GitHub API 호출은 행마다
-// 호출하기엔 무거움. CI 가드만으로 가장 흔한 클릭 시 실패 케이스 차단. 충돌 PR 은 클릭 시
-// GitHub 에러 메시지로 안내됨 (의도적 단순화).
+// 행 인라인 액션 활성 여부 + 머지 불가 사유 — PR 상세(PRActions)와 동일한 게이트(merge-gate)를
+// 사용해 두 화면이 일관되게 동작한다. mergeableState 는 sync 가 prs 에 저장해 둔 값(getPRMergeStatus).
+// 충돌(dirty)·보호규칙(blocked)·CI 실패/대기 사유를 행 옆에 노출. mergeableState/autoMergeEnabled
+// 는 선택 인자 — 호출처(대시보드 등)가 안 넘기면 기존처럼 CI 가드만 적용(하위호환).
 export function deriveRowActions(
   status: string,
   installationId: number | null,
   testsPassed: boolean | null,
+  mergeableState: string | null = null,
+  autoMergeEnabled: boolean = false,
 ): PRRowActionState {
   const hasInstall = installationId !== null;
   const active = !['merged', 'closed'].includes(status);
-  // installation 없는 시드 PR 은 CI 자체가 없으므로 testsPassed 가드 무관 — canMerge=false 로 어차피 막힘.
-  // installation 있는 경우 testsPassed === null/false 면 머지 막음.
-  const ciOk = !hasInstall || testsPassed === true;
+  const gate = computeMergeGate({
+    hasInstall,
+    active,
+    testsPassed,
+    mergeableState,
+    autoMergeEnabled,
+  });
   return {
-    canMerge: hasInstall && active && ciOk,
+    canMerge: gate.canMerge,
     canClose: hasInstall && active,
-    // ciPending: PR 상세의 mergeBlockedByCI 와 같은 신호 — UI 가 disabled 사유 노출에 사용.
-    mergeBlockedByCI: hasInstall && active && !ciOk,
+    mergeBlockedByCI: gate.mergeBlockedByCI,
+    mergeBlockReason: gate.reasonKey ? t.pr.actionBar.mergeBlock[gate.reasonKey] : null,
   };
 }
 
@@ -197,6 +203,7 @@ export async function listInboxQueue(
       triage: triageDecisions,
       repoSlug: projects.slug,
       installationId: projects.installationId,
+      autoMergeEnabled: projects.autoMergeEnabled,
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
@@ -239,8 +246,14 @@ export async function listInboxQueue(
         value: confidence,
         tier: gaugeTierFromConfidence(confidence),
       },
-      // 행 인라인 액션 활성 여부 — installation 있고 적절한 status + CI 통과일 때만.
-      actions: deriveRowActions(row.pr.status, row.installationId, row.pr.testsPassed),
+      // 행 인라인 액션 + 머지 불가 사유 — 상세와 동일 게이트. mergeableState 는 sync 가 저장.
+      actions: deriveRowActions(
+        row.pr.status,
+        row.installationId,
+        row.pr.testsPassed,
+        row.pr.mergeableState,
+        row.autoMergeEnabled,
+      ),
     };
     return { item, flags };
   });

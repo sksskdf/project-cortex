@@ -41,9 +41,9 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
     });
   }
 
-  // CI 대기로 머지 막혔지만 닫기는 가능 — 버튼은 disabled 로 그려서 사유 안내.
-  const mergeBlockedByCI = actions.mergeBlockedByCI === true;
-  const showMerge = actions.canMerge || mergeBlockedByCI;
+  // 머지 막혔어도(충돌/차단/CI) 버튼은 disabled 로 그려서 사유를 옆에 안내 — PR 상세와 동일.
+  const blockReason = actions.mergeBlockReason ?? null;
+  const showMerge = actions.canMerge || blockReason !== null || actions.mergeBlockedByCI === true;
 
   // 액션 하나도 못 쓰면 컴포넌트 자체 안 그림.
   if (!showMerge && !actions.canClose) return null;
@@ -59,8 +59,8 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
           className="ds-btn ds-btn--sm ds-btn--filled-blue"
           disabled={pending || !actions.canMerge}
           aria-busy={pending}
-          aria-label={mergeBlockedByCI ? t.row.actions.mergeBlockedByCI : t.row.actions.mergeAria}
-          title={mergeBlockedByCI ? t.row.actions.mergeBlockedByCI : t.row.actions.mergeAria}
+          aria-label={blockReason ?? t.row.actions.mergeAria}
+          title={blockReason ?? t.row.actions.mergeAria}
           onClick={(e) => {
             if (!actions.canMerge) {
               e.preventDefault();
@@ -72,6 +72,12 @@ export function PRRowInlineActions({ viewId, actions }: Props) {
         >
           <span className="ds-btn__label">{t.row.actions.merge}</span>
         </button>
+      )}
+      {/* 머지 불가 사유 — disabled 일 때만 옆에 노출 (PR 상세와 동일). */}
+      {blockReason && !actions.canMerge && (
+        <span className={styles.blockReason} role="status">
+          {blockReason}
+        </span>
       )}
       {actions.canClose && (
         <button
