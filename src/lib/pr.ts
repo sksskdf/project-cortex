@@ -95,6 +95,8 @@ export type PRDetailView = {
   mergeBlockedByCI: boolean;
   // PRActions 가 ciPending vs ciFailed 메시지 분기에 사용. null=대기 / false=실패 / true=통과.
   testsPassed: boolean | null;
+  // 프로젝트의 자동 머지 정책 — CI 대기 문구를 "자동 머지" vs "직접 머지" 로 분기.
+  autoMergeEnabled: boolean;
   // GitHub 의 PR 리뷰 이력 — 사용자가 보낸 변경 요청·승인·코멘트 시간순. installation
   // 없거나 fetch 실패 시 빈 배열. UI 가 비어있으면 섹션 자체 숨김.
   reviews: ReadonlyArray<PRReviewSummary>;
@@ -306,6 +308,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
       triage: triageDecisions,
       repoSlug: projects.slug,
       installationId: projects.installationId,
+      autoMergeEnabled: projects.autoMergeEnabled,
     })
     .from(prs)
     .innerJoin(projects, eq(prs.repoId, projects.id))
@@ -396,6 +399,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     mergeableState,
     mergeBlockedByCI,
     testsPassed: row.pr.testsPassed,
+    autoMergeEnabled: row.autoMergeEnabled,
     reviews,
   } as const;
 

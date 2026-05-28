@@ -10,6 +10,11 @@ export const projects = sqliteTable('projects', {
   name: text('name').notNull(),
   defaultBranch: text('default_branch').notNull().default('main'),
   autoMergeEnabled: integer('auto_merge_enabled', { mode: 'boolean' }).notNull().default(false),
+  // 자동 머지 후 head 브랜치 삭제 여부. 디폴트 OFF — 회사/조직 레포에서 남의 브랜치를 함부로
+  // 지우면 안 되므로 명시적으로 켤 때만 삭제. autoMergeEnabled 와 독립.
+  autoDeleteBranchEnabled: integer('auto_delete_branch_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   // Phase 13.2 — 자동 머지 중 충돌(dirty) 발생 시 claude CLI 로 자동 해결 시도 여부.
   // 디폴트 OFF — 명시적으로 켜야 발화 (claude 가 워크스페이스에서 코드 수정 + push 하므로
   // 신뢰가 선행돼야 함). autoMergeEnabled 와 독립.

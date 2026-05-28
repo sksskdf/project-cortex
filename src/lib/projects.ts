@@ -96,6 +96,7 @@ export type ProjectStatsRow = {
   name: string;
   installationId: number | null;
   autoMergeEnabled: boolean;
+  autoDeleteBranchEnabled: boolean;
   // 활성 PR (open/review-needed/auto-mergeable) — 인박스 + 클러스터 합계.
   activePRs: number;
   // 머지된 PR 누적.
@@ -112,6 +113,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       name: projects.name,
       installationId: projects.installationId,
       autoMergeEnabled: projects.autoMergeEnabled,
+      autoDeleteBranchEnabled: projects.autoDeleteBranchEnabled,
     })
     .from(projects)
     .orderBy(asc(projects.slug))
@@ -147,11 +149,24 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       name: r.name,
       installationId: r.installationId,
       autoMergeEnabled: r.autoMergeEnabled,
+      autoDeleteBranchEnabled: r.autoDeleteBranchEnabled,
       activePRs: activeRow?.n ?? 0,
       mergedPRs: mergedRow?.n ?? 0,
       avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
     };
   });
+}
+
+// 브랜치 자동 삭제 토글. installation 있는 프로젝트만 (UI 가 노출하는 카드 기준).
+export type ToggleBranchDeleteResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectAutoDeleteBranch(id: number, enabled: boolean): ToggleBranchDeleteResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ autoDeleteBranchEnabled: enabled }).where(eq(projects.id, id)).run();
+  return { kind: 'updated', id, enabled };
 }
 
 // Phase 8 — 수동 레포 등록 (인테이크 마법사).

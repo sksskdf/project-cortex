@@ -149,6 +149,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     mergeableState,
     mergeBlockedByCI,
     testsPassed,
+    autoMergeEnabled,
     reviews,
     prDbId,
     projectId,
@@ -372,6 +373,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
               mergeableState={mergeableState}
               mergeBlockedByCI={mergeBlockedByCI}
               testsPassed={testsPassed}
+              autoMergeEnabled={autoMergeEnabled}
             />
           </div>
         </div>

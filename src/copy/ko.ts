@@ -135,11 +135,16 @@ export const ko = {
     },
     action: {
       autoMerge: '자동 머지',
+      branchDelete: '브랜치 삭제',
       sync: '동기화',
       roadmap: '로드맵',
     },
     autoMergeAria: (enabled: boolean) =>
       enabled ? '자동 머지 켜짐 — 누르면 끔' : '자동 머지 꺼짐 — 누르면 켬',
+    branchDeleteAria: (enabled: boolean) =>
+      enabled
+        ? '머지 후 브랜치 자동 삭제 켜짐 — 누르면 끔'
+        : '머지 후 브랜치 자동 삭제 꺼짐 — 누르면 켬',
     seedBadge: '시드',
     progress: {
       label: '진척',
@@ -435,8 +440,8 @@ export const ko = {
       autoApprove: '자동 승인 가능 항목만 머지',
       mergeAll: '전체 머지',
       merging: '머지 중…',
-      // 머지 완료 후 노출 — 머지 = 브랜치 자동 삭제 한 흐름.
-      mergedWithBranchDeleted: '머지 완료 — 브랜치도 자동 삭제했어요.',
+      // 머지 완료 후 노출. 브랜치 삭제는 정책(autoDeleteBranchEnabled)에 따르므로 여기선 단정하지 않음.
+      merged: '머지 완료.',
       // PR 닫기 — 머지 안 하고 폐기. 테스트용 PR / 의미 없어진 PR 정리.
       closePR: 'PR 닫기',
       closeConfirm:
@@ -448,7 +453,9 @@ export const ko = {
       mergeBlock: {
         conflict: '머지 불가 · base 와 충돌',
         blocked: '머지 불가 · 보호 규칙·필수 리뷰로 차단됨',
+        // 자동 머지 ON: CI 통과하면 Cortex 가 자동 머지. OFF: 통과해도 사람이 직접 머지.
         ciPending: '머지 대기 · CI 결과 도착 후 자동 머지',
+        ciPendingManual: 'CI 결과 대기 중 · 통과 후 직접 머지',
         ciFailed: '머지 불가 · CI 실패 — 원인 수정 후 재시도',
       },
       result: {
