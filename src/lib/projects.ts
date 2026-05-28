@@ -98,6 +98,8 @@ export type ProjectStatsRow = {
   autoMergeEnabled: boolean;
   autoDeleteBranchEnabled: boolean;
   muted: boolean;
+  aiReviewEnabled: boolean;
+  autoResolveConflictsEnabled: boolean;
   // 활성 PR (open/review-needed/auto-mergeable) — 인박스 + 클러스터 합계.
   activePRs: number;
   // 머지된 PR 누적.
@@ -116,6 +118,8 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       autoMergeEnabled: projects.autoMergeEnabled,
       autoDeleteBranchEnabled: projects.autoDeleteBranchEnabled,
       muted: projects.muted,
+      aiReviewEnabled: projects.aiReviewEnabled,
+      autoResolveConflictsEnabled: projects.autoResolveConflictsEnabled,
     })
     .from(projects)
     .orderBy(asc(projects.slug))
@@ -153,6 +157,8 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       autoMergeEnabled: r.autoMergeEnabled,
       autoDeleteBranchEnabled: r.autoDeleteBranchEnabled,
       muted: r.muted,
+      aiReviewEnabled: r.aiReviewEnabled,
+      autoResolveConflictsEnabled: r.autoResolveConflictsEnabled,
       activePRs: activeRow?.n ?? 0,
       mergedPRs: mergedRow?.n ?? 0,
       avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
@@ -182,6 +188,37 @@ export function setProjectMuted(id: number, muted: boolean): ToggleMuteResult {
   if (!existing) return { kind: 'not-found' };
   db.update(projects).set({ muted }).where(eq(projects.id, id)).run();
   return { kind: 'updated', id, muted };
+}
+
+// AI 사전 리뷰 프로젝트별 토글. 전역 settings.aiEnabled 와 AND 로 적용 (sync.ts).
+export type ToggleAiReviewResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectAiReview(id: number, enabled: boolean): ToggleAiReviewResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ aiReviewEnabled: enabled }).where(eq(projects.id, id)).run();
+  return { kind: 'updated', id, enabled };
+}
+
+// 머지 충돌 자동 해결 프로젝트별 토글 (Phase 13.2). 디폴트 OFF — claude 가 워크스페이스에서
+// 코드를 고쳐 push 하므로 신뢰가 선행돼야 함. .cortex/project.yml 의 auto_resolve_conflicts 와 연동.
+export type ToggleAutoResolveResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectAutoResolveConflicts(
+  id: number,
+  enabled: boolean,
+): ToggleAutoResolveResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects)
+    .set({ autoResolveConflictsEnabled: enabled })
+    .where(eq(projects.id, id))
+    .run();
+  return { kind: 'updated', id, enabled };
 }
 
 // Phase 8 — 수동 레포 등록 (인테이크 마법사).

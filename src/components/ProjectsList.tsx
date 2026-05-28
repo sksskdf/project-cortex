@@ -8,7 +8,9 @@
 
 import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
+import { ProjectAiReviewToggle } from './ProjectAiReviewToggle';
 import { ProjectAutoMergeToggle } from './ProjectAutoMergeToggle';
+import { ProjectAutoResolveToggle } from './ProjectAutoResolveToggle';
 import { ProjectBranchDeleteToggle } from './ProjectBranchDeleteToggle';
 import { ProjectMuteToggle } from './ProjectMuteToggle';
 import { ProjectReconcileButton } from './ProjectReconcileButton';
@@ -90,7 +92,9 @@ function ProjectCard({
 
       <div className={styles.actionRow}>
         <ProjectMuteToggle id={row.id} muted={row.muted} />
+        <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} />
         <ProjectAutoMergeToggle row={row} />
+        <ProjectAutoResolveToggle id={row.id} enabled={row.autoResolveConflictsEnabled} />
         <ProjectBranchDeleteToggle id={row.id} enabled={row.autoDeleteBranchEnabled} />
         <ProjectReconcileButton projectId={row.id} />
         <button

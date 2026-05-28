@@ -59,12 +59,25 @@ function shouldAnalyze(action: WebhookPRAction): boolean {
   return action === 'opened' || action === 'reopened' || action === 'synchronize';
 }
 
+// AI 사전 리뷰 적용 여부 — 전역 토글(settings.aiEnabled) AND 프로젝트별 토글(aiReviewEnabled).
+// 둘 중 하나라도 OFF 면 분석/클러스터링을 건너뛴다. 프로젝트가 없으면(이론상 도달X) 기본 허용.
+function isAiEnabledForPr(prId: number): boolean {
+  if (!getSettings().aiEnabled) return false;
+  const row = db
+    .select({ aiReviewEnabled: projects.aiReviewEnabled })
+    .from(prs)
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(eq(prs.id, prId))
+    .get();
+  return row?.aiReviewEnabled ?? true;
+}
+
 // Anthropic 호출 실패가 sync 자체를 막지 않게 try/catch.
 // 실패 시 preReview 가 없으므로 runTriage 가 'no-pre-review' 로 skip — 안전한 폴백.
 // Phase 7 에서 백그라운드 큐로 분리되면 sync 응답 시간 안정화.
-// settings.aiEnabled=false 면 호출 자체를 건너뛰어 Anthropic 크레딧 사용 0.
+// AI 토글(전역 또는 프로젝트) OFF 면 호출 자체를 건너뛰어 크레딧 사용 0.
 async function safeAnalyze(prId: number): Promise<void> {
-  if (!getSettings().aiEnabled) return;
+  if (!isAiEnabledForPr(prId)) return;
   try {
     await analyzePR(prId);
   } catch (err) {
@@ -111,7 +124,7 @@ function safeRoadmapMatch(prId: number): void {
 // 사라지고 클러스터 화면에 묶임. 실패해도 sync 응답에 영향 없음.
 // AI off 면 preReview.changedPaths 가 없어 자카드 계산 무의미 — skip.
 async function safeTryCluster(prId: number): Promise<void> {
-  if (!getSettings().aiEnabled) return;
+  if (!isAiEnabledForPr(prId)) return;
   try {
     await tryClusterPR(prId);
   } catch (err) {

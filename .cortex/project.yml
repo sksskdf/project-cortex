@@ -17,3 +17,4 @@ automation:
   auto_merge: true
   ai_review: true
   auto_resolve_changes: false
+  auto_resolve_conflicts: true
