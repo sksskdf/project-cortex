@@ -160,6 +160,14 @@ function RegisteredView({ projectId, workspace }: { projectId: number; workspace
     );
   }
 
+  const buttonLabel = workspace.needsClone
+    ? pending
+      ? t.workspace.clonePending
+      : t.workspace.cloneButton
+    : pending
+      ? t.workspace.pullPending
+      : t.workspace.pullButton;
+
   return (
     <div className={styles.registered}>
       <div className={styles.registeredHead}>
@@ -180,17 +188,22 @@ function RegisteredView({ projectId, workspace }: { projectId: number; workspace
           ×
         </button>
       </div>
+      {workspace.needsClone && pullState.kind === 'idle' && (
+        <p className={styles.cloneHint}>{t.workspace.needsCloneHint}</p>
+      )}
       <div className={styles.actions}>
         <button
           type="button"
-          className="ds-btn ds-btn--sm ds-btn--outlined-basic"
+          className={
+            workspace.needsClone
+              ? 'ds-btn ds-btn--sm ds-btn--filled-blue'
+              : 'ds-btn ds-btn--sm ds-btn--outlined-basic'
+          }
           onClick={onPull}
           disabled={pending}
           aria-busy={pending && pullState.kind === 'idle'}
         >
-          <span className="ds-btn__label">
-            {pending ? t.workspace.pullPending : t.workspace.pullButton}
-          </span>
+          <span className="ds-btn__label">{buttonLabel}</span>
         </button>
         <PullResultInline state={pullState} workspace={workspace} />
       </div>
@@ -258,7 +271,7 @@ function PullResultInline({
   state: PullActionState;
   workspace: WorkspaceView;
 }) {
-  if (state.kind === 'pulled') {
+  if (state.kind === 'pulled' || state.kind === 'cloned') {
     return (
       <span className={`${styles.result} ${styles.resultSuccess}`} title={state.output}>
         <span className={styles.resultDot} aria-hidden />

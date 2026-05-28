@@ -5,7 +5,8 @@
 // - timeout 30 초
 
 import { spawn } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { projects, workspaces } from '@/db/schema';
@@ -17,12 +18,23 @@ export type WorkspaceView = {
   localPath: string;
   lastPullAt: Date | null;
   lastPullResult: string | null;
+  // .git 이 아직 없는(빈 디렉토리로 등록된) 워크스페이스 — 첫 git pull 이 clone 으로 동작.
+  needsClone: boolean;
 };
 
 type WorkspaceJoinRow = {
   ws: typeof workspaces.$inferSelect;
   slug: string;
 };
+
+// .git 폴더/파일(worktree) 존재 여부 — clone 완료된 저장소인지 판별.
+function isGitRepo(path: string): boolean {
+  try {
+    return existsSync(join(path, '.git'));
+  } catch {
+    return false;
+  }
+}
 
 function toView(row: WorkspaceJoinRow): WorkspaceView {
   return {
@@ -32,6 +44,7 @@ function toView(row: WorkspaceJoinRow): WorkspaceView {
     localPath: row.ws.localPath,
     lastPullAt: row.ws.lastPullAt,
     lastPullResult: row.ws.lastPullResult,
+    needsClone: !isGitRepo(row.ws.localPath),
   };
 }
 
@@ -75,9 +88,11 @@ export type RegisterWorkspaceResult =
 
 // 워크스페이스 등록 — path validation 후 upsert (한 프로젝트당 1개).
 // validation:
-// - 절대 경로 (Windows / POSIX 모두)
-// - 디렉토리 존재 + .git 폴더 존재
-// - 부모 경로 traversal (`..`) 거부
+// - 절대 경로 (Windows / POSIX 모두) + 부모 경로 traversal (`..`) 거부
+// - 다음 중 하나면 허용:
+//   (a) .git 있는 기존 클론  (b) 비어있는 디렉토리 (clone 대상)  (c) 존재하지 않는 경로 (clone 이 생성)
+//   → 빈 디렉토리/없는 경로는 첫 git pull 이 git clone 으로 동작 (사용자가 직접 클론할 필요 없음).
+// - 파일이 있는데 .git 이 없는 디렉토리는 거부 (덮어쓰기 방지).
 export function registerWorkspace(input: {
   projectId: number;
   localPath: string;
@@ -97,22 +112,33 @@ export function registerWorkspace(input: {
   // 절대 경로 — POSIX (`/`) 또는 Windows (`C:\`).
   const isAbsolute = path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
   if (!isAbsolute) return { kind: 'invalid-path', reason: '절대 경로여야 합니다.' };
-  if (!existsSync(path)) return { kind: 'invalid-path', reason: '경로가 존재하지 않습니다.' };
 
-  let isDir = false;
-  try {
-    isDir = statSync(path).isDirectory();
-  } catch {
-    isDir = false;
-  }
-  if (!isDir) return { kind: 'invalid-path', reason: '디렉토리가 아닙니다.' };
+  if (existsSync(path)) {
+    let isDir = false;
+    try {
+      isDir = statSync(path).isDirectory();
+    } catch {
+      isDir = false;
+    }
+    if (!isDir) return { kind: 'invalid-path', reason: '디렉토리가 아닙니다.' };
 
-  // .git 폴더 또는 파일 (worktree) 확인.
-  const gitMarker = `${path.replace(/[\\/]$/, '')}/.git`;
-  const gitMarkerWin = `${path.replace(/[\\/]$/, '')}\\.git`;
-  if (!existsSync(gitMarker) && !existsSync(gitMarkerWin)) {
-    return { kind: 'invalid-path', reason: 'git 저장소가 아닙니다 (.git 없음).' };
+    // .git 없으면 빈 디렉토리만 허용 — 첫 pull 이 clone. 파일이 있으면 덮어쓰기 위험 → 거부.
+    if (!isGitRepo(path)) {
+      let entries: string[] = ['?'];
+      try {
+        entries = readdirSync(path);
+      } catch {
+        entries = ['?'];
+      }
+      if (entries.length > 0) {
+        return {
+          kind: 'invalid-path',
+          reason: '비어있지 않은데 git 저장소도 아닙니다. 빈 폴더나 클론된 저장소를 지정하세요.',
+        };
+      }
+    }
   }
+  // 존재하지 않는 경로는 허용 — git clone 이 디렉토리를 생성한다 (부모가 없으면 clone 시 에러로 표면화).
 
   const existing = db
     .select({ id: workspaces.id })
@@ -147,17 +173,30 @@ export function deleteWorkspace(workspaceId: number): { kind: 'deleted' } | { ki
 }
 
 // git CLI 실행 — 등록된 워크스페이스의 localPath 에서만. 임의 명령 X.
-// 30 초 timeout. stdout + stderr 합쳐서 마지막 500자만 반환 (저장용).
+// 클론은 부모 경로 변동 + 네트워크라 더 넉넉히 (120s), fetch/pull 은 30s.
 const GIT_TIMEOUT_MS = 30_000;
+const CLONE_TIMEOUT_MS = 120_000;
 const OUTPUT_MAX_CHARS = 500;
+
+type GitRunResult = { code: number; output: string };
+type GitRunner = (
+  cwd: string,
+  args: ReadonlyArray<string>,
+  timeoutMs?: number,
+) => Promise<GitRunResult>;
+
+// 테스트 주입 — null 이면 실제 git spawn. (clone/pull 분기 검증용)
+let _gitRunner: GitRunner | null = null;
+export function setGitRunner(runner: GitRunner | null): void {
+  _gitRunner = runner;
+}
 
 function runGit(
   cwd: string,
   args: ReadonlyArray<string>,
-): Promise<{
-  code: number;
-  output: string;
-}> {
+  timeoutMs: number = GIT_TIMEOUT_MS,
+): Promise<GitRunResult> {
+  if (_gitRunner) return _gitRunner(cwd, args, timeoutMs);
   return new Promise((resolve) => {
     const child = spawn('git', [...args], {
       cwd,
@@ -174,7 +213,7 @@ function runGit(
     child.stderr.on('data', (d) => append(d.toString('utf8')));
     const timer = setTimeout(() => {
       child.kill('SIGTERM');
-    }, GIT_TIMEOUT_MS);
+    }, timeoutMs);
     child.on('close', (code) => {
       clearTimeout(timer);
       const output = buffer.slice(-OUTPUT_MAX_CHARS).trim();
@@ -189,21 +228,46 @@ function runGit(
 
 export type PullResult =
   | { kind: 'pulled'; output: string }
+  | { kind: 'cloned'; output: string }
   | { kind: 'no-workspace' }
   | { kind: 'failed'; output: string };
+
+function recordResult(workspaceId: number, result: string): void {
+  db.update(workspaces)
+    .set({ lastPullAt: new Date(), lastPullResult: result, updatedAt: new Date() })
+    .where(eq(workspaces.id, workspaceId))
+    .run();
+}
+
+// 빈 디렉토리(또는 없는 경로)로 등록된 워크스페이스를 GitHub 에서 clone.
+// 인증은 fetch/pull 과 동일하게 사용자의 ambient git credential 사용 (토큰 주입 X) —
+// GIT_TERMINAL_PROMPT=0 이라 자격증명이 없으면 행 없이 에러로 표면화된다.
+async function cloneWorkspace(ws: WorkspaceView): Promise<PullResult> {
+  const url = `https://github.com/${ws.projectSlug}.git`;
+  // cwd 는 항상 존재하는 서버 작업 디렉토리 — clone 타깃 경로는 절대경로로 지정(없으면 git 이 생성).
+  const res = await runGit(process.cwd(), ['clone', url, ws.localPath], CLONE_TIMEOUT_MS);
+  const ok = res.code === 0;
+  const result = ok
+    ? `git clone 성공: ${ws.projectSlug}`
+    : `git clone 실패: ${res.output || '알 수 없는 오류'}`;
+  recordResult(ws.id, result);
+  return ok ? { kind: 'cloned', output: result } : { kind: 'failed', output: result };
+}
 
 export async function pullWorkspace(projectId: number): Promise<PullResult> {
   const ws = getWorkspace(projectId);
   if (!ws) return { kind: 'no-workspace' };
 
+  // 아직 .git 이 없으면 (빈 디렉토리/없는 경로로 등록) clone 으로 동작.
+  if (!isGitRepo(ws.localPath)) {
+    return cloneWorkspace(ws);
+  }
+
   // git fetch 먼저 (안전), 그 다음 ff-only pull (충돌이면 reject).
   const fetchRes = await runGit(ws.localPath, ['fetch', '--all', '--prune']);
   if (fetchRes.code !== 0) {
     const result = `fetch 실패: ${fetchRes.output}`;
-    db.update(workspaces)
-      .set({ lastPullAt: new Date(), lastPullResult: result, updatedAt: new Date() })
-      .where(eq(workspaces.id, ws.id))
-      .run();
+    recordResult(ws.id, result);
     return { kind: 'failed', output: result };
   }
 
@@ -213,10 +277,6 @@ export async function pullWorkspace(projectId: number): Promise<PullResult> {
     ? `git pull 성공: ${pullRes.output || 'Already up to date.'}`
     : `git pull 실패: ${pullRes.output}`;
 
-  db.update(workspaces)
-    .set({ lastPullAt: new Date(), lastPullResult: result, updatedAt: new Date() })
-    .where(eq(workspaces.id, ws.id))
-    .run();
-
+  recordResult(ws.id, result);
   return ok ? { kind: 'pulled', output: result } : { kind: 'failed', output: result };
 }
