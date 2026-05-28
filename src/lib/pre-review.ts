@@ -75,6 +75,8 @@ type PromptInput = {
   linesAdded: number;
   linesRemoved: number;
   filesChanged: number;
+  // PR 설명(본문) — 작성자 의도. 리뷰 정확도 향상을 위해 프롬프트에 포함. 빈 PR 은 null.
+  prBody: string | null;
   diff: string;
 };
 
@@ -174,6 +176,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     linesAdded: pr.linesAdded,
     linesRemoved: pr.linesRemoved,
     filesChanged: pr.filesChanged,
+    prBody: pr.body,
     diff: budget.text,
   };
 
