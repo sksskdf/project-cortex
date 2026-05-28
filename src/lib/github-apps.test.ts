@@ -7,6 +7,7 @@ import {
   allWebhookSecrets,
   createGithubApp,
   deleteGithubApp,
+  listAppCandidates,
   listGithubApps,
   resolveAppCredentials,
   updateGithubApp,
@@ -111,5 +112,24 @@ describe('deleteGithubApp', () => {
     const id = created.kind === 'created' ? created.id : 0;
     expect(deleteGithubApp(id).kind).toBe('deleted');
     expect(deleteGithubApp(id).kind).toBe('not-found');
+  });
+});
+
+describe('listAppCandidates', () => {
+  it('lists all configured apps (env 없을 때 DB 만)', () => {
+    createGithubApp({ name: 'a', appId: '1', privateKey: PEM });
+    createGithubApp({ name: 'b', appId: '2', privateKey: PEM });
+    const all = listAppCandidates(undefined);
+    expect(all.map((c) => c.appId).sort()).toEqual(['1', '2']);
+  });
+
+  it('puts the explicit appConfigId first (자가 복구 우선순위)', () => {
+    createGithubApp({ name: 'a', appId: '1', privateKey: PEM });
+    const second = createGithubApp({ name: 'b', appId: '2', privateKey: PEM });
+    const id = second.kind === 'created' ? second.id : 0;
+    const ordered = listAppCandidates(id);
+    expect(ordered[0]?.appConfigId).toBe(id);
+    // 나머지 후보도 폴백으로 포함.
+    expect(ordered.map((c) => c.appId).sort()).toEqual(['1', '2']);
   });
 });
