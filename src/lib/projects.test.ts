@@ -10,6 +10,7 @@ import {
   setProjectAiReview,
   setProjectAutoDeleteBranch,
   setProjectAutoMerge,
+  setProjectAutoResolveConflicts,
 } from './projects';
 
 beforeAll(() => {
@@ -127,6 +128,29 @@ describe('setProjectAiReview', () => {
 
   it('returns not-found for missing project', () => {
     expect(setProjectAiReview(9999, false).kind).toBe('not-found');
+  });
+});
+
+describe('setProjectAutoResolveConflicts', () => {
+  it('toggles autoResolveConflictsEnabled (default false)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    // 디폴트 OFF.
+    expect(
+      db.select().from(projects).where(eq(projects.id, id)).get()?.autoResolveConflictsEnabled,
+    ).toBe(false);
+
+    expect(setProjectAutoResolveConflicts(id, true).kind).toBe('updated');
+    expect(
+      db.select().from(projects).where(eq(projects.id, id)).get()?.autoResolveConflictsEnabled,
+    ).toBe(true);
+  });
+
+  it('returns not-found for missing project', () => {
+    expect(setProjectAutoResolveConflicts(9999, true).kind).toBe('not-found');
   });
 });
 

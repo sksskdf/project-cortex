@@ -137,6 +137,7 @@ export const ko = {
       autoMerge: '자동 머지',
       branchDelete: '브랜치 삭제',
       aiReview: 'AI 리뷰',
+      autoResolve: '충돌 해결',
       sync: '동기화',
       roadmap: '로드맵',
     },
@@ -150,6 +151,10 @@ export const ko = {
       enabled
         ? 'AI 사전 리뷰 켜짐 — 누르면 끔 (전역 AI 토글과 함께 적용)'
         : 'AI 사전 리뷰 꺼짐 — 누르면 켬',
+    autoResolveAria: (enabled: boolean) =>
+      enabled
+        ? '머지 충돌 자동 해결 켜짐 — 누르면 끔 (claude CLI 가 충돌 해소 후 push)'
+        : '머지 충돌 자동 해결 꺼짐 — 누르면 켬',
     seedBadge: '시드',
     progress: {
       label: '진척',
