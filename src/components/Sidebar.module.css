@@ -178,3 +178,61 @@
   font-size: var(--ds-typography-font-size-12);
   color: var(--ds-color-text-02);
 }
+
+/* 반응형 1단계 — 데스크탑(>768px) 세로 사이드바는 그대로. 아래 규칙은 모두
+   max-width 미디어쿼리 안에서만 적용된다. */
+
+/* 좁은 폭: 세로 사이드바를 가로 상단 바로 전환.
+   - 높이 100vh / sticky 해제 → 본문 위에 한 줄로 쌓임.
+   - nav 리스트는 가로 배치 + 가로 스크롤 허용해 항목이 잘리지 않게.
+   - 섹션 제목 / 푸터(유저)는 공간 절약 위해 숨김.
+   - divider flex spacer 는 가로 모드에서 불필요 → 0 으로. */
+@media (max-width: 768px) {
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+    overflow-x: auto;
+  }
+
+  .section,
+  .section:first-of-type {
+    padding: var(--ds-spacing-8) var(--ds-spacing-12);
+  }
+
+  .sectionTitle {
+    display: none;
+  }
+
+  .list {
+    flex-direction: row;
+    gap: var(--ds-spacing-4);
+  }
+
+  .divider {
+    flex: 0;
+  }
+
+  .footer {
+    border-top: none;
+    padding: var(--ds-spacing-8) var(--ds-spacing-12);
+  }
+
+  /* 가로 바에서는 우측 자동정렬 카운트가 폭을 늘려 항목이 길어짐 →
+     라벨 옆에 자연스럽게 붙도록 margin-left 자동정렬 해제. */
+  .itemCount,
+  .itemSoon {
+    margin-left: var(--ds-spacing-4);
+    min-width: auto;
+  }
+}
+
+/* 모바일 폭: 유저 푸터까지 숨겨 상단 바를 네비게이션만 남긴다. */
+@media (max-width: 480px) {
+  .footer {
+    display: none;
+  }
+}

@@ -7,3 +7,21 @@
 .main {
   min-width: 0;
 }
+
+/* 반응형 1단계 — 데스크탑(>1024px) 레이아웃은 그대로. 아래 규칙은 모두
+   max-width 미디어쿼리 안에서만 적용된다. */
+
+/* 태블릿 폭: 사이드바를 살짝 좁혀 본문 공간 확보. */
+@media (max-width: 1024px) {
+  .app {
+    grid-template-columns: 200px 1fr;
+  }
+}
+
+/* 좁은 폭: 2열 그리드를 해제하고 사이드바를 상단 바로 쌓는다.
+   사이드바 자체의 가로 배치는 Sidebar.module.css 에서 처리. */
+@media (max-width: 768px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+}

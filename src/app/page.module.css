@@ -562,3 +562,46 @@
   text-decoration: none;
   color: inherit;
 }
+
+/* 반응형 1단계 — 데스크탑(>1024px) 대시보드 레이아웃은 그대로. 아래 규칙은 모두
+   max-width 미디어쿼리 안에서만 적용되어 넓은 화면에는 영향이 없다. */
+
+/* 태블릿 폭: 5열 stat 그리드를 3열로, 본문 좌우 패딩 축소. */
+@media (max-width: 1024px) {
+  .page {
+    padding: var(--ds-spacing-24) var(--ds-spacing-24);
+  }
+
+  .statGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* 2fr/1fr 좌우 분할 → 세로 한 줄로 쌓기. */
+  .cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 좁은 폭: stat 그리드 2열. */
+@media (max-width: 768px) {
+  .page {
+    padding: var(--ds-spacing-20) var(--ds-spacing-16);
+  }
+
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 헤더 액션이 인사말과 한 줄에서 잘리지 않게 세로로 쌓기. */
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* 모바일 폭: stat 카드 한 열로. */
+@media (max-width: 480px) {
+  .statGrid {
+    grid-template-columns: 1fr;
+  }
+}
