@@ -20,3 +20,14 @@ export function verifyGithubSignature(
 
   return timingSafeEqual(expectedBuf, providedBuf);
 }
+
+// 다중 App — 들어온 webhook 이 어느 App 것인지 본문 신뢰 전엔 모르므로, 후보 secret
+// (등록된 App 들 + env) 중 하나라도 맞으면 통과. 후보가 0개면 거부.
+export function verifyGithubSignatureAny(
+  rawBody: string,
+  signatureHeader: string | null,
+  secrets: ReadonlyArray<string>,
+): boolean {
+  if (secrets.length === 0) return false;
+  return secrets.some((s) => verifyGithubSignature(rawBody, signatureHeader, s));
+}

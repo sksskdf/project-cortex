@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { env } from '@/lib/env';
+import { allWebhookSecrets } from '@/lib/github-apps';
 import { broadcast as broadcastEvent, events } from '@/lib/events';
 import { handlePushEvent } from '@/lib/project-meta';
 import { logger } from '@/lib/logger';
@@ -13,7 +13,7 @@ import {
   type GithubPullRequestEventPartial,
   type GithubReviewEventPartial,
 } from '@/lib/webhook-payload';
-import { verifyGithubSignature } from '@/lib/webhook-verify';
+import { verifyGithubSignatureAny } from '@/lib/webhook-verify';
 
 // webhook은 매 요청 처리 — static 캐싱 차단.
 export const dynamic = 'force-dynamic';
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const rawBody = await req.text();
   const signature = req.headers.get('x-hub-signature-256');
 
-  if (!verifyGithubSignature(rawBody, signature, env.githubWebhookSecret())) {
+  if (!verifyGithubSignatureAny(rawBody, signature, allWebhookSecrets())) {
     logger.warn({ source: 'webhook/github' }, 'rejected webhook with invalid signature');
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }

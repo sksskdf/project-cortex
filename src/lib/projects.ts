@@ -208,6 +208,8 @@ export function addProjectFromInstallation(input: {
   slug: string;
   name?: string;
   installationId: number;
+  // 다중 App — 이 installation 이 속한 App 설정. null/미지정이면 env 단일 App.
+  appConfigId?: number | null;
 }): AddInstalledResult {
   const slug = input.slug.trim();
   if (slug.length === 0) return { kind: 'invalid-slug', reason: 'slug 가 비어있습니다.' };
@@ -219,6 +221,7 @@ export function addProjectFromInstallation(input: {
     return { kind: 'invalid-slug', reason: 'installationId 가 올바르지 않습니다.' };
   }
 
+  const appConfigId = input.appConfigId ?? null;
   const existing = db
     .select({ id: projects.id, installationId: projects.installationId })
     .from(projects)
@@ -227,7 +230,7 @@ export function addProjectFromInstallation(input: {
   if (existing) {
     if (existing.installationId === null) {
       db.update(projects)
-        .set({ installationId: input.installationId })
+        .set({ installationId: input.installationId, appConfigId })
         .where(eq(projects.id, existing.id))
         .run();
       return { kind: 'linked', id: existing.id };
@@ -241,6 +244,7 @@ export function addProjectFromInstallation(input: {
       slug,
       name: input.name?.trim() || slug,
       installationId: input.installationId,
+      appConfigId,
       autoMergeEnabled: false,
     })
     .returning({ id: projects.id })

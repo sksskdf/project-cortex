@@ -19,7 +19,12 @@ import styles from './ImportInstalledRepos.module.css';
 
 const f = t.projects.import;
 
-type Selection = { installationId: number; slug: string; name: string };
+type Selection = {
+  installationId: number;
+  slug: string;
+  name: string;
+  appConfigId: number | null;
+};
 
 export function ImportInstalledRepos({ existingSlugs }: { existingSlugs: ReadonlyArray<string> }) {
   const [open, setOpen] = useState(false);
@@ -105,6 +110,7 @@ function ImportModal({
           slug: it.slug,
           name: it.name,
           installationId: it.installationId,
+          appConfigId: it.appConfigId,
         });
         if (r.kind === 'added') added++;
         else if (r.kind === 'linked') linked++;
@@ -204,12 +210,18 @@ function InstallationsView({
   return (
     <div className={styles.installations}>
       {installations.map((inst) => (
-        <section key={inst.installationId} className={styles.installation}>
+        <section
+          key={`${inst.appConfigId ?? 'env'}:${inst.installationId}`}
+          className={styles.installation}
+        >
           <header className={styles.instHead}>
             <span className={styles.instAccount}>{inst.account}</span>
             <span className={styles.instType}>
               {inst.accountType === 'Organization' ? f.org : f.user}
             </span>
+            {inst.appName && inst.appName !== 'env' ? (
+              <span className={styles.instType}>{f.app(inst.appName)}</span>
+            ) : null}
             <span className={styles.instCount}>{f.repoCount(inst.repos.length)}</span>
           </header>
           {inst.repos.length === 0 ? (
@@ -234,6 +246,7 @@ function InstallationsView({
                             installationId: inst.installationId,
                             slug: repo.slug,
                             name: repo.name,
+                            appConfigId: inst.appConfigId,
                           })
                         }
                       />

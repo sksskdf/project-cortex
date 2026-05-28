@@ -4,6 +4,12 @@
 // 모든 lib 호출처가 매번 getSettings() 를 읽음.
 
 import { revalidatePath } from 'next/cache';
+import {
+  createGithubApp,
+  deleteGithubApp,
+  updateGithubApp,
+  type SaveAppInput,
+} from '@/lib/github-apps';
 import { setProjectAutoMerge } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
@@ -23,6 +29,49 @@ export async function toggleAiEnabledAction(enabled: boolean): Promise<SettingsA
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', message };
+  }
+}
+
+// Phase 8.x — GitHub App 다중 설정 CRUD. private key 는 평문 저장(localhost 단일 사용자).
+export type GithubAppActionState =
+  | { kind: 'created'; id: number }
+  | { kind: 'updated'; id: number }
+  | { kind: 'deleted' }
+  | { kind: 'not-found' }
+  | { kind: 'invalid'; reason: string }
+  | { kind: 'duplicate-name' }
+  | { kind: 'error'; message: string };
+
+export async function createGithubAppAction(input: SaveAppInput): Promise<GithubAppActionState> {
+  try {
+    const r = createGithubApp(input);
+    if (r.kind === 'created') revalidatePath('/settings');
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateGithubAppAction(
+  id: number,
+  input: SaveAppInput,
+): Promise<GithubAppActionState> {
+  try {
+    const r = updateGithubApp(id, input);
+    if (r.kind === 'updated') revalidatePath('/settings');
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function deleteGithubAppAction(id: number): Promise<GithubAppActionState> {
+  try {
+    const r = deleteGithubApp(id);
+    if (r.kind === 'deleted') revalidatePath('/settings');
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 

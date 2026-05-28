@@ -30,8 +30,10 @@ export const projects = sqliteTable('projects', {
     .default(false),
   // GitHub App installation id — App 가 이 레포에 설치될 때 GitHub 가 발급.
   // null 이면 시드/데모 프로젝트 (실 webhook 흐름 비대상).
-  // Phase 3.4b 의 credentials 테이블이 들어오면 FK 로 분리됨.
   installationId: integer('installation_id'),
+  // Phase 8.x — 이 프로젝트가 속한 GitHub App 설정 (다중 App). null 이면 env 기반 단일 App.
+  // installation 은 App 별로 의미가 다르므로, 어느 App 자격증명으로 인증할지 결정한다.
+  appConfigId: integer('app_config_id').references(() => githubApps.id),
   // Phase 10.1 — .cortex/project.yml 에서 가져온 메타. null 이면 sync 안 됨 (manual).
   description: text('description'),
   kind: text('kind'), // web-app | cli | library | mobile | docs | infra (자유 텍스트)
@@ -334,7 +336,21 @@ export const notes = sqliteTable('notes', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 
+// Phase 8.x — 다중 GitHub App 설정. .env.local 단일 App 대신 설정 UI 로 여러 App 등록.
+// localhost 단일 사용자 가정이라 private key 는 평문 저장 (.env 평문과 동일 보안 수준).
+// projects.appConfigId 가 이 행을 가리켜 어느 App 자격증명으로 인증할지 결정.
+export const githubApps = sqliteTable('github_apps', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(), // 사용자 라벨 (예: 'personal', 'acme-org')
+  appId: text('app_id').notNull(), // GitHub App ID (숫자지만 문자열로 보관)
+  privateKey: text('private_key').notNull(), // PEM 원문
+  webhookSecret: text('webhook_secret'), // App 별 webhook secret (null 이면 env 폴백 검증)
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
+export type GithubAppRow = typeof githubApps.$inferSelect;
 export type IssueRow = typeof issues.$inferSelect;
 export type AgentRunRow = typeof agentRuns.$inferSelect;
 export type PRRecord = typeof prs.$inferSelect;
