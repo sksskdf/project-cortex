@@ -60,6 +60,26 @@ export function linkIssueToRoadmapItem(issueId: number, roadmapItemId: number | 
     .run();
 }
 
+// TODO →이슈 연결 셀렉터용 — 이슈 선택지(id + 제목 + 프로젝트 slug). 최신 순.
+export type IssueOption = { id: number; title: string; projectSlug: string | null };
+
+export function listIssueOptions(): IssueOption[] {
+  const rows = db
+    .select({ id: issues.id, title: issues.title, repoId: issues.repoId })
+    .from(issues)
+    .orderBy(desc(issues.createdAt), desc(issues.id))
+    .all();
+  if (rows.length === 0) return [];
+  const projectById = new Map<number, string>();
+  const pRows = db.select({ id: projects.id, slug: projects.slug }).from(projects).all();
+  for (const p of pRows) projectById.set(p.id, p.slug);
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    projectSlug: projectById.get(r.repoId) ?? null,
+  }));
+}
+
 // claude CLI 세션에 처음 보낼 prompt. 이슈 제목 + 수용 기준(spec)을 자연어로 전달.
 export function buildDelegatePrompt(title: string, spec: string): string {
   return `이슈: ${title.trim()}\n\n${spec.trim()}`;
@@ -171,6 +191,7 @@ export type IssueDetail = {
   status: IssueStatus;
   assigneeKind: 'human' | 'agent';
   assigneeId: string;
+  projectId: number;
   projectSlug: string | null;
   projectName: string | null;
   // 이슈/TODO/로드맵 통합 1단계 — 연결된 로드맵 산출물 (옵션). 없으면 둘 다 null.
@@ -227,6 +248,7 @@ export function getIssueDetail(id: number): IssueDetail | null {
     status: row.status as IssueStatus,
     assigneeKind: row.assigneeKind,
     assigneeId: row.assigneeId,
+    projectId: row.repoId,
     projectSlug: project?.slug ?? null,
     projectName: project?.name ?? null,
     roadmapItemId: row.roadmapItemId,

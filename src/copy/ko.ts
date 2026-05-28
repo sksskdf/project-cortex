@@ -722,6 +722,17 @@ export const ko = {
       runCompleted: '완료',
       runResult: '결과 PR',
       notFound: '이슈를 찾을 수 없습니다.',
+      // Phase 18 — 로드맵 산출물 연결.
+      roadmapLink: {
+        label: '로드맵 산출물',
+        none: '연결 안 함',
+        placeholder: '산출물 선택',
+        // 옵션 텍스트 — "Phase 키 · 산출물 제목".
+        option: (phaseKey: string, title: string) => `${phaseKey} · ${title}`,
+        noItems: '이 프로젝트에 로드맵 산출물이 없습니다.',
+        saving: '저장 중…',
+        error: '연결 저장에 실패했습니다.',
+      },
     },
   },
   // Phase 11 — TODO 페이지 + 사이드바 위젯.
@@ -756,6 +767,15 @@ export const ko = {
       due: (text: string) => `마감 ${text}`,
       project: (slug: string) => `· ${slug}`,
       pr: (number: number) => `· #${number}`,
+    },
+    // Phase 18 — TODO 를 이슈에 연결.
+    issueLink: {
+      none: '이슈 연결',
+      linked: (title: string) => `이슈: ${title}`,
+      placeholder: '이슈 선택',
+      clear: '연결 해제',
+      label: '연결할 이슈',
+      noIssues: '연결할 이슈가 없습니다.',
     },
     widget: {
       title: '오늘 할 일',
