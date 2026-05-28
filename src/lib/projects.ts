@@ -194,3 +194,56 @@ export function addProjectManually(input: { slug: string; name?: string }): AddP
     .get();
   return { kind: 'added', id: inserted.id };
 }
+
+// Phase 8 — GitHub App 설치 리포에서 가져온 프로젝트를 installationId 포함해 등록.
+// 이미 같은 slug 가 있으면: installationId 가 null 이면 채워서 'linked', 이미 있으면 'already-linked'.
+// 수동 등록(installationId=null) 후 import 가 들어와도 자연스럽게 합쳐진다.
+export type AddInstalledResult =
+  | { kind: 'added'; id: number }
+  | { kind: 'linked'; id: number }
+  | { kind: 'already-linked'; id: number }
+  | { kind: 'invalid-slug'; reason: string };
+
+export function addProjectFromInstallation(input: {
+  slug: string;
+  name?: string;
+  installationId: number;
+}): AddInstalledResult {
+  const slug = input.slug.trim();
+  if (slug.length === 0) return { kind: 'invalid-slug', reason: 'slug 가 비어있습니다.' };
+  if (!SLUG_RE.test(slug)) {
+    return { kind: 'invalid-slug', reason: 'owner/repo 형식이 아닙니다.' };
+  }
+  if (slug.length > 250) return { kind: 'invalid-slug', reason: 'slug 가 너무 깁니다.' };
+  if (!Number.isInteger(input.installationId) || input.installationId <= 0) {
+    return { kind: 'invalid-slug', reason: 'installationId 가 올바르지 않습니다.' };
+  }
+
+  const existing = db
+    .select({ id: projects.id, installationId: projects.installationId })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .get();
+  if (existing) {
+    if (existing.installationId === null) {
+      db.update(projects)
+        .set({ installationId: input.installationId })
+        .where(eq(projects.id, existing.id))
+        .run();
+      return { kind: 'linked', id: existing.id };
+    }
+    return { kind: 'already-linked', id: existing.id };
+  }
+
+  const inserted = db
+    .insert(projects)
+    .values({
+      slug,
+      name: input.name?.trim() || slug,
+      installationId: input.installationId,
+      autoMergeEnabled: false,
+    })
+    .returning({ id: projects.id })
+    .get();
+  return { kind: 'added', id: inserted.id };
+}
