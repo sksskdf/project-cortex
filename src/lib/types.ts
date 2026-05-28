@@ -47,6 +47,9 @@ export type PRRowActionState = {
   canClose: boolean;
   // CI 결과 대기 중이라 머지가 막혔는지 — disabled 사유 노출용. canMerge=false 의 부분 집합.
   mergeBlockedByCI?: boolean;
+  // 머지 불가 사유 문구 (충돌/차단/CI 실패·대기). null 이면 막힌 사유 없음(또는 머지 가능).
+  // PR 상세처럼 행에서도 disabled 버튼 옆에 노출.
+  mergeBlockReason?: string | null;
 };
 
 export type PR = {

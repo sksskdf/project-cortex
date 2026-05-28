@@ -18,6 +18,9 @@ export type TriageInput = {
   confidence: number;
   flags: ReadonlyArray<string>;
   testsPassed: boolean | null;
+  // GitHub mergeable_state. CI 없는 레포는 'clean' 으로 오므로, testsPassed 가 null 이어도
+  // 'clean' 이면 머지 가능으로 본다 (CI 결과를 영원히 기다리지 않게).
+  mergeableState: string | null;
   autoMergeEnabled: boolean;
 };
 
@@ -62,7 +65,10 @@ export function decideTriage(input: TriageInput): TriageResult {
     };
   }
 
-  if (input.testsPassed === null) {
+  // CI 결과 미수신(null). 단 mergeable_state==='clean' 이면 CI 가 없는 레포 — GitHub 가
+  // 머지 가능으로 판정했으므로 영원히 기다리지 않고 통과시킨다. clean 이 아니면(unstable=
+  // CI 진행 중, unknown=계산 중 등) 기존대로 대기.
+  if (input.testsPassed === null && input.mergeableState !== 'clean') {
     return {
       decision: 'human-review',
       // 인박스 한 줄 사유 — 짧게. 분석 직후엔 CI 가 끝나기 전이라 거의 항상 null 이라
@@ -118,6 +124,8 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
     // testsPassed 는 PR.testsPassed 로 이동 (AI off 와 무관하게 CI 결과 채워짐).
     // preReview.testsPassed 는 legacy — 마이그레이션 0007 후엔 안 읽음.
     testsPassed: pr.testsPassed,
+    // sync 가 webhook 처리 중 getPRMergeStatus 로 갱신해 둔 값. CI 없는 레포 식별에 사용.
+    mergeableState: pr.mergeableState,
     autoMergeEnabled: project.autoMergeEnabled,
   });
 
