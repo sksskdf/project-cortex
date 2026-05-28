@@ -15,6 +15,7 @@ import {
   setProjectAiReview,
   setProjectAutoDeleteBranch,
   setProjectAutoMerge,
+  setProjectAutoResolveConflicts,
 } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
@@ -160,6 +161,28 @@ export async function toggleProjectAiReviewAction(
 ): Promise<ProjectAiReviewActionState> {
   try {
     const result = setProjectAiReview(id, enabled);
+    if (result.kind === 'not-found') return { kind: 'not-found' };
+    revalidatePath('/projects');
+    revalidatePath('/');
+    return { kind: 'updated', id: result.id, enabled: result.enabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// 프로젝트별 머지 충돌 자동 해결 토글 (Phase 13.2). 디폴트 OFF — 명시적으로 켜야 발화.
+export type ProjectAutoResolveActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+export async function toggleProjectAutoResolveConflictsAction(
+  id: number,
+  enabled: boolean,
+): Promise<ProjectAutoResolveActionState> {
+  try {
+    const result = setProjectAutoResolveConflicts(id, enabled);
     if (result.kind === 'not-found') return { kind: 'not-found' };
     revalidatePath('/projects');
     revalidatePath('/');

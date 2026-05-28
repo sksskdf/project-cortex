@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
 import { ProjectAiReviewToggle } from './ProjectAiReviewToggle';
 import { ProjectAutoMergeToggle } from './ProjectAutoMergeToggle';
+import { ProjectAutoResolveToggle } from './ProjectAutoResolveToggle';
 import { ProjectBranchDeleteToggle } from './ProjectBranchDeleteToggle';
 import { ProjectReconcileButton } from './ProjectReconcileButton';
 import { RoadmapDrawer } from './RoadmapDrawer';
@@ -88,6 +89,7 @@ function ProjectCard({
       <div className={styles.actionRow}>
         <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} />
         <ProjectAutoMergeToggle row={row} />
+        <ProjectAutoResolveToggle id={row.id} enabled={row.autoResolveConflictsEnabled} />
         <ProjectBranchDeleteToggle id={row.id} enabled={row.autoDeleteBranchEnabled} />
         <ProjectReconcileButton projectId={row.id} />
         <button
