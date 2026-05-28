@@ -5,6 +5,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { installCortexSkill } from '@/lib/cortex-skill';
+import {
+  createGithubApp,
+  deleteGithubApp,
+  updateGithubApp,
+  type SaveAppInput,
+} from '@/lib/github-apps';
 import { setProjectAutoMerge } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
@@ -37,6 +43,49 @@ export type InstallSkillActionState =
 export async function installCortexSkillAction(): Promise<InstallSkillActionState> {
   try {
     return installCortexSkill();
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 8.x — GitHub App 다중 설정 CRUD. private key 는 평문 저장(localhost 단일 사용자).
+export type GithubAppActionState =
+  | { kind: 'created'; id: number }
+  | { kind: 'updated'; id: number }
+  | { kind: 'deleted' }
+  | { kind: 'not-found' }
+  | { kind: 'invalid'; reason: string }
+  | { kind: 'duplicate-name' }
+  | { kind: 'error'; message: string };
+
+export async function createGithubAppAction(input: SaveAppInput): Promise<GithubAppActionState> {
+  try {
+    const r = createGithubApp(input);
+    if (r.kind === 'created') revalidatePath('/settings');
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateGithubAppAction(
+  id: number,
+  input: SaveAppInput,
+): Promise<GithubAppActionState> {
+  try {
+    const r = updateGithubApp(id, input);
+    if (r.kind === 'updated') revalidatePath('/settings');
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function deleteGithubAppAction(id: number): Promise<GithubAppActionState> {
+  try {
+    const r = deleteGithubApp(id);
+    if (r.kind === 'deleted') revalidatePath('/settings');
+    return r;
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

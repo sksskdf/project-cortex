@@ -1,9 +1,15 @@
 import { createAppAuth } from '@octokit/auth-app';
 import { Octokit } from '@octokit/rest';
-import { env } from './env';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db/client';
+import { projects } from '@/db/schema';
+import { listAppConfigsForAuth, resolveAppCredentials } from './github-apps';
 
 // GitHub App 모드 — installation 별로 short-lived 토큰을 발급받아 Octokit 생성.
 // 토큰은 약 1시간 유효 → 만료 전 갱신 위해 캐시에 expiresAt 동봉.
+// 다중 App: installation 은 App 별로 의미가 다르므로 어느 App 자격증명을 쓸지 결정해야 한다.
+// 명시 appConfigId 가 없으면 그 installation 으로 등록된 프로젝트의 appConfigId 로 해석하고,
+// 그래도 없으면 env 단일 App 으로 폴백 (기존 동작 유지).
 // 테스트 주입은 setOctokit(instance) — installation 무관하게 단일 mock 반환.
 
 let _testOctokit: Octokit | null = null;
@@ -13,25 +19,45 @@ export function setOctokit(instance: Octokit | null) {
 }
 
 type CachedOctokit = { client: Octokit; expiresAt: number };
-const _cache = new Map<number, CachedOctokit>();
+const _cache = new Map<string, CachedOctokit>();
 // 만료 5분 전에 갱신 — 사용 중 만료 회피.
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
-export async function getOctokitForInstallation(installationId: number): Promise<Octokit> {
+// installation 으로 등록된 프로젝트의 App 설정 id. 없으면 null (env 폴백).
+function appConfigIdForInstallation(installationId: number): number | null {
+  const row = db
+    .select({ appConfigId: projects.appConfigId })
+    .from(projects)
+    .where(eq(projects.installationId, installationId))
+    .get();
+  return row?.appConfigId ?? null;
+}
+
+export async function getOctokitForInstallation(
+  installationId: number,
+  appConfigId?: number | null,
+): Promise<Octokit> {
   if (_testOctokit) return _testOctokit;
 
-  const cached = _cache.get(installationId);
+  const resolvedAppConfigId =
+    appConfigId === undefined ? appConfigIdForInstallation(installationId) : appConfigId;
+  const cacheKey = `${resolvedAppConfigId ?? 'env'}:${installationId}`;
+
+  const cached = _cache.get(cacheKey);
   if (cached && cached.expiresAt - TOKEN_REFRESH_BUFFER_MS > Date.now()) {
     return cached.client;
   }
 
-  const auth = createAppAuth({
-    appId: env.githubAppId(),
-    privateKey: env.githubAppPrivateKey(),
-  });
+  const creds = resolveAppCredentials(resolvedAppConfigId);
+  if (!creds) {
+    throw new Error(
+      'GitHub App 자격증명이 없습니다 — 설정에서 App 을 등록하거나 .env 를 설정하세요.',
+    );
+  }
+  const auth = createAppAuth({ appId: creds.appId, privateKey: creds.privateKey });
   const { token, expiresAt } = await auth({ type: 'installation', installationId });
   const client = new Octokit({ auth: token });
-  _cache.set(installationId, {
+  _cache.set(cacheKey, {
     client,
     expiresAt: new Date(expiresAt).getTime(),
   });
@@ -52,33 +78,57 @@ export type InstallationWithRepos = {
   installationId: number;
   account: string;
   accountType: 'Organization' | 'User';
+  // 다중 App — 이 installation 이 속한 App 설정 id. null 이면 env 단일 App. 등록 시 projects 에 기록.
+  appConfigId: number | null;
+  // App 라벨 (UI 그룹 헤더용). env App 은 빈 문자열.
+  appName: string;
   repos: InstalledRepo[];
 };
 
+// 등록된 모든 App 설정(+env 폴백)을 순회하며 각 App 의 installation·접근 가능 리포를 모은다.
+// 테스트 주입(setOctokit)이 있으면 단일 mock 으로 한 App(appConfigId=null) 만 순회.
 export async function listAppInstallationRepos(): Promise<InstallationWithRepos[]> {
-  // app-level JWT — installation 목록 조회용. 테스트에선 setOctokit 이 반환되어 우회된다.
-  const appOctokit = _testOctokit ?? (await buildAppOctokit());
+  const results: InstallationWithRepos[] = [];
+
+  if (_testOctokit) {
+    await collectInstallations(_testOctokit, null, '', results);
+    return results;
+  }
+
+  for (const config of listAppConfigsForAuth()) {
+    const appOctokit = buildAppOctokitFor(config.appId, config.privateKey);
+    await collectInstallations(appOctokit, config.appConfigId, config.name, results);
+  }
+  return results;
+}
+
+async function collectInstallations(
+  appOctokit: Octokit,
+  appConfigId: number | null,
+  appName: string,
+  out: InstallationWithRepos[],
+): Promise<void> {
   const installations = await appOctokit.paginate(appOctokit.rest.apps.listInstallations, {
     per_page: 100,
   });
-
-  const results: InstallationWithRepos[] = [];
   for (const inst of installations) {
     const account = inst.account;
     const accountLogin = account && 'login' in account ? account.login : 'unknown';
     const accountType =
       account && 'type' in account && account.type === 'Organization' ? 'Organization' : 'User';
 
-    const instOctokit = await getOctokitForInstallation(inst.id);
+    const instOctokit = await getOctokitForInstallation(inst.id, appConfigId);
     // 페이지네이션 응답 형태가 wrapped({total_count, repositories}) — paginate 가 풀어준다.
     const repos = await instOctokit.paginate(
       instOctokit.rest.apps.listReposAccessibleToInstallation,
       { per_page: 100 },
     );
-    results.push({
+    out.push({
       installationId: inst.id,
       account: accountLogin,
       accountType,
+      appConfigId,
+      appName,
       repos: repos.map((r) => ({
         slug: r.full_name,
         name: r.name,
@@ -88,16 +138,12 @@ export async function listAppInstallationRepos(): Promise<InstallationWithRepos[
       })),
     });
   }
-  return results;
 }
 
-async function buildAppOctokit(): Promise<Octokit> {
-  const auth = createAppAuth({
-    appId: env.githubAppId(),
-    privateKey: env.githubAppPrivateKey(),
-  });
-  const { token } = await auth({ type: 'app' });
-  return new Octokit({ auth: token });
+// app-level JWT 인증 Octokit — apps.listInstallations 호출용. authStrategy 가 App JWT 를
+// 자동 생성하고 installation 엔드포인트는 토큰을 교환한다.
+function buildAppOctokitFor(appId: string, privateKey: string): Octokit {
+  return new Octokit({ authStrategy: createAppAuth, auth: { appId, privateKey } });
 }
 
 export type RepoRef = { owner: string; repo: string };

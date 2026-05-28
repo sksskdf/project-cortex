@@ -58,6 +58,7 @@ export async function addInstalledRepoAction(input: {
   slug: string;
   name?: string;
   installationId: number;
+  appConfigId?: number | null;
 }): Promise<AddInstalledRepoActionState> {
   try {
     const r = addProjectFromInstallation(input);
