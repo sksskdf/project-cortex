@@ -136,6 +136,7 @@ export const ko = {
     action: {
       autoMerge: '자동 머지',
       branchDelete: '브랜치 삭제',
+      aiReview: 'AI 리뷰',
       sync: '동기화',
       roadmap: '로드맵',
     },
@@ -145,6 +146,10 @@ export const ko = {
       enabled
         ? '머지 후 브랜치 자동 삭제 켜짐 — 누르면 끔'
         : '머지 후 브랜치 자동 삭제 꺼짐 — 누르면 켬',
+    aiReviewAria: (enabled: boolean) =>
+      enabled
+        ? 'AI 사전 리뷰 켜짐 — 누르면 끔 (전역 AI 토글과 함께 적용)'
+        : 'AI 사전 리뷰 꺼짐 — 누르면 켬',
     seedBadge: '시드',
     progress: {
       label: '진척',

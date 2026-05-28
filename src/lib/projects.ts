@@ -97,6 +97,7 @@ export type ProjectStatsRow = {
   installationId: number | null;
   autoMergeEnabled: boolean;
   autoDeleteBranchEnabled: boolean;
+  aiReviewEnabled: boolean;
   // 활성 PR (open/review-needed/auto-mergeable) — 인박스 + 클러스터 합계.
   activePRs: number;
   // 머지된 PR 누적.
@@ -114,6 +115,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       installationId: projects.installationId,
       autoMergeEnabled: projects.autoMergeEnabled,
       autoDeleteBranchEnabled: projects.autoDeleteBranchEnabled,
+      aiReviewEnabled: projects.aiReviewEnabled,
     })
     .from(projects)
     .orderBy(asc(projects.slug))
@@ -150,6 +152,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       installationId: r.installationId,
       autoMergeEnabled: r.autoMergeEnabled,
       autoDeleteBranchEnabled: r.autoDeleteBranchEnabled,
+      aiReviewEnabled: r.aiReviewEnabled,
       activePRs: activeRow?.n ?? 0,
       mergedPRs: mergedRow?.n ?? 0,
       avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
@@ -166,6 +169,18 @@ export function setProjectAutoDeleteBranch(id: number, enabled: boolean): Toggle
   const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
   if (!existing) return { kind: 'not-found' };
   db.update(projects).set({ autoDeleteBranchEnabled: enabled }).where(eq(projects.id, id)).run();
+  return { kind: 'updated', id, enabled };
+}
+
+// AI 사전 리뷰 프로젝트별 토글. 전역 settings.aiEnabled 와 AND 로 적용 (sync.ts).
+export type ToggleAiReviewResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectAiReview(id: number, enabled: boolean): ToggleAiReviewResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ aiReviewEnabled: enabled }).where(eq(projects.id, id)).run();
   return { kind: 'updated', id, enabled };
 }
 

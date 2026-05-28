@@ -15,6 +15,9 @@ export const projects = sqliteTable('projects', {
   autoDeleteBranchEnabled: integer('auto_delete_branch_enabled', { mode: 'boolean' })
     .notNull()
     .default(false),
+  // AI 사전 리뷰를 이 프로젝트에 적용할지. 디폴트 ON. 전역 settings.aiEnabled 와 AND —
+  // 전역 OFF 면 어차피 안 함. 회사 레포 등 분석을 끄고 싶은 프로젝트만 개별 OFF.
+  aiReviewEnabled: integer('ai_review_enabled', { mode: 'boolean' }).notNull().default(true),
   // Phase 13.2 — 자동 머지 중 충돌(dirty) 발생 시 claude CLI 로 자동 해결 시도 여부.
   // 디폴트 OFF — 명시적으로 켜야 발화 (claude 가 워크스페이스에서 코드 수정 + push 하므로
   // 신뢰가 선행돼야 함). autoMergeEnabled 와 독립.
