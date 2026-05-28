@@ -11,9 +11,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: grab;
   box-shadow: 0 4px 16px var(--ds-color-shadow-black);
   z-index: 50;
+  /* 포인터 드래그가 스크롤/제스처로 가로채이지 않도록. */
+  touch-action: none;
+}
+
+.launcher:active {
+  cursor: grabbing;
 }
 
 .launcher svg {

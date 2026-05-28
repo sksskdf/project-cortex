@@ -36,6 +36,36 @@ type Dock = 'right' | 'bottom';
 const DOCK_STORAGE_KEY = 'cortex:agentDock';
 const WIDTH_STORAGE_KEY = 'cortex:agentDrawerWidth';
 const HEIGHT_STORAGE_KEY = 'cortex:agentDrawerHeight';
+// sticky 런처 버튼 위치 (드래그로 이동). null 이면 CSS 기본값(우하단).
+const LAUNCHER_POS_KEY = 'cortex:agentLauncherPos';
+const LAUNCHER_SIZE = 48;
+const LAUNCHER_PAD = 8;
+// 클릭과 드래그 구분 — 이 거리 미만 이동은 클릭으로 간주(드래그 무시).
+const DRAG_THRESHOLD = 4;
+
+type Point = { x: number; y: number };
+
+function loadLauncherPos(): Point | null {
+  try {
+    const raw = localStorage.getItem(LAUNCHER_POS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<Point>;
+    if (typeof p.x === 'number' && typeof p.y === 'number') return { x: p.x, y: p.y };
+  } catch {
+    // 파싱 실패 — 기본 위치 사용.
+  }
+  return null;
+}
+
+// 런처를 뷰포트 안으로 제한 (창 크기 변동 대비).
+function clampLauncher(x: number, y: number): Point {
+  const maxX = Math.max(LAUNCHER_PAD, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_PAD);
+  const maxY = Math.max(LAUNCHER_PAD, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_PAD);
+  return {
+    x: Math.min(Math.max(x, LAUNCHER_PAD), maxX),
+    y: Math.min(Math.max(y, LAUNCHER_PAD), maxY),
+  };
+}
 
 // 크기 조절 경계: 가로 320px–90vw, 세로 240px–90vh.
 const MIN_WIDTH = 320;
@@ -151,6 +181,16 @@ export function AgentDrawerProvider({
   const resizingRef = useRef(false);
   const widthRef = useRef<number | null>(null);
   const heightRef = useRef<number | null>(null);
+  // sticky 런처 드래그 — 위치(px) + 드래그 추적. moved=true 면 클릭(열기) 억제.
+  const [launcherPos, setLauncherPos] = useState<Point | null>(null);
+  const launcherDragRef = useRef<{
+    startX: number;
+    startY: number;
+    offsetX: number;
+    offsetY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressLauncherClick = useRef(false);
 
   // 첫 마운트: 저장된 위치/크기 우선, 위치 없으면 화면 비율로 결정 (SSR 안전 — 클라이언트에서만).
   useEffect(() => {
@@ -167,6 +207,63 @@ export function AgentDrawerProvider({
       heightRef.current = h;
       setHeight(h);
     }
+    const lp = loadLauncherPos();
+    if (lp) setLauncherPos(clampLauncher(lp.x, lp.y));
+  }, []);
+
+  // sticky 런처 드래그 이동 — 포인터 캡처로 추적. 임계값 미만 이동은 클릭으로 간주.
+  const onLauncherPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    launcherDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onLauncherPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = launcherDragRef.current;
+    if (!d) return;
+    if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DRAG_THRESHOLD) {
+      return;
+    }
+    d.moved = true;
+    setLauncherPos(clampLauncher(e.clientX - d.offsetX, e.clientY - d.offsetY));
+  }, []);
+
+  const onLauncherPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = launcherDragRef.current;
+    launcherDragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // 이미 해제됨 — 무시.
+    }
+    if (d?.moved) {
+      // 드래그였으면 뒤따르는 click(열기)을 억제하고 위치 저장.
+      suppressLauncherClick.current = true;
+      setLauncherPos((pos) => {
+        if (pos) {
+          try {
+            localStorage.setItem(LAUNCHER_POS_KEY, JSON.stringify(pos));
+          } catch {
+            // 저장 실패해도 동작엔 영향 없음.
+          }
+        }
+        return pos;
+      });
+    }
+  }, []);
+
+  const onLauncherClick = useCallback(() => {
+    if (suppressLauncherClick.current) {
+      suppressLauncherClick.current = false;
+      return;
+    }
+    setOpen(true);
   }, []);
 
   const onHeadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -266,9 +363,17 @@ export function AgentDrawerProvider({
         <button
           type="button"
           className={styles.launcher}
-          onClick={() => setOpen(true)}
+          onClick={onLauncherClick}
+          onPointerDown={onLauncherPointerDown}
+          onPointerMove={onLauncherPointerMove}
+          onPointerUp={onLauncherPointerUp}
+          style={
+            launcherPos
+              ? { left: launcherPos.x, top: launcherPos.y, right: 'auto', bottom: 'auto' }
+              : undefined
+          }
           aria-label={t.agents.launcher}
-          title={t.agents.launcher}
+          title={t.agents.launcherDrag}
         >
           {launcherIcon}
         </button>
