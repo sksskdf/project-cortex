@@ -526,6 +526,18 @@ export const ko = {
   settings: {
     title: '설정',
     subtitle: '단일 사용자 모드. 토글은 즉시 반영됩니다.',
+    // Phase 13.6 — Cortex 워크플로 스킬 설치. ~/.claude/skills/cortex 에 기록 → 모든 claude 세션에서 참조.
+    skill: {
+      title: 'Cortex 스킬',
+      desc: 'Cortex 워크플로·컨벤션을 claude code 스킬로 ~/.claude/skills/cortex 에 설치합니다. 불러온 프로젝트에서 작업할 때 claude 가 Cortex 흐름(커밋 트레일러·로드맵 done 컨벤션·.cortex·PR 검증)을 참조합니다.',
+      button: '스킬 설치 / 업데이트',
+      pending: '설치 중…',
+      result: {
+        installed: (path: string) => `설치했습니다: ${path}`,
+        upToDate: '이미 최신입니다.',
+        error: (message: string) => `설치 실패: ${message}`,
+      },
+    },
     ai: {
       title: 'AI 사전 리뷰',
       ariaLabel: 'AI 분석 토글',
