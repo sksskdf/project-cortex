@@ -1,5 +1,6 @@
 import { ko as t } from '@/copy/ko';
 import { AiToggle } from '@/components/AiToggle';
+import { InstallCortexSkillButton } from '@/components/InstallCortexSkillButton';
 import { getSettings } from '@/lib/settings';
 import styles from './page.module.css';
 
@@ -30,6 +31,16 @@ export default async function SettingsPage() {
             <li>{t.settings.ai.impact.humanFlow}</li>
           </ul>
         </div>
+      </section>
+
+      <section className={styles.card} aria-label={t.settings.skill.title}>
+        <div className={styles.cardHead}>
+          <div>
+            <div className={styles.cardTitle}>{t.settings.skill.title}</div>
+            <div className={styles.cardDesc}>{t.settings.skill.desc}</div>
+          </div>
+        </div>
+        <InstallCortexSkillButton />
       </section>
     </div>
   );
