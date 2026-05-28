@@ -7,7 +7,13 @@ import type { ProjectAutoMergeRow } from '@/lib/projects';
 import { ToggleSwitch } from './ToggleSwitch';
 import styles from './ProjectAutoMergeToggle.module.css';
 
-export function ProjectAutoMergeToggle({ row }: { row: ProjectAutoMergeRow }) {
+export function ProjectAutoMergeToggle({
+  row,
+  disabled = false,
+}: {
+  row: ProjectAutoMergeRow;
+  disabled?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ProjectAutoMergeActionState>({ kind: 'idle' });
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
@@ -33,14 +39,17 @@ export function ProjectAutoMergeToggle({ row }: { row: ProjectAutoMergeRow }) {
         ? t.settings.autoMerge.result.notFound
         : undefined;
 
+  // 뮤트면 OFF 표시 + 비활성 (설정값은 DB 보존).
+  const shownChecked = disabled ? false : optimisticEnabled;
   return (
     <div className={styles.wrap}>
       <ToggleSwitch
         label={t.projects.action.autoMerge}
-        checked={optimisticEnabled}
+        checked={shownChecked}
         busy={pending}
+        disabled={disabled}
         onToggle={onToggle}
-        ariaLabel={t.projects.autoMergeAria(optimisticEnabled)}
+        ariaLabel={t.projects.autoMergeAria(shownChecked)}
         error={error}
       />
       {state.kind === 'updated' ? (

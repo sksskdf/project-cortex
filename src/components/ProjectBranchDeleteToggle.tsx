@@ -11,7 +11,15 @@ import {
 } from '@/actions/settings';
 import { ToggleSwitch } from './ToggleSwitch';
 
-export function ProjectBranchDeleteToggle({ id, enabled }: { id: number; enabled: boolean }) {
+export function ProjectBranchDeleteToggle({
+  id,
+  enabled,
+  disabled = false,
+}: {
+  id: number;
+  enabled: boolean;
+  disabled?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ProjectBranchDeleteActionState>({ kind: 'idle' });
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
@@ -28,13 +36,16 @@ export function ProjectBranchDeleteToggle({ id, enabled }: { id: number; enabled
     });
   }
 
+  // 뮤트면 OFF 표시 + 비활성 (설정값은 DB 보존).
+  const shownChecked = disabled ? false : optimisticEnabled;
   return (
     <ToggleSwitch
       label={t.projects.action.branchDelete}
-      checked={optimisticEnabled}
+      checked={shownChecked}
       busy={pending}
+      disabled={disabled}
       onToggle={onToggle}
-      ariaLabel={t.projects.branchDeleteAria(optimisticEnabled)}
+      ariaLabel={t.projects.branchDeleteAria(shownChecked)}
       error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
     />
   );

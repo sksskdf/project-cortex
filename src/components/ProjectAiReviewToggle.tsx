@@ -8,7 +8,15 @@ import { ko as t } from '@/copy/ko';
 import { toggleProjectAiReviewAction, type ProjectAiReviewActionState } from '@/actions/settings';
 import { ToggleSwitch } from './ToggleSwitch';
 
-export function ProjectAiReviewToggle({ id, enabled }: { id: number; enabled: boolean }) {
+export function ProjectAiReviewToggle({
+  id,
+  enabled,
+  disabled = false,
+}: {
+  id: number;
+  enabled: boolean;
+  disabled?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ProjectAiReviewActionState>({ kind: 'idle' });
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
@@ -25,13 +33,16 @@ export function ProjectAiReviewToggle({ id, enabled }: { id: number; enabled: bo
     });
   }
 
+  // 뮤트(Cortex 관리 OFF) 면 동작하지 않으므로 OFF 로 표시 + 비활성 (설정값은 DB 에 보존).
+  const shownChecked = disabled ? false : optimisticEnabled;
   return (
     <ToggleSwitch
       label={t.projects.action.aiReview}
-      checked={optimisticEnabled}
+      checked={shownChecked}
       busy={pending}
+      disabled={disabled}
       onToggle={onToggle}
-      ariaLabel={t.projects.aiReviewAria(optimisticEnabled)}
+      ariaLabel={t.projects.aiReviewAria(shownChecked)}
       error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
     />
   );

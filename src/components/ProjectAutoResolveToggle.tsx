@@ -12,7 +12,15 @@ import {
 } from '@/actions/settings';
 import { ToggleSwitch } from './ToggleSwitch';
 
-export function ProjectAutoResolveToggle({ id, enabled }: { id: number; enabled: boolean }) {
+export function ProjectAutoResolveToggle({
+  id,
+  enabled,
+  disabled = false,
+}: {
+  id: number;
+  enabled: boolean;
+  disabled?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ProjectAutoResolveActionState>({ kind: 'idle' });
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
@@ -29,13 +37,16 @@ export function ProjectAutoResolveToggle({ id, enabled }: { id: number; enabled:
     });
   }
 
+  // 뮤트면 OFF 표시 + 비활성 (설정값은 DB 보존).
+  const shownChecked = disabled ? false : optimisticEnabled;
   return (
     <ToggleSwitch
       label={t.projects.action.autoResolve}
-      checked={optimisticEnabled}
+      checked={shownChecked}
       busy={pending}
+      disabled={disabled}
       onToggle={onToggle}
-      ariaLabel={t.projects.autoResolveAria(optimisticEnabled)}
+      ariaLabel={t.projects.autoResolveAria(shownChecked)}
       error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
     />
   );
