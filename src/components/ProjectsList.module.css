@@ -113,6 +113,39 @@
   line-height: 1.4;
 }
 
+/* 자동화 스위치 묶음 — 캡션 + 마스터 스위치(분리) + 하위 자동화 스위치. */
+.toggleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+}
+
+.toggleCaption {
+  font-size: var(--ds-typography-font-size-11);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
+  text-transform: uppercase;
+}
+
+/* 마스터 스위치는 하위 자동화를 gating 하므로 아래에 구분선으로 분리. */
+.masterSwitch {
+  padding-bottom: var(--ds-spacing-8);
+  border-bottom: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-8);
+  transition: opacity 0.18s ease;
+}
+
+/* 관리 OFF(뮤트) 시 하위 자동화는 동작하지 않음을 흐리게 시각화. */
+.switchesDimmed {
+  opacity: 0.45;
+}
+
 .actionRow {
   display: flex;
   align-items: center;

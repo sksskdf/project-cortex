@@ -133,11 +133,15 @@ export const ko = {
       merged: '머지 누적',
       avgConfidence: '평균 신뢰',
     },
+    // 카드 '자동화' 섹션 캡션 — 스위치 묶음 위 작은 라벨.
+    automation: '자동화',
     action: {
       autoMerge: '자동 머지',
       branchDelete: '브랜치 삭제',
       mute: '뮤트',
       manage: '관리 시작',
+      // 마스터 스위치 라벨 — 켜짐=Cortex 관리(muted=false), 끄면 뮤트.
+      manageSwitch: 'Cortex 관리',
       aiReview: 'AI 리뷰',
       autoResolve: '충돌 해결',
       sync: '동기화',
