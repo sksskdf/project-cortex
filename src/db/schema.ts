@@ -36,6 +36,10 @@ export const projects = sqliteTable('projects', {
   autoResolveChangesEnabled: integer('auto_resolve_changes_enabled', { mode: 'boolean' })
     .notNull()
     .default(false),
+  // 뮤트 — 이 프로젝트의 PR/check webhook 을 무시(인박스 ingest·분석·트라이아지·자동머지 차단).
+  // 웹훅 자동 onboard 로 새로 감지된 레포는 muted=true 로 시작(조직의 남의 레포가 인박스를
+  // 어지럽히지 않게). /projects 에서 '관리 시작' 으로 해제. 수동 등록/import 는 muted=false.
+  muted: integer('muted', { mode: 'boolean' }).notNull().default(false),
   // GitHub App installation id — App 가 이 레포에 설치될 때 GitHub 가 발급.
   // null 이면 시드/데모 프로젝트 (실 webhook 흐름 비대상).
   installationId: integer('installation_id'),

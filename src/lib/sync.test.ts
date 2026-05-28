@@ -124,19 +124,41 @@ describe('handlePullRequestWebhook', () => {
     expect(result2).toEqual({ kind: 'skipped', reason: 'unknown-repo' });
   });
 
-  it('auto-onboards a new repo when installationId is present', async () => {
+  it('auto-onboards a new repo as muted — project created, PR skipped (인박스 보호)', async () => {
     const result = await handlePullRequestWebhook({
       ...basePayload(),
       repoSlug: 'new-org/new-repo',
       installationId: 99999,
     });
-    expect(result.kind).toBe('inserted');
+    // 새 레포는 muted 로 생성 → PR ingest 는 건너뜀.
+    expect(result).toEqual({ kind: 'skipped', reason: 'muted' });
     const project = db.select().from(projects).where(eq(projects.slug, 'new-org/new-repo')).get();
     expect(project?.installationId).toBe(99999);
-    // 자동 onboard 시 autoMergeEnabled=false 디폴트 — 회사/조직 레포 보호. 명시적으로 켠다.
+    expect(project?.muted).toBe(true);
+    // 안전 기본값 — 자동 머지·브랜치 삭제 OFF.
     expect(project?.autoMergeEnabled).toBe(false);
-    // 브랜치 자동 삭제도 디폴트 OFF.
     expect(project?.autoDeleteBranchEnabled).toBe(false);
+    // PR 은 인박스에 들어오지 않음.
+    const pr = db.select().from(prs).where(eq(prs.number, 999)).get();
+    expect(pr).toBeUndefined();
+  });
+
+  it('ingests PR after a muted project is un-muted (관리 시작)', async () => {
+    // 먼저 muted 로 onboard.
+    await handlePullRequestWebhook({
+      ...basePayload(),
+      repoSlug: 'new-org/repo2',
+      installationId: 88888,
+    });
+    const created = db.select().from(projects).where(eq(projects.slug, 'new-org/repo2')).get();
+    db.update(projects).set({ muted: false }).where(eq(projects.id, created!.id)).run();
+
+    const result = await handlePullRequestWebhook({
+      ...basePayload(),
+      repoSlug: 'new-org/repo2',
+      installationId: 88888,
+    });
+    expect(result.kind).toBe('inserted');
   });
 
   it('updates installationId when it changes for an existing project', async () => {

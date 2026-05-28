@@ -136,6 +136,8 @@ export const ko = {
     action: {
       autoMerge: '자동 머지',
       branchDelete: '브랜치 삭제',
+      mute: '뮤트',
+      manage: '관리 시작',
       aiReview: 'AI 리뷰',
       autoResolve: '충돌 해결',
       sync: '동기화',
@@ -147,6 +149,11 @@ export const ko = {
       enabled
         ? '머지 후 브랜치 자동 삭제 켜짐 — 누르면 끔'
         : '머지 후 브랜치 자동 삭제 꺼짐 — 누르면 켬',
+    muteAria: (muted: boolean) =>
+      muted
+        ? '뮤트됨 — 누르면 관리 시작 (webhook 수신·분석 재개)'
+        : '관리 중 — 누르면 뮤트 (webhook 무시·인박스에서 숨김)',
+    mutedBadge: '뮤트됨',
     aiReviewAria: (enabled: boolean) =>
       enabled
         ? 'AI 사전 리뷰 켜짐 — 누르면 끔 (전역 AI 토글과 함께 적용)'
