@@ -26,17 +26,16 @@ import {
   savePersistedSessions,
   type PersistedSession,
 } from './session-store';
+import { clampDim, clampInt, sanitizeName, sortSessionMetaByActivity } from './pty-util';
 
 export const PTY_PATH = '/api/pty';
 // 세션 관리 HTTP 엔드포인트 (목록·이름 변경·종료). ws 와 달리 일반 GET/POST 라
 // server.ts 가 Next 핸들러보다 먼저 가로채 이 모듈의 in-memory 레지스트리에 접근한다.
 export const SESSIONS_PATH = '/api/sessions';
-const MAX_NAME = 60;
 const MAX_BODY = 10_000;
 const MAX_SESSIONS = 8;
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
-const MAX_DIM = 500;
 // scrollback replay 버퍼 상한 (문자). 재접속 시 화면 복원용 — 너무 크면 메모리 부담.
 const BUFFER_CAP = 200_000;
 // 구독자(ws) 없이 이 시간 지나면 pty 종료 — 버려진 세션 누수 방지.
@@ -434,16 +433,16 @@ export function handlePtyControl(req: IncomingMessage, res: ServerResponse): boo
 
 // 최근 활동 순 — 활성 세션이 위로.
 function listSessionMeta(): SessionMeta[] {
-  return [...sessions.values()]
-    .map((s) => ({
+  return sortSessionMetaByActivity(
+    [...sessions.values()].map((s) => ({
       id: s.id,
       name: s.name,
       workspaceId: s.workspaceId,
       createdAt: s.createdAt,
       lastActivityAt: s.lastActivityAt,
       connected: s.ws !== null && s.ws.readyState === WebSocket.OPEN,
-    }))
-    .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+    })),
+  );
 }
 
 function handleControlAction(
@@ -477,16 +476,6 @@ function handleControlAction(
     return;
   }
   sendJson(res, 400, { error: 'unknown action' });
-}
-
-// 제어문자 제거 + 트림 + 길이 제한. 비면 빈 문자열 (호출측이 기본값 처리).
-function sanitizeName(raw: string | null): string {
-  if (!raw) return '';
-  // eslint-disable-next-line no-control-regex
-  return raw
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .trim()
-    .slice(0, MAX_NAME);
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown) {
@@ -523,13 +512,6 @@ function readJsonBody(
   });
 }
 
-function clampDim(raw: string | null, fallback: number): number {
-  return clampInt(raw === null ? Number.NaN : Number(raw), fallback);
-}
-function clampInt(n: number, fallback: number): number {
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(MAX_DIM, Math.max(1, Math.floor(n)));
-}
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
