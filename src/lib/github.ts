@@ -1,9 +1,9 @@
 import { createAppAuth } from '@octokit/auth-app';
 import { Octokit } from '@octokit/rest';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { projects } from '@/db/schema';
-import { listAppConfigsForAuth, resolveAppCredentials } from './github-apps';
+import { listAppCandidates, listAppConfigsForAuth } from './github-apps';
 
 // GitHub App 모드 — installation 별로 short-lived 토큰을 발급받아 Octokit 생성.
 // 토큰은 약 1시간 유효 → 만료 전 갱신 위해 캐시에 expiresAt 동봉.
@@ -23,7 +23,7 @@ const _cache = new Map<string, CachedOctokit>();
 // 만료 5분 전에 갱신 — 사용 중 만료 회피.
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
-// installation 으로 등록된 프로젝트의 App 설정 id. 없으면 null (env 폴백).
+// installation 으로 등록된 프로젝트의 App 설정 id. 없으면 null.
 function appConfigIdForInstallation(installationId: number): number | null {
   const row = db
     .select({ appConfigId: projects.appConfigId })
@@ -33,35 +33,63 @@ function appConfigIdForInstallation(installationId: number): number | null {
   return row?.appConfigId ?? null;
 }
 
+// 동작한 App 으로 이 installation 의 프로젝트들 appConfigId 를 백필 — 다음부턴 바로 해석되고
+// 더 이상 후보를 헤매지 않는다. webhook onboard 로 appConfigId 가 비어 있던 프로젝트 자가 치유.
+function backfillAppConfigId(installationId: number, appConfigId: number | null): void {
+  if (appConfigId === null) return;
+  try {
+    db.update(projects)
+      .set({ appConfigId })
+      .where(and(eq(projects.installationId, installationId), isNull(projects.appConfigId)))
+      .run();
+  } catch {
+    // 백필 실패는 치명적이지 않음 — 다음 호출에서 다시 시도.
+  }
+}
+
 export async function getOctokitForInstallation(
   installationId: number,
   appConfigId?: number | null,
 ): Promise<Octokit> {
   if (_testOctokit) return _testOctokit;
 
-  const resolvedAppConfigId =
-    appConfigId === undefined ? appConfigIdForInstallation(installationId) : appConfigId;
-  const cacheKey = `${resolvedAppConfigId ?? 'env'}:${installationId}`;
-
+  // installation 은 정확히 하나의 App 에 속하므로 installation 단위로 캐시.
+  const cacheKey = `inst:${installationId}`;
   const cached = _cache.get(cacheKey);
   if (cached && cached.expiresAt - TOKEN_REFRESH_BUFFER_MS > Date.now()) {
     return cached.client;
   }
 
-  const creds = resolveAppCredentials(resolvedAppConfigId);
-  if (!creds) {
+  // 명시 appConfigId(또는 프로젝트 매핑)를 우선하되, 등록된 모든 App(+env)을 후보로 순차 시도.
+  // appConfigId 가 null/오설정이어도 그 installation 을 소유한 App 을 찾아낸다.
+  const explicit =
+    appConfigId === undefined ? appConfigIdForInstallation(installationId) : appConfigId;
+  const candidates = listAppCandidates(explicit);
+  if (candidates.length === 0) {
     throw new Error(
       'GitHub App 자격증명이 없습니다 — 설정에서 App 을 등록하거나 .env 를 설정하세요.',
     );
   }
-  const auth = createAppAuth({ appId: creds.appId, privateKey: creds.privateKey });
-  const { token, expiresAt } = await auth({ type: 'installation', installationId });
-  const client = new Octokit({ auth: token });
-  _cache.set(cacheKey, {
-    client,
-    expiresAt: new Date(expiresAt).getTime(),
-  });
-  return client;
+
+  let lastErr: unknown = null;
+  for (const cand of candidates) {
+    try {
+      const auth = createAppAuth({ appId: cand.appId, privateKey: cand.privateKey });
+      const { token, expiresAt } = await auth({ type: 'installation', installationId });
+      const client = new Octokit({ auth: token });
+      _cache.set(cacheKey, { client, expiresAt: new Date(expiresAt).getTime() });
+      backfillAppConfigId(installationId, cand.appConfigId);
+      return client;
+    } catch (err) {
+      // 이 App 은 해당 installation 을 소유하지 않음(404) 등 → 다음 후보.
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(
+        `installation ${installationId} 에 대한 토큰을 발급할 수 있는 App 을 찾지 못했습니다.`,
+      );
 }
 
 // Phase 8 — App 설치 리포 import. App-level JWT 로 모든 installation 을 나열하고, 각

@@ -179,5 +179,24 @@ export function listAppConfigsForAuth(): AppConfigForAuth[] {
   } catch {
     // env App 없음.
   }
-  return configs;
+  // 같은 appId 중복 제거 (DB·env 양쪽 등록 시).
+  const seen = new Set<string>();
+  return configs.filter((c) => {
+    if (seen.has(c.appId)) return false;
+    seen.add(c.appId);
+    return true;
+  });
+}
+
+// installation 토큰 발급을 시도할 App 후보 — 명시/매핑된 appConfigId 를 맨 앞에 두고
+// 나머지 등록 App(+env)을 폴백으로 붙인다. getOctokitForInstallation 이 순차 시도해
+// 그 installation 을 소유한 App 을 찾는다 (appConfigId 가 null/오설정이어도 자가 복구).
+export function listAppCandidates(
+  explicitAppConfigId: number | null | undefined,
+): AppConfigForAuth[] {
+  const all = listAppConfigsForAuth();
+  if (explicitAppConfigId == null) return all;
+  const explicit = all.filter((c) => c.appConfigId === explicitAppConfigId);
+  const rest = all.filter((c) => c.appConfigId !== explicitAppConfigId);
+  return [...explicit, ...rest];
 }
