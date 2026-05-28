@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { broadcast as broadcastEvent, events } from '@/lib/events';
-import { captureError } from '@/lib/sentry';
 import { handlePushEvent } from '@/lib/project-meta';
 import { logger } from '@/lib/logger';
 import { handleCheckWebhook, handlePullRequestWebhook } from '@/lib/sync';
@@ -97,7 +96,6 @@ async function handlePush(rawBody: string) {
     return NextResponse.json({ ok: true, result });
   } catch (err) {
     logger.error({ source: 'webhook/github', event: 'push', slug, err }, 'handlePushEvent failed');
-    captureError(err, { handler: 'push', slug });
     return NextResponse.json({ error: 'push handler failed' }, { status: 500 });
   }
 }
@@ -126,7 +124,6 @@ async function handlePullRequest(rawBody: string) {
       { source: 'webhook/github', event: 'pull_request', number: payload.pr.number, err },
       'pull_request sync failed',
     );
-    captureError(err, { handler: 'pull_request' });
     return NextResponse.json({ error: 'sync failed' }, { status: 500 });
   }
 }
@@ -157,7 +154,6 @@ async function handleCheck(rawBody: string) {
       { source: 'webhook/github', event: 'check', headSha: payload.headSha, err },
       'check sync failed',
     );
-    captureError(err, { handler: 'check' });
     return NextResponse.json({ error: 'sync failed' }, { status: 500 });
   }
 }
@@ -190,7 +186,6 @@ async function handleReview(rawBody: string) {
       { source: 'webhook/github', event: 'pull_request_review', number: payload.prNumber, err },
       'attemptAddressReview unexpected error',
     );
-    captureError(err, { handler: 'pull_request_review' });
   });
   return NextResponse.json({ ok: true, queued: payload.prNumber });
 }
