@@ -878,6 +878,7 @@ export const ko = {
     title: '에이전트',
     subtitle: '등록된 워크스페이스에서 Claude Code 를 실행합니다.',
     launcher: '에이전트 열기',
+    launcherDrag: '에이전트 열기 (드래그해서 위치 이동)',
     close: '닫기',
     expand: '전체화면',
     collapse: '축소',
