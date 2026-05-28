@@ -152,9 +152,19 @@ function safeApplyRoadmap(prId: number): void {
   }
 }
 
-// 자동 머지 후 head 브랜치 자동 삭제. 실패해도 머지 자체는 영향 없음.
+// 자동 머지 후 head 브랜치 자동 삭제 — 프로젝트의 autoDeleteBranchEnabled 가 켜진 경우만.
+// 회사/조직 레포에서 남의 브랜치를 함부로 지우면 안 되므로 디폴트 OFF. 실패해도 머지엔 영향 없음.
+// (수동 '브랜치 삭제' 버튼은 명시적 액션이라 이 게이트와 무관하게 동작.)
 async function safeDeleteBranch(prId: number): Promise<void> {
   try {
+    const pr = db.select({ repoId: prs.repoId }).from(prs).where(eq(prs.id, prId)).get();
+    if (!pr) return;
+    const project = db
+      .select({ autoDeleteBranchEnabled: projects.autoDeleteBranchEnabled })
+      .from(projects)
+      .where(eq(projects.id, pr.repoId))
+      .get();
+    if (!project?.autoDeleteBranchEnabled) return;
     await deleteMergedBranch(prId);
   } catch (err) {
     console.error(`자동 브랜치 삭제 실패 (PR ${prId}):`, err);

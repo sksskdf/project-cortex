@@ -307,6 +307,11 @@ export async function mergeCluster(clusterId: number): Promise<ClusterMergeResul
       branches.skipped++;
       continue;
     }
+    // 브랜치 자동 삭제 토글 OFF 면 건너뜀 (회사 레포 보호). 디폴트 OFF.
+    if (!row.project.autoDeleteBranchEnabled) {
+      branches.skipped++;
+      continue;
+    }
     const [owner, repo] = row.project.slug.split('/');
     try {
       const r = await deletePRHeadBranch(row.project.installationId, { owner, repo }, m.number);

@@ -28,6 +28,8 @@ type Props = {
   mergeBlockedByCI: boolean;
   // ciPending vs ciFailed 메시지 분기에 사용. null=대기 / false=실패 / true=통과.
   testsPassed: boolean | null;
+  // 자동 머지 정책 — CI 대기 문구를 "자동 머지" vs "직접 머지" 로 분기.
+  autoMergeEnabled: boolean;
 };
 
 type InFlightAction = 'merge' | 'request' | 'close' | null;
@@ -40,6 +42,7 @@ export function PRActions({
   mergeableState,
   mergeBlockedByCI,
   testsPassed,
+  autoMergeEnabled,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
@@ -119,7 +122,9 @@ export function PRActions({
         : mergeBlockedByCI && testsPassed === false
           ? t.pr.actionBar.mergeBlock.ciFailed
           : mergeBlockedByCI
-            ? t.pr.actionBar.mergeBlock.ciPending
+            ? autoMergeEnabled
+              ? t.pr.actionBar.mergeBlock.ciPending
+              : t.pr.actionBar.mergeBlock.ciPendingManual
             : null;
   // 위험 분류 PR 이 아니면 버튼을 렌더 안 함 (canRequestChanges=false).
   // 렌더하는 경우엔 pending/머지됨 외에는 항상 활성.
@@ -150,13 +155,13 @@ export function PRActions({
           <span className="ds-btn__label">{t.pr.actionBar.autoApprove}</span>
         </button>
         {isMergedView ? (
-          // 머지 완료 — 브랜치 자동 삭제. 별도 액션 버튼 없음.
+          // 머지 완료. 브랜치 삭제 여부는 정책에 따르며 머지 액션 결과로 별도 표시.
           <span
             className={`${styles.result} ${styles.resultSuccess}`}
             role="status"
             aria-live="polite"
           >
-            {t.pr.actionBar.mergedWithBranchDeleted}
+            {t.pr.actionBar.merged}
           </span>
         ) : (
           <>

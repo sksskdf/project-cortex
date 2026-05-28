@@ -11,7 +11,7 @@ import {
   updateGithubApp,
   type SaveAppInput,
 } from '@/lib/github-apps';
-import { setProjectAutoMerge } from '@/lib/projects';
+import { setProjectAutoDeleteBranch, setProjectAutoMerge } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
 import { setAiEnabled } from '@/lib/settings';
@@ -118,6 +118,28 @@ export async function toggleProjectAutoMergeAction(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', message };
+  }
+}
+
+// 프로젝트별 브랜치 자동 삭제 토글. 디폴트 OFF — 회사 레포 보호.
+export type ProjectBranchDeleteActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+export async function toggleProjectAutoDeleteBranchAction(
+  id: number,
+  enabled: boolean,
+): Promise<ProjectBranchDeleteActionState> {
+  try {
+    const result = setProjectAutoDeleteBranch(id, enabled);
+    if (result.kind === 'not-found') return { kind: 'not-found' };
+    revalidatePath('/projects');
+    revalidatePath('/');
+    return { kind: 'updated', id: result.id, enabled: result.enabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 

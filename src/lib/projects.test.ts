@@ -7,6 +7,7 @@ import {
   addProjectFromInstallation,
   addProjectManually,
   listAutoMergeProjects,
+  setProjectAutoDeleteBranch,
   setProjectAutoMerge,
 } from './projects';
 
@@ -80,6 +81,30 @@ describe('setProjectAutoMerge', () => {
       .get();
 
     expect((await setProjectAutoMerge(inserted.id, true)).kind).toBe('not-found');
+  });
+});
+
+describe('setProjectAutoDeleteBranch', () => {
+  it('toggles autoDeleteBranchEnabled (default false)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    // 디폴트 OFF.
+    expect(
+      db.select().from(projects).where(eq(projects.id, id)).get()?.autoDeleteBranchEnabled,
+    ).toBe(false);
+
+    const r = setProjectAutoDeleteBranch(id, true);
+    expect(r.kind).toBe('updated');
+    expect(
+      db.select().from(projects).where(eq(projects.id, id)).get()?.autoDeleteBranchEnabled,
+    ).toBe(true);
+  });
+
+  it('returns not-found for missing project', () => {
+    expect(setProjectAutoDeleteBranch(9999, true).kind).toBe('not-found');
   });
 });
 
