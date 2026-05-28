@@ -53,6 +53,9 @@ export const issues = sqliteTable('issues', {
   status: text('status', { enum: ['open', 'in-progress', 'done', 'closed'] })
     .notNull()
     .default('open'),
+  // 이슈/TODO/로드맵 통합 1단계 — 이 이슈가 진척시키는 로드맵 산출물 (옵션).
+  // null 이면 로드맵과 무관한 이슈. roadmapItems 는 아래에서 선언되지만 lazy ref 라 OK.
+  roadmapItemId: integer('roadmap_item_id').references(() => roadmapItems.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
@@ -292,6 +295,8 @@ export const todos = sqliteTable('todos', {
   // 관련 PR / 프로젝트 (옵션). 클릭 시 이동.
   projectId: integer('project_id').references(() => projects.id),
   prId: integer('pr_id').references(() => prs.id),
+  // 이슈/TODO/로드맵 통합 1단계 — 이 TODO 가 속한 이슈 (옵션). null 이면 독립 TODO.
+  issueId: integer('issue_id').references(() => issues.id),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),

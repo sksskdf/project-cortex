@@ -1,11 +1,12 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { todos } from '@/db/schema';
+import { issues, projects, todos } from '@/db/schema';
 import {
   countOpenTodos,
   createTodo,
   deleteTodo,
+  linkTodoToIssue,
   listTodos,
   toggleTodoStatus,
   updateTodo,
@@ -16,8 +17,24 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // todos 가 issues 를 참조하므로 todos → issues → projects 순으로 정리.
   db.delete(todos).run();
+  db.delete(issues).run();
+  db.delete(projects).run();
 });
+
+function seedIssue(): number {
+  const repoId = db
+    .insert(projects)
+    .values({ slug: 'p', name: 'p' })
+    .returning({ id: projects.id })
+    .get().id;
+  return db
+    .insert(issues)
+    .values({ repoId, title: 'issue', spec: 'spec', assigneeKind: 'human', assigneeId: 'me' })
+    .returning({ id: issues.id })
+    .get().id;
+}
 
 describe('createTodo', () => {
   it('creates with defaults', () => {
@@ -84,6 +101,29 @@ describe('updateTodo / deleteTodo', () => {
     if (r.kind !== 'created') throw new Error('setup');
     deleteTodo(r.id);
     expect(listTodos().length).toBe(0);
+  });
+});
+
+describe('linkTodoToIssue', () => {
+  it('이슈 링크 기본값은 null', () => {
+    createTodo({ title: 'x' });
+    expect(listTodos()[0].issueId).toBeNull();
+  });
+
+  it('링크 설정 후 view 에 issueId 노출, null 로 해제', () => {
+    const issueId = seedIssue();
+    const r = createTodo({ title: 'x' });
+    if (r.kind !== 'created') throw new Error('setup');
+
+    expect(linkTodoToIssue(r.id, issueId).kind).toBe('updated');
+    expect(listTodos()[0].issueId).toBe(issueId);
+
+    expect(linkTodoToIssue(r.id, null).kind).toBe('updated');
+    expect(listTodos()[0].issueId).toBeNull();
+  });
+
+  it('없는 todo 는 not-found', () => {
+    expect(linkTodoToIssue(999, null).kind).toBe('not-found');
   });
 });
 

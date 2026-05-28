@@ -5,7 +5,7 @@
 
 import { asc, count, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { agentRuns, issues, projects, prs } from '@/db/schema';
+import { agentRuns, issues, projects, prs, roadmapItems } from '@/db/schema';
 
 export const CLAUDE_ASSIGNEE_ID = 'claude-code';
 
@@ -49,6 +49,15 @@ export function createIssue(
     .returning({ id: issues.id })
     .get();
   return { kind: 'created', id: row.id };
+}
+
+// 이슈/TODO/로드맵 통합 1단계 — 이슈를 로드맵 산출물에 연결 (null 이면 연결 해제).
+// 읽기는 getIssueDetail 의 roadmapItemId/roadmapItemTitle 로.
+export function linkIssueToRoadmapItem(issueId: number, roadmapItemId: number | null): void {
+  db.update(issues)
+    .set({ roadmapItemId, updatedAt: new Date() })
+    .where(eq(issues.id, issueId))
+    .run();
 }
 
 // claude CLI 세션에 처음 보낼 prompt. 이슈 제목 + 수용 기준(spec)을 자연어로 전달.
@@ -164,6 +173,9 @@ export type IssueDetail = {
   assigneeId: string;
   projectSlug: string | null;
   projectName: string | null;
+  // 이슈/TODO/로드맵 통합 1단계 — 연결된 로드맵 산출물 (옵션). 없으면 둘 다 null.
+  roadmapItemId: number | null;
+  roadmapItemTitle: string | null;
   createdAt: Date;
   updatedAt: Date;
   // 위임 이력 — 최신 순. 위임 안 된 이슈는 빈 배열.
@@ -179,6 +191,16 @@ export function getIssueDetail(id: number): IssueDetail | null {
     .from(projects)
     .where(eq(projects.id, row.repoId))
     .get();
+
+  // 연결된 로드맵 산출물 (옵션) — title 만 노출.
+  const roadmapItem =
+    row.roadmapItemId !== null
+      ? (db
+          .select({ title: roadmapItems.title })
+          .from(roadmapItems)
+          .where(eq(roadmapItems.id, row.roadmapItemId))
+          .get() ?? null)
+      : null;
 
   const prNumberById = new Map<number, number>();
   const prRows = db.select({ id: prs.id, number: prs.number }).from(prs).all();
@@ -207,6 +229,8 @@ export function getIssueDetail(id: number): IssueDetail | null {
     assigneeId: row.assigneeId,
     projectSlug: project?.slug ?? null,
     projectName: project?.name ?? null,
+    roadmapItemId: row.roadmapItemId,
+    roadmapItemTitle: roadmapItem?.title ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     runs: runRows.map((r) => ({
