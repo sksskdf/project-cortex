@@ -6,7 +6,13 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { currentUser } from '@/lib/config';
-import { buildDelegatePrompt, createIssue, startAgentRun } from '@/lib/issues';
+import {
+  buildDelegatePrompt,
+  completeIssueDelegation,
+  createIssue,
+  startAgentRun,
+  type CompleteDelegationResult,
+} from '@/lib/issues';
 import { getWorkspace } from '@/lib/workspace';
 
 const schema = z.object({
@@ -81,6 +87,27 @@ export async function createIssueAction(input: {
     revalidatePath('/');
     revalidatePath('/inbox');
     return { kind: 'created', id: result.id, delegate };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 13.4 — 위임 완료 처리(수동). 멈춰있는 agent_run 들을 마감하고 이슈를 done 으로.
+export type CompleteDelegationActionState =
+  | CompleteDelegationResult
+  | { kind: 'error'; message: string };
+
+export async function completeIssueDelegationAction(
+  issueId: number,
+): Promise<CompleteDelegationActionState> {
+  try {
+    const r = completeIssueDelegation(issueId);
+    if (r.kind === 'completed') {
+      revalidatePath(`/issues/${issueId}`);
+      revalidatePath('/issues');
+      revalidatePath('/'); // 대시보드 '진행 중' 카운트.
+    }
+    return r;
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

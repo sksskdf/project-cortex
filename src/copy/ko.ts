@@ -722,6 +722,15 @@ export const ko = {
       runCompleted: '완료',
       runResult: '결과 PR',
       notFound: '이슈를 찾을 수 없습니다.',
+      // Phase 13.4 — 위임 완료 처리. 멈춰있는 세션을 마감하고 이슈를 done 으로.
+      complete: {
+        button: '완료 처리',
+        pending: '처리 중…',
+        confirm: '진행 중 세션을 마감하고 이슈를 완료로 표시할까요?',
+        confirmYes: '완료 처리',
+        confirmNo: '취소',
+        error: '완료 처리에 실패했습니다.',
+      },
     },
   },
   // Phase 11 — TODO 페이지 + 사이드바 위젯.

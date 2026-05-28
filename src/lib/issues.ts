@@ -3,7 +3,7 @@
 // 워크스페이스에서 claude CLI 세션을 spawn 한다 (PTY 서버). 위임 prompt 는
 // buildDelegatePrompt 로 이슈 spec 에서 구성.
 
-import { asc, count, desc, eq, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs, roadmapItems } from '@/db/schema';
 
@@ -83,6 +83,35 @@ export function finishAgentRun(runId: number, ok: boolean): void {
     .set({ status: ok ? 'completed' : 'failed', completedAt: new Date() })
     .where(eq(agentRuns.id, runId))
     .run();
+}
+
+// Phase 13.4 — 위임 완료 처리(수동). 대화형 세션은 사용자가 안 닫으면 pty exit 이 안 와서
+// agent_run 이 'running' 에 고정 → 이슈가 영영 완료 안 되고 대시보드 '진행 중' 카운트가
+// 잔류한다. 이슈 상세의 '완료 처리' 버튼이 이걸 호출해: ① 진행 중(queued/running) run 들을
+// completed 로 마감(카운트 해소) ② 이슈를 done 으로 전환. 멱등 — 이미 done 이면 run 만 정리.
+export type CompleteDelegationResult =
+  | { kind: 'completed'; completedRuns: number }
+  | { kind: 'not-found' };
+
+export function completeIssueDelegation(issueId: number): CompleteDelegationResult {
+  const issue = db.select({ id: issues.id }).from(issues).where(eq(issues.id, issueId)).get();
+  if (!issue) return { kind: 'not-found' };
+
+  const running = db
+    .select({ id: agentRuns.id })
+    .from(agentRuns)
+    .where(and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, ['queued', 'running'])))
+    .all();
+  const now = new Date();
+  for (const r of running) {
+    db.update(agentRuns)
+      .set({ status: 'completed', completedAt: now })
+      .where(eq(agentRuns.id, r.id))
+      .run();
+  }
+
+  db.update(issues).set({ status: 'done', updatedAt: now }).where(eq(issues.id, issueId)).run();
+  return { kind: 'completed', completedRuns: running.length };
 }
 
 export type IssueStatus = 'open' | 'in-progress' | 'done' | 'closed';

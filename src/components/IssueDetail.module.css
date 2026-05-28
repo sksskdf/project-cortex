@@ -31,6 +31,15 @@
   gap: var(--ds-spacing-12);
 }
 
+.titleActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-10);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .title {
   margin: 0;
   font-size: var(--ds-typography-font-size-22);

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { Markdown } from '@/components/Markdown';
+import { IssueCompleteButton } from '@/components/IssueCompleteButton';
 import { formatRelativeAge } from '@/lib/format';
 import type {
   AgentRunView,
@@ -38,9 +39,14 @@ export function IssueDetail({ detail }: { detail: IssueDetailData }) {
       <header className={styles.header}>
         <div className={styles.titleRow}>
           <h1 className={styles.title}>{detail.title}</h1>
-          <span className={`${styles.badge} ${statusClass[detail.status]}`}>
-            {t.issues.status[detail.status]}
-          </span>
+          <div className={styles.titleActions}>
+            {(detail.status === 'open' || detail.status === 'in-progress') && (
+              <IssueCompleteButton issueId={detail.id} />
+            )}
+            <span className={`${styles.badge} ${statusClass[detail.status]}`}>
+              {t.issues.status[detail.status]}
+            </span>
+          </div>
         </div>
         <dl className={styles.meta}>
           {detail.projectSlug && (

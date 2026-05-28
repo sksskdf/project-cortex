@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs, roadmapItems, roadmapPhases } from '@/db/schema';
 import {
+  completeIssueDelegation,
   countOpenIssues,
   finishAgentRun,
   getIssueDetail,
@@ -155,6 +156,42 @@ describe('startAgentRun / finishAgentRun', () => {
     const runId = startAgentRun(seedIssue(repoId, 'x', 'in-progress'));
     finishAgentRun(runId, false);
     expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe('failed');
+  });
+});
+
+describe('completeIssueDelegation', () => {
+  it('마감: running/queued run → completed, 이슈 → done', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'stuck', 'in-progress');
+    const runId = startAgentRun(issueId); // running
+    db.insert(agentRuns)
+      .values({ issueId, agent: 'claude', status: 'queued', startedAt: new Date() })
+      .run();
+
+    const r = completeIssueDelegation(issueId);
+    expect(r.kind).toBe('completed');
+    if (r.kind === 'completed') expect(r.completedRuns).toBe(2);
+
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe(
+      'completed',
+    );
+    expect(db.select().from(issues).where(eq(issues.id, issueId)).get()?.status).toBe('done');
+  });
+
+  it('완료된 run 은 건드리지 않고 이슈만 done (멱등)', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'no-running', 'in-progress');
+    const runId = startAgentRun(issueId);
+    finishAgentRun(runId, true);
+
+    const r = completeIssueDelegation(issueId);
+    expect(r.kind).toBe('completed');
+    if (r.kind === 'completed') expect(r.completedRuns).toBe(0);
+    expect(db.select().from(issues).where(eq(issues.id, issueId)).get()?.status).toBe('done');
+  });
+
+  it('없는 이슈 → not-found', () => {
+    expect(completeIssueDelegation(9999).kind).toBe('not-found');
   });
 });
 
