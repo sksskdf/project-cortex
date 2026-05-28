@@ -3,7 +3,12 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { projects } from '@/db/schema';
-import { addProjectManually, listAutoMergeProjects, setProjectAutoMerge } from './projects';
+import {
+  addProjectFromInstallation,
+  addProjectManually,
+  listAutoMergeProjects,
+  setProjectAutoMerge,
+} from './projects';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -106,5 +111,48 @@ describe('addProjectManually', () => {
     const r = addProjectManually({ slug: 'a/b' });
     expect(r.kind).toBe('duplicate');
     if (r.kind === 'duplicate') expect(r.existingId).toBeGreaterThan(0);
+  });
+});
+
+describe('addProjectFromInstallation', () => {
+  it('새 slug → added (installationId 채워서 삽입)', () => {
+    const r = addProjectFromInstallation({
+      slug: 'acme/web',
+      name: 'Web',
+      installationId: 12345,
+    });
+    expect(r.kind).toBe('added');
+    const row = db.select().from(projects).where(eq(projects.slug, 'acme/web')).get();
+    expect(row?.installationId).toBe(12345);
+    expect(row?.name).toBe('Web');
+  });
+
+  it('수동 등록(installationId=null) 후 import → linked (installationId 채움)', () => {
+    addProjectManually({ slug: 'a/b' });
+    const r = addProjectFromInstallation({ slug: 'a/b', installationId: 999 });
+    expect(r.kind).toBe('linked');
+    const row = db.select().from(projects).where(eq(projects.slug, 'a/b')).get();
+    expect(row?.installationId).toBe(999);
+  });
+
+  it('이미 installationId 가 있으면 already-linked (덮어쓰지 않음)', () => {
+    addProjectFromInstallation({ slug: 'x/y', installationId: 111 });
+    const r = addProjectFromInstallation({ slug: 'x/y', installationId: 222 });
+    expect(r.kind).toBe('already-linked');
+    const row = db.select().from(projects).where(eq(projects.slug, 'x/y')).get();
+    expect(row?.installationId).toBe(111);
+  });
+
+  it('slug/installationId 형식 검증', () => {
+    expect(addProjectFromInstallation({ slug: '', installationId: 1 }).kind).toBe('invalid-slug');
+    expect(addProjectFromInstallation({ slug: 'noslash', installationId: 1 }).kind).toBe(
+      'invalid-slug',
+    );
+    expect(addProjectFromInstallation({ slug: 'a/b', installationId: 0 }).kind).toBe(
+      'invalid-slug',
+    );
+    expect(addProjectFromInstallation({ slug: 'a/b', installationId: -1 }).kind).toBe(
+      'invalid-slug',
+    );
   });
 });

@@ -38,6 +38,68 @@ export async function getOctokitForInstallation(installationId: number): Promise
   return client;
 }
 
+// Phase 8 — App 설치 리포 import. App-level JWT 로 모든 installation 을 나열하고, 각
+// installation 토큰으로 접근 가능한 리포를 모은다. 사용자가 /projects 에서 골라 등록.
+// 테스트 주입은 setOctokit — installation 무관 단일 mock(rest.apps 메서드 제공) 으로 양쪽 분기 흡수.
+export type InstalledRepo = {
+  slug: string;
+  name: string;
+  description: string | null;
+  private: boolean;
+  defaultBranch: string;
+};
+export type InstallationWithRepos = {
+  installationId: number;
+  account: string;
+  accountType: 'Organization' | 'User';
+  repos: InstalledRepo[];
+};
+
+export async function listAppInstallationRepos(): Promise<InstallationWithRepos[]> {
+  // app-level JWT — installation 목록 조회용. 테스트에선 setOctokit 이 반환되어 우회된다.
+  const appOctokit = _testOctokit ?? (await buildAppOctokit());
+  const installations = await appOctokit.paginate(appOctokit.rest.apps.listInstallations, {
+    per_page: 100,
+  });
+
+  const results: InstallationWithRepos[] = [];
+  for (const inst of installations) {
+    const account = inst.account;
+    const accountLogin = account && 'login' in account ? account.login : 'unknown';
+    const accountType =
+      account && 'type' in account && account.type === 'Organization' ? 'Organization' : 'User';
+
+    const instOctokit = await getOctokitForInstallation(inst.id);
+    // 페이지네이션 응답 형태가 wrapped({total_count, repositories}) — paginate 가 풀어준다.
+    const repos = await instOctokit.paginate(
+      instOctokit.rest.apps.listReposAccessibleToInstallation,
+      { per_page: 100 },
+    );
+    results.push({
+      installationId: inst.id,
+      account: accountLogin,
+      accountType,
+      repos: repos.map((r) => ({
+        slug: r.full_name,
+        name: r.name,
+        description: r.description ?? null,
+        private: r.private,
+        defaultBranch: r.default_branch,
+      })),
+    });
+  }
+  return results;
+}
+
+async function buildAppOctokit(): Promise<Octokit> {
+  const auth = createAppAuth({
+    appId: env.githubAppId(),
+    privateKey: env.githubAppPrivateKey(),
+  });
+  const { token } = await auth({ type: 'app' });
+  return new Octokit({ auth: token });
+}
+
 export type RepoRef = { owner: string; repo: string };
 
 export type GitHubPRDetails = {
