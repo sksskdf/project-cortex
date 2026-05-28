@@ -2,7 +2,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { getDashboardStats } from './dashboard';
+import { getDashboardStats, getTodayRows } from './dashboard';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -17,8 +17,12 @@ beforeEach(() => {
   db.delete(projects).run();
 });
 
-function setupProject(slug = 'acme/web'): number {
-  return db.insert(projects).values({ slug, name: slug }).returning({ id: projects.id }).get().id;
+function setupProject(slug = 'acme/web', muted = false): number {
+  return db
+    .insert(projects)
+    .values({ slug, name: slug, muted })
+    .returning({ id: projects.id })
+    .get().id;
 }
 
 function setupPR(opts: {
@@ -240,5 +244,61 @@ describe('getDashboardStats — 실 delta 계산', () => {
 
     const s = await getDashboardStats();
     expect(s.autoMergedThisWeek.value).toBe(1);
+  });
+
+  it('pendingReview — 뮤트된 프로젝트의 review-needed PR 은 stat·delta 에서 제외', async () => {
+    const now = Date.now();
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    // 활성: 이번 주 1건.
+    setupPR({
+      repoId: active,
+      number: 1,
+      status: 'review-needed',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    // 뮤트: 이번 주 2건 — value/delta 어디에도 잡히면 안 됨.
+    setupPR({
+      repoId: muted,
+      number: 2,
+      status: 'review-needed',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId: muted,
+      number: 3,
+      status: 'review-needed',
+      createdAt: new Date(now - 2 * ONE_DAY_MS),
+    });
+
+    const s = await getDashboardStats();
+    expect(s.pendingReview.value).toBe(1);
+  });
+});
+
+describe('getTodayRows — 지금 처리할 것 위젯', () => {
+  it('뮤트된 프로젝트의 PR 은 위젯에 노출되지 않음', async () => {
+    const now = Date.now();
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    const visible = setupPR({
+      repoId: active,
+      number: 1,
+      status: 'review-needed',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      confidence: 70,
+      analyzedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId: muted,
+      number: 2,
+      status: 'review-needed',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      confidence: 70,
+      analyzedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+
+    const rows = await getTodayRows(10);
+    expect(rows.map((r) => Number(r.id.replace('pr-', '')))).toEqual([visible]);
   });
 });

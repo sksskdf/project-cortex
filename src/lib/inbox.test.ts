@@ -2,7 +2,15 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { deriveRowActions, listInboxQueue, type InboxCategoryId } from './inbox';
+import { currentUser } from '@/lib/config';
+import {
+  deriveRowActions,
+  getInboxCategories,
+  getInboxProjects,
+  getSidebarCounts,
+  listInboxQueue,
+  type InboxCategoryId,
+} from './inbox';
 
 describe('deriveRowActions', () => {
   it('installation 없는 시드 PR — 모두 비활성', () => {
@@ -51,8 +59,12 @@ beforeEach(() => {
   db.delete(projects).run();
 });
 
-function setupProject(slug = 'acme/web'): number {
-  return db.insert(projects).values({ slug, name: slug }).returning({ id: projects.id }).get().id;
+function setupProject(slug = 'acme/web', muted = false): number {
+  return db
+    .insert(projects)
+    .values({ slug, name: slug, muted })
+    .returning({ id: projects.id })
+    .get().id;
 }
 
 function setupPR(opts: { repoId: number; number: number; flags?: string[]; confidence?: number }) {
@@ -304,5 +316,94 @@ describe('listInboxQueue — 카테고리 필터', () => {
 
     const items = await listInboxQueue('done');
     expect(items[0]?.reason.tone).toBe('info');
+  });
+});
+
+describe('뮤트 프로젝트 — 인박스 표면에서 완전 제외', () => {
+  it('listInboxQueue — 뮤트된 프로젝트의 review-needed PR 은 큐에서 빠짐', async () => {
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    const visible = setupPR({ repoId: active, number: 1, flags: [] });
+    setupPR({ repoId: muted, number: 2, flags: [] });
+
+    const ids = (await listInboxQueue('all')).map((p) => Number(p.id.replace('pr-', '')));
+    expect(ids).toEqual([visible]);
+  });
+
+  it('getSidebarCounts.inbox — 뮤트된 프로젝트 PR 은 카운트에서 제외', async () => {
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    setupPR({ repoId: active, number: 1, flags: [] });
+    setupPR({ repoId: active, number: 2, flags: [] });
+    setupPR({ repoId: muted, number: 3, flags: [] });
+    setupPR({ repoId: muted, number: 4, flags: [] });
+
+    const counts = await getSidebarCounts();
+    // 활성 프로젝트의 2건만 카운트 (뮤트 2건 제외). projects 카운트는 뮤트 포함 전체.
+    expect(counts.inbox).toBe(2);
+    expect(counts.projects).toBe(2);
+  });
+
+  it('getInboxProjects — 뮤트된 프로젝트는 레일에서 제외', async () => {
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    setupPR({ repoId: active, number: 1, flags: [] });
+    setupPR({ repoId: muted, number: 2, flags: [] });
+
+    const rail = await getInboxProjects();
+    expect(rail.map((p) => p.id)).toEqual(['acme/web']);
+  });
+
+  it('getInboxCategories — all/flagged/mentioned 카운트가 뮤트 PR 제외', async () => {
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    // 활성: 일반 1 + flagged(payment) 1.
+    setupPR({ repoId: active, number: 1, flags: [] });
+    setupPR({ repoId: active, number: 2, flags: ['payment-domain'] });
+    // 뮤트: 일반 1 + flagged 1 — 카운트에 잡히면 안 됨.
+    setupPR({ repoId: muted, number: 3, flags: [] });
+    setupPR({ repoId: muted, number: 4, flags: ['payment-domain'] });
+    // 멘션: 활성 1 + 뮤트 1.
+    const mentionBody = `cc @${currentUser.githubLogin}`;
+    const activeMention = db
+      .insert(prs)
+      .values({
+        repoId: active,
+        number: 5,
+        title: 'mention active',
+        body: mentionBody,
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-5',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+      })
+      .returning({ id: prs.id })
+      .get();
+    db.insert(prs)
+      .values({
+        repoId: muted,
+        number: 6,
+        title: 'mention muted',
+        body: mentionBody,
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-6',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+      })
+      .run();
+    void activeMention;
+
+    const cats = await getInboxCategories();
+    const byId = Object.fromEntries(cats.map((c) => [c.id, c.count]));
+    // all: 활성 일반1 + flagged1 + mention1 = 3 (뮤트 3건 제외).
+    expect(byId.all).toBe(3);
+    expect(byId.flagged).toBe(1);
+    expect(byId.mentioned).toBe(1);
   });
 });

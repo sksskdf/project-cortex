@@ -80,10 +80,12 @@ const PROJECT_DOT: Record<string, InboxProject['dot']> = {
 };
 
 export async function getSidebarCounts(): Promise<SidebarCounts> {
+  // 뮤트된 프로젝트의 PR 은 인박스 카운트에서 제외 — listInboxQueue 와 동일 룰.
   const inboxCount = db
     .select({ n: count() })
     .from(prs)
-    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId), eq(projects.muted, false)))
     .get();
 
   const projectsCount = db.select({ n: count() }).from(projects).get();
@@ -271,14 +273,17 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
     .where(inArray(prs.status, ['merged', 'closed']))
     .get();
 
+  // mentioned 는 review-needed 기반 카운트 — 뮤트된 프로젝트 PR 제외 (listInboxQueue 와 동일).
   const mentionedPrs = db
     .select({ n: count() })
     .from(prs)
+    .innerJoin(projects, eq(prs.repoId, projects.id))
     .where(
       and(
         eq(prs.status, 'review-needed'),
         isNull(prs.clusterId),
         like(prs.body, `%@${currentUser.githubLogin}%`),
+        eq(projects.muted, false),
       ),
     )
     .get();
@@ -295,6 +300,7 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
 }
 
 export async function getInboxProjects(): Promise<InboxProject[]> {
+  // 뮤트된 프로젝트는 인박스 프로젝트 레일에서 제외 — 인박스 표면에서 완전히 숨김.
   const rows = db
     .select({
       slug: projects.slug,
@@ -303,6 +309,7 @@ export async function getInboxProjects(): Promise<InboxProject[]> {
     })
     .from(projects)
     .leftJoin(prs, eq(prs.repoId, projects.id))
+    .where(eq(projects.muted, false))
     .groupBy(projects.id, projects.slug, projects.name)
     .orderBy(desc(count(prs.id)))
     .all();

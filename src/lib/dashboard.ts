@@ -60,26 +60,33 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const weekAgo = new Date(now - ONE_WEEK_MS);
   const twoWeeksAgo = new Date(now - 2 * ONE_WEEK_MS);
 
+  // 뮤트된 프로젝트의 PR 은 '검토 대기' stat 및 delta 에서 제외 — 인박스/대시보드 표면 일관성.
   const pending = db
     .select({ n: count() })
     .from(prs)
-    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId), eq(projects.muted, false)))
     .get();
 
-  // pendingReview delta — 이번 7일 신규 review-needed vs 지난 7일.
+  // pendingReview delta — 이번 7일 신규 review-needed vs 지난 7일 (뮤트 제외).
   const pendingThisWeek = db
     .select({ n: count() })
     .from(prs)
-    .where(and(eq(prs.status, 'review-needed'), gte(prs.createdAt, weekAgo)))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(
+      and(eq(prs.status, 'review-needed'), gte(prs.createdAt, weekAgo), eq(projects.muted, false)),
+    )
     .get();
   const pendingLastWeek = db
     .select({ n: count() })
     .from(prs)
+    .innerJoin(projects, eq(prs.repoId, projects.id))
     .where(
       and(
         eq(prs.status, 'review-needed'),
         gte(prs.createdAt, twoWeeksAgo),
         lt(prs.createdAt, weekAgo),
+        eq(projects.muted, false),
       ),
     )
     .get();
@@ -205,7 +212,8 @@ export async function getTodayRows(limit = 3): Promise<PR[]> {
     // 최신 SHA 의 preReview 1건만 — 과거 SHA 의 행들로 PR 이 중복되지 않게.
     .leftJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .leftJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
-    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId)))
+    // 뮤트된 프로젝트의 PR 은 대시보드 '지금 처리할 것' 위젯에서 제외 — 인박스 룰과 동일.
+    .where(and(eq(prs.status, 'review-needed'), isNull(prs.clusterId), eq(projects.muted, false)))
     .all();
 
   const items: PR[] = rows.map((row) => {
