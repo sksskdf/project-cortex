@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import { toggleProjectAutoMergeAction, type ProjectAutoMergeActionState } from '@/actions/settings';
 import type { ProjectAutoMergeRow } from '@/lib/projects';
+import { ToggleSwitch } from './ToggleSwitch';
 import styles from './ProjectAutoMergeToggle.module.css';
 
 export function ProjectAutoMergeToggle({ row }: { row: ProjectAutoMergeRow }) {
@@ -24,49 +25,35 @@ export function ProjectAutoMergeToggle({ row }: { row: ProjectAutoMergeRow }) {
     });
   }
 
+  // 에러/미발견은 스위치 인라인 에러로, 성공 메시지(재트라이아지 수)는 행 아래에 표시.
+  const error =
+    state.kind === 'error'
+      ? t.settings.autoMerge.result.error(state.message)
+      : state.kind === 'not-found'
+        ? t.settings.autoMerge.result.notFound
+        : undefined;
+
   return (
     <div className={styles.wrap}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={optimisticEnabled}
-        aria-busy={pending}
-        disabled={pending}
-        onClick={onToggle}
-        aria-label={t.projects.autoMergeAria(optimisticEnabled)}
-        title={t.projects.autoMergeAria(optimisticEnabled)}
-        className={`ds-btn ds-btn--md ${optimisticEnabled ? 'ds-btn--filled-blue' : 'ds-btn--outlined-basic'}`}
-      >
-        <span className="ds-btn__label">
-          {t.projects.action.autoMerge} {optimisticEnabled ? t.settings.ai.on : t.settings.ai.off}
+      <ToggleSwitch
+        label={t.projects.action.autoMerge}
+        checked={optimisticEnabled}
+        busy={pending}
+        onToggle={onToggle}
+        ariaLabel={t.projects.autoMergeAria(optimisticEnabled)}
+        error={error}
+      />
+      {state.kind === 'updated' ? (
+        <span
+          className={`${styles.result} ${styles.resultSuccess}`}
+          role="status"
+          aria-live="polite"
+        >
+          {state.enabled
+            ? t.settings.autoMerge.result.enabled(row.slug, state.retriagedCount)
+            : t.settings.autoMerge.result.disabled(row.slug)}
         </span>
-      </button>
-      <ToggleResult state={state} slug={row.slug} />
+      ) : null}
     </div>
-  );
-}
-
-function ToggleResult({ state, slug }: { state: ProjectAutoMergeActionState; slug: string }) {
-  if (state.kind === 'idle') return null;
-  if (state.kind === 'updated') {
-    return (
-      <span className={`${styles.result} ${styles.resultSuccess}`} role="status" aria-live="polite">
-        {state.enabled
-          ? t.settings.autoMerge.result.enabled(slug, state.retriagedCount)
-          : t.settings.autoMerge.result.disabled(slug)}
-      </span>
-    );
-  }
-  if (state.kind === 'not-found') {
-    return (
-      <span className={`${styles.result} ${styles.resultError}`} role="alert">
-        {t.settings.autoMerge.result.notFound}
-      </span>
-    );
-  }
-  return (
-    <span className={`${styles.result} ${styles.resultError}`} role="alert">
-      {t.settings.autoMerge.result.error(state.message)}
-    </span>
   );
 }

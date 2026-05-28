@@ -10,7 +10,7 @@ import {
   toggleProjectAutoResolveConflictsAction,
   type ProjectAutoResolveActionState,
 } from '@/actions/settings';
-import styles from './ProjectAutoMergeToggle.module.css';
+import { ToggleSwitch } from './ToggleSwitch';
 
 export function ProjectAutoResolveToggle({ id, enabled }: { id: number; enabled: boolean }) {
   const [pending, startTransition] = useTransition();
@@ -30,27 +30,13 @@ export function ProjectAutoResolveToggle({ id, enabled }: { id: number; enabled:
   }
 
   return (
-    <div className={styles.wrap}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={optimisticEnabled}
-        aria-busy={pending}
-        disabled={pending}
-        onClick={onToggle}
-        aria-label={t.projects.autoResolveAria(optimisticEnabled)}
-        title={t.projects.autoResolveAria(optimisticEnabled)}
-        className={`ds-btn ds-btn--md ${optimisticEnabled ? 'ds-btn--filled-blue' : 'ds-btn--outlined-basic'}`}
-      >
-        <span className="ds-btn__label">
-          {t.projects.action.autoResolve} {optimisticEnabled ? t.settings.ai.on : t.settings.ai.off}
-        </span>
-      </button>
-      {state.kind === 'error' ? (
-        <span className={`${styles.result} ${styles.resultError}`} role="alert">
-          {t.settings.autoMerge.result.error(state.message)}
-        </span>
-      ) : null}
-    </div>
+    <ToggleSwitch
+      label={t.projects.action.autoResolve}
+      checked={optimisticEnabled}
+      busy={pending}
+      onToggle={onToggle}
+      ariaLabel={t.projects.autoResolveAria(optimisticEnabled)}
+      error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
+    />
   );
 }

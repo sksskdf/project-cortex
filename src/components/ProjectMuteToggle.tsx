@@ -6,7 +6,7 @@
 import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import { toggleProjectMutedAction, type ProjectMuteActionState } from '@/actions/settings';
-import styles from './ProjectAutoMergeToggle.module.css';
+import { ToggleSwitch } from './ToggleSwitch';
 
 export function ProjectMuteToggle({ id, muted }: { id: number; muted: boolean }) {
   const [pending, startTransition] = useTransition();
@@ -25,29 +25,16 @@ export function ProjectMuteToggle({ id, muted }: { id: number; muted: boolean })
     });
   }
 
-  // 뮤트 상태면 '관리 시작'(채워진 버튼, 권유), 활성 상태면 '뮤트'(외곽선, 부가).
+  // 마스터 스위치 'Cortex 관리' — 켜짐=관리 중(muted=false), 끄면 뮤트.
+  // 이 스위치가 OFF 면 나머지 자동화는 의미 없으므로 그룹 맨 앞에 둔다.
   return (
-    <div className={styles.wrap}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={!optimisticMuted}
-        aria-busy={pending}
-        disabled={pending}
-        onClick={onToggle}
-        aria-label={t.projects.muteAria(optimisticMuted)}
-        title={t.projects.muteAria(optimisticMuted)}
-        className={`ds-btn ds-btn--md ${optimisticMuted ? 'ds-btn--filled-blue' : 'ds-btn--outlined-basic'}`}
-      >
-        <span className="ds-btn__label">
-          {optimisticMuted ? t.projects.action.manage : t.projects.action.mute}
-        </span>
-      </button>
-      {state.kind === 'error' ? (
-        <span className={`${styles.result} ${styles.resultError}`} role="alert">
-          {t.settings.autoMerge.result.error(state.message)}
-        </span>
-      ) : null}
-    </div>
+    <ToggleSwitch
+      label={t.projects.action.manageSwitch}
+      checked={!optimisticMuted}
+      busy={pending}
+      onToggle={onToggle}
+      ariaLabel={t.projects.muteAria(optimisticMuted)}
+      error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
+    />
   );
 }

@@ -6,7 +6,7 @@
 import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import { toggleProjectAiReviewAction, type ProjectAiReviewActionState } from '@/actions/settings';
-import styles from './ProjectAutoMergeToggle.module.css';
+import { ToggleSwitch } from './ToggleSwitch';
 
 export function ProjectAiReviewToggle({ id, enabled }: { id: number; enabled: boolean }) {
   const [pending, startTransition] = useTransition();
@@ -26,27 +26,13 @@ export function ProjectAiReviewToggle({ id, enabled }: { id: number; enabled: bo
   }
 
   return (
-    <div className={styles.wrap}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={optimisticEnabled}
-        aria-busy={pending}
-        disabled={pending}
-        onClick={onToggle}
-        aria-label={t.projects.aiReviewAria(optimisticEnabled)}
-        title={t.projects.aiReviewAria(optimisticEnabled)}
-        className={`ds-btn ds-btn--md ${optimisticEnabled ? 'ds-btn--filled-blue' : 'ds-btn--outlined-basic'}`}
-      >
-        <span className="ds-btn__label">
-          {t.projects.action.aiReview} {optimisticEnabled ? t.settings.ai.on : t.settings.ai.off}
-        </span>
-      </button>
-      {state.kind === 'error' ? (
-        <span className={`${styles.result} ${styles.resultError}`} role="alert">
-          {t.settings.autoMerge.result.error(state.message)}
-        </span>
-      ) : null}
-    </div>
+    <ToggleSwitch
+      label={t.projects.action.aiReview}
+      checked={optimisticEnabled}
+      busy={pending}
+      onToggle={onToggle}
+      ariaLabel={t.projects.aiReviewAria(optimisticEnabled)}
+      error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
+    />
   );
 }

@@ -90,13 +90,22 @@ function ProjectCard({
         </span>
       </div>
 
+      <div className={styles.toggleGroup}>
+        <span className={styles.toggleCaption}>{t.projects.automation}</span>
+        {/* 마스터 스위치 'Cortex 관리' — 나머지 자동화를 gating 하므로 맨 앞에 분리. */}
+        <div className={styles.masterSwitch}>
+          <ProjectMuteToggle id={row.id} muted={row.muted} />
+        </div>
+        {/* 뮤트 시 하위 자동화 스위치를 흐리게 — 관리 OFF 면 동작하지 않음을 시각화. */}
+        <div className={`${styles.switches} ${row.muted ? styles.switchesDimmed : ''}`}>
+          <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} />
+          <ProjectAutoMergeToggle row={row} />
+          <ProjectAutoResolveToggle id={row.id} enabled={row.autoResolveConflictsEnabled} />
+          <ProjectBranchDeleteToggle id={row.id} enabled={row.autoDeleteBranchEnabled} />
+        </div>
+      </div>
+
       <div className={styles.actionRow}>
-        <ProjectMuteToggle id={row.id} muted={row.muted} />
-        <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} />
-        <ProjectAutoMergeToggle row={row} />
-        <ProjectAutoResolveToggle id={row.id} enabled={row.autoResolveConflictsEnabled} />
-        <ProjectBranchDeleteToggle id={row.id} enabled={row.autoDeleteBranchEnabled} />
-        <ProjectReconcileButton projectId={row.id} />
         <button
           type="button"
           className="ds-btn ds-btn--md ds-btn--filled-blue"
@@ -105,6 +114,7 @@ function ProjectCard({
         >
           <span className="ds-btn__label">{t.projects.drawer.open}</span>
         </button>
+        <ProjectReconcileButton projectId={row.id} />
       </div>
 
       <WorkspaceCard projectId={row.id} workspace={card.workspace} />
