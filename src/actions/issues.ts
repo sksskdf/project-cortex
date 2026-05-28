@@ -6,7 +6,15 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { currentUser } from '@/lib/config';
-import { buildDelegatePrompt, createIssue, startAgentRun } from '@/lib/issues';
+import {
+  buildDelegatePrompt,
+  completeIssueDelegation,
+  createIssue,
+  linkIssueToRoadmapItem,
+  startAgentRun,
+  type CompleteDelegationResult,
+} from '@/lib/issues';
+import { buildCortexContextPreamble } from '@/lib/cortex-context';
 import { getWorkspace } from '@/lib/workspace';
 
 const schema = z.object({
@@ -63,7 +71,8 @@ export async function createIssueAction(input: {
 
     let delegate: DelegateInfo | null = null;
     if (delegateToClaude) {
-      const prompt = buildDelegatePrompt(title, spec);
+      // Phase 13.6 — Cortex 컨텍스트(컨벤션 안내 + 로드맵 요약)를 작업 지시 앞에 주입.
+      const prompt = buildCortexContextPreamble(repoId) + buildDelegatePrompt(title, spec);
       // 레포에 등록된 로컬 워크스페이스가 있으면 세션을 자동 spawn 할 수 있다 — agent_run 을
       // running 으로 만들고 autoStart 정보를 반환. 없으면 자동 실행 불가 → prompt 만(수동 폴백).
       const workspace = getWorkspace(repoId);
@@ -81,6 +90,44 @@ export async function createIssueAction(input: {
     revalidatePath('/');
     revalidatePath('/inbox');
     return { kind: 'created', id: result.id, delegate };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 13.4 — 위임 완료 처리(수동). 멈춰있는 agent_run 들을 마감하고 이슈를 done 으로.
+export type CompleteDelegationActionState =
+  | CompleteDelegationResult
+  | { kind: 'error'; message: string };
+
+export async function completeIssueDelegationAction(
+  issueId: number,
+): Promise<CompleteDelegationActionState> {
+  try {
+    const r = completeIssueDelegation(issueId);
+    if (r.kind === 'completed') {
+      revalidatePath(`/issues/${issueId}`);
+      revalidatePath('/issues');
+      revalidatePath('/'); // 대시보드 '진행 중' 카운트.
+    }
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 18 — 이슈를 로드맵 산출물에 연결/해제. roadmapItemId=null 이면 연결 해제.
+export type LinkIssueActionState = { kind: 'linked' } | { kind: 'error'; message: string };
+
+export async function linkIssueToRoadmapItemAction(
+  issueId: number,
+  roadmapItemId: number | null,
+): Promise<LinkIssueActionState> {
+  try {
+    linkIssueToRoadmapItem(issueId, roadmapItemId);
+    revalidatePath(`/issues/${issueId}`);
+    revalidatePath('/issues');
+    return { kind: 'linked' };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

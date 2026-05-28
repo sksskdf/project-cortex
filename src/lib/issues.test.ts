@@ -4,10 +4,12 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs, roadmapItems, roadmapPhases } from '@/db/schema';
 import {
+  completeIssueDelegation,
   countOpenIssues,
   finishAgentRun,
   getIssueDetail,
   linkIssueToRoadmapItem,
+  listIssueOptions,
   listIssues,
   startAgentRun,
 } from './issues';
@@ -158,6 +160,42 @@ describe('startAgentRun / finishAgentRun', () => {
   });
 });
 
+describe('completeIssueDelegation', () => {
+  it('마감: running/queued run → completed, 이슈 → done', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'stuck', 'in-progress');
+    const runId = startAgentRun(issueId); // running
+    db.insert(agentRuns)
+      .values({ issueId, agent: 'claude', status: 'queued', startedAt: new Date() })
+      .run();
+
+    const r = completeIssueDelegation(issueId);
+    expect(r.kind).toBe('completed');
+    if (r.kind === 'completed') expect(r.completedRuns).toBe(2);
+
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe(
+      'completed',
+    );
+    expect(db.select().from(issues).where(eq(issues.id, issueId)).get()?.status).toBe('done');
+  });
+
+  it('완료된 run 은 건드리지 않고 이슈만 done (멱등)', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'no-running', 'in-progress');
+    const runId = startAgentRun(issueId);
+    finishAgentRun(runId, true);
+
+    const r = completeIssueDelegation(issueId);
+    expect(r.kind).toBe('completed');
+    if (r.kind === 'completed') expect(r.completedRuns).toBe(0);
+    expect(db.select().from(issues).where(eq(issues.id, issueId)).get()?.status).toBe('done');
+  });
+
+  it('없는 이슈 → not-found', () => {
+    expect(completeIssueDelegation(9999).kind).toBe('not-found');
+  });
+});
+
 describe('getIssueDetail', () => {
   it('returns null for a missing issue', () => {
     expect(getIssueDetail(999)).toBeNull();
@@ -249,5 +287,30 @@ describe('getIssueDetail', () => {
     expect(detail!.runs[0].resultPrNumber).toBe(7);
     expect(detail!.runs[1].status).toBe('failed');
     expect(detail!.runs[1].resultPrNumber).toBeNull();
+  });
+
+  it('exposes projectId', () => {
+    const repoId = seedProject('proj');
+    const issueId = seedIssue(repoId, 'has project');
+    expect(getIssueDetail(issueId)!.projectId).toBe(repoId);
+  });
+});
+
+describe('listIssueOptions', () => {
+  it('returns id + title + project slug, newest-first', () => {
+    const repoId = seedProject('cortex');
+    seedIssue(repoId, 'older');
+    seedIssue(repoId, 'newer');
+
+    const opts = listIssueOptions();
+    expect(opts).toHaveLength(2);
+    // 최신 순 — 큰 id 먼저.
+    expect(opts[0].title).toBe('newer');
+    expect(opts[0].projectSlug).toBe('cortex');
+    expect(opts[1].title).toBe('older');
+  });
+
+  it('returns empty when no issues', () => {
+    expect(listIssueOptions()).toEqual([]);
   });
 });

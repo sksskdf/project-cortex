@@ -4,6 +4,7 @@
 // 모든 lib 호출처가 매번 getSettings() 를 읽음.
 
 import { revalidatePath } from 'next/cache';
+import { installCortexSkill } from '@/lib/cortex-skill';
 import {
   createGithubApp,
   deleteGithubApp,
@@ -29,6 +30,21 @@ export async function toggleAiEnabledAction(enabled: boolean): Promise<SettingsA
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', message };
+  }
+}
+
+// Phase 13.6 — Cortex 워크플로 스킬을 ~/.claude/skills/cortex 에 설치/업데이트.
+// 설치하면 모든 claude 세션(불러온 프로젝트 포함)에서 Cortex 컨벤션을 on-demand 로 참조.
+export type InstallSkillActionState =
+  | { kind: 'installed'; path: string }
+  | { kind: 'up-to-date'; path: string }
+  | { kind: 'error'; message: string };
+
+export async function installCortexSkillAction(): Promise<InstallSkillActionState> {
+  try {
+    return installCortexSkill();
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 

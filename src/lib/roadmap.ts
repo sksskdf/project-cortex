@@ -325,6 +325,67 @@ export function getProjectProgress(projectId: number): ProjectProgress {
   };
 }
 
+// 이슈→로드맵 산출물 연결 셀렉터용 — 프로젝트의 모든 산출물을 Phase 순서대로 평탄화.
+// (id + 제목 + 소속 Phase 키/제목 + 상태). Phase sortOrder → item sortOrder 순.
+export type RoadmapItemOption = {
+  id: number;
+  title: string;
+  phaseKey: string;
+  phaseTitle: string;
+  status: RoadmapStatus;
+};
+
+export function listRoadmapItemOptions(projectId: number): RoadmapItemOption[] {
+  const phaseRows = db
+    .select({
+      id: roadmapPhases.id,
+      key: roadmapPhases.key,
+      title: roadmapPhases.title,
+      sortOrder: roadmapPhases.sortOrder,
+    })
+    .from(roadmapPhases)
+    .where(eq(roadmapPhases.projectId, projectId))
+    .orderBy(asc(roadmapPhases.sortOrder), asc(roadmapPhases.id))
+    .all();
+  if (phaseRows.length === 0) return [];
+
+  const phaseById = new Map(phaseRows.map((p) => [p.id, p]));
+  const itemRows = db
+    .select({
+      id: roadmapItems.id,
+      phaseId: roadmapItems.phaseId,
+      title: roadmapItems.title,
+      status: roadmapItems.status,
+      sortOrder: roadmapItems.sortOrder,
+    })
+    .from(roadmapItems)
+    .where(
+      inArray(
+        roadmapItems.phaseId,
+        phaseRows.map((p) => p.id),
+      ),
+    )
+    .all();
+
+  const phaseSort = (phaseId: number) => phaseById.get(phaseId)?.sortOrder ?? 0;
+  return itemRows
+    .slice()
+    .sort(
+      (a, b) =>
+        phaseSort(a.phaseId) - phaseSort(b.phaseId) || a.sortOrder - b.sortOrder || a.id - b.id,
+    )
+    .map((item) => {
+      const phase = phaseById.get(item.phaseId);
+      return {
+        id: item.id,
+        title: item.title,
+        phaseKey: phase?.key ?? '',
+        phaseTitle: phase?.title ?? '',
+        status: item.status as RoadmapStatus,
+      };
+    });
+}
+
 // CRUD — server actions 가 호출하는 동기 함수들.
 
 export function createPhase(input: {

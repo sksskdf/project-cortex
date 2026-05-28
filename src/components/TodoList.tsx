@@ -5,7 +5,13 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
-import { createTodoAction, deleteTodoAction, toggleTodoStatusAction } from '@/actions/todos';
+import {
+  createTodoAction,
+  deleteTodoAction,
+  linkTodoToIssueAction,
+  toggleTodoStatusAction,
+} from '@/actions/todos';
+import type { IssueOption } from '@/lib/issues';
 import type { TodoPriority, TodoView } from '@/lib/todos';
 import styles from './TodoList.module.css';
 
@@ -23,11 +29,14 @@ type ProjectFilter = number | 'all' | 'personal';
 export function TodoList({
   todos,
   projects,
+  issues,
 }: {
   todos: ReadonlyArray<TodoView>;
   projects: ReadonlyArray<ProjectOption>;
+  issues: ReadonlyArray<IssueOption>;
 }) {
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
+  const issueById = new Map(issues.map((i) => [i.id, i]));
 
   const visible = todos.filter((todo) => {
     if (projectFilter === 'personal') return todo.projectId === null;
@@ -71,7 +80,7 @@ export function TodoList({
         ) : (
           <ul className={styles.list}>
             {open.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} />
+              <TodoRow key={todo.id} todo={todo} issues={issues} issueById={issueById} />
             ))}
           </ul>
         )}
@@ -85,7 +94,7 @@ export function TodoList({
           </header>
           <ul className={`${styles.list} ${styles.listDone}`}>
             {done.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} />
+              <TodoRow key={todo.id} todo={todo} issues={issues} issueById={issueById} />
             ))}
           </ul>
         </section>
@@ -164,7 +173,15 @@ function AddTodoForm({ projects }: { projects: ReadonlyArray<ProjectOption> }) {
   );
 }
 
-function TodoRow({ todo }: { todo: TodoView }) {
+function TodoRow({
+  todo,
+  issues,
+  issueById,
+}: {
+  todo: TodoView;
+  issues: ReadonlyArray<IssueOption>;
+  issueById: Map<number, IssueOption>;
+}) {
   const [pending, startTransition] = useTransition();
 
   function onToggle() {
@@ -179,6 +196,14 @@ function TodoRow({ todo }: { todo: TodoView }) {
       await deleteTodoAction(todo.id);
     });
   }
+
+  function onLinkIssue(issueId: number | null) {
+    startTransition(async () => {
+      await linkTodoToIssueAction(todo.id, issueId);
+    });
+  }
+
+  const linkedIssue = todo.issueId !== null ? (issueById.get(todo.issueId) ?? null) : null;
 
   return (
     <li className={`${styles.row} ${todo.status === 'done' ? styles.rowDone : ''}`}>
@@ -201,6 +226,40 @@ function TodoRow({ todo }: { todo: TodoView }) {
           <Link href={`/pr/${todo.prId}`} className={styles.prLink}>
             {t.todos.meta.pr(todo.prNumber)}
           </Link>
+        )}
+        {linkedIssue !== null ? (
+          <span className={styles.issueChip}>
+            <Link href={`/issues/${linkedIssue.id}`} className={styles.prLink}>
+              {t.todos.issueLink.linked(linkedIssue.title)}
+            </Link>
+            <button
+              type="button"
+              className={styles.issueClear}
+              onClick={() => onLinkIssue(null)}
+              disabled={pending}
+              aria-label={t.todos.issueLink.clear}
+              title={t.todos.issueLink.clear}
+            >
+              ×
+            </button>
+          </span>
+        ) : (
+          issues.length > 0 && (
+            <select
+              className={styles.issueSelect}
+              value=""
+              onChange={(e) => onLinkIssue(e.target.value === '' ? null : Number(e.target.value))}
+              disabled={pending}
+              aria-label={t.todos.issueLink.label}
+            >
+              <option value="">{t.todos.issueLink.none}</option>
+              {issues.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.title}
+                </option>
+              ))}
+            </select>
+          )
         )}
       </div>
       <button
