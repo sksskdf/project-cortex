@@ -11,7 +11,11 @@ import {
   updateGithubApp,
   type SaveAppInput,
 } from '@/lib/github-apps';
-import { setProjectAutoDeleteBranch, setProjectAutoMerge } from '@/lib/projects';
+import {
+  setProjectAiReview,
+  setProjectAutoDeleteBranch,
+  setProjectAutoMerge,
+} from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
 import { setAiEnabled } from '@/lib/settings';
@@ -134,6 +138,28 @@ export async function toggleProjectAutoDeleteBranchAction(
 ): Promise<ProjectBranchDeleteActionState> {
   try {
     const result = setProjectAutoDeleteBranch(id, enabled);
+    if (result.kind === 'not-found') return { kind: 'not-found' };
+    revalidatePath('/projects');
+    revalidatePath('/');
+    return { kind: 'updated', id: result.id, enabled: result.enabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// 프로젝트별 AI 사전 리뷰 토글. 디폴트 ON — 전역 AI 토글과 AND.
+export type ProjectAiReviewActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+export async function toggleProjectAiReviewAction(
+  id: number,
+  enabled: boolean,
+): Promise<ProjectAiReviewActionState> {
+  try {
+    const result = setProjectAiReview(id, enabled);
     if (result.kind === 'not-found') return { kind: 'not-found' };
     revalidatePath('/projects');
     revalidatePath('/');

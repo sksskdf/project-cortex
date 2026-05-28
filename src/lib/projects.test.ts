@@ -7,6 +7,7 @@ import {
   addProjectFromInstallation,
   addProjectManually,
   listAutoMergeProjects,
+  setProjectAiReview,
   setProjectAutoDeleteBranch,
   setProjectAutoMerge,
 } from './projects';
@@ -105,6 +106,27 @@ describe('setProjectAutoDeleteBranch', () => {
 
   it('returns not-found for missing project', () => {
     expect(setProjectAutoDeleteBranch(9999, true).kind).toBe('not-found');
+  });
+});
+
+describe('setProjectAiReview', () => {
+  it('toggles aiReviewEnabled (default true)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    // 디폴트 ON.
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.aiReviewEnabled).toBe(true);
+
+    expect(setProjectAiReview(id, false).kind).toBe('updated');
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.aiReviewEnabled).toBe(
+      false,
+    );
+  });
+
+  it('returns not-found for missing project', () => {
+    expect(setProjectAiReview(9999, false).kind).toBe('not-found');
   });
 });
 
