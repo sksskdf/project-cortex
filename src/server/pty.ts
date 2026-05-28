@@ -274,9 +274,7 @@ function wireProc(session: Session) {
   });
   session.exitSub = proc.onExit(({ exitCode }) => {
     if (session.ws) send(session.ws, { type: 'exit', data: String(exitCode) });
-    // 위임 세션이면 agent_run 마감 (정상 종료 0 → completed, 그 외 → failed).
-    if (session.runId != null) finishAgentRun(session.runId, exitCode === 0);
-    destroy(session);
+    destroy(session, exitCode === 0);
   });
   if (session.ws) wireClient(session, session.ws);
 }
@@ -393,8 +391,9 @@ function detach(session: Session, ws: WebSocket) {
   persistAll(); // lastActivityAt 등 최신 메타를 디스크에 반영 (재시작 복원용).
 }
 
-// 세션 완전 종료 — pty kill + 레지스트리 제거 + 구독 해제.
-function destroy(session: Session) {
+// 세션 완전 종료 — pty kill + 레지스트리 제거 + 구독 해제 + (위임 세션이면) agent_run 마감.
+// ok: 정상 종료(exit 0)·사용자/idle 종료면 true(completed), 비정상 exit 면 false(failed).
+function destroy(session: Session, ok = true) {
   if (session.reapTimer) {
     clearTimeout(session.reapTimer);
     session.reapTimer = null;
@@ -405,6 +404,13 @@ function destroy(session: Session) {
     session.proc?.kill();
   } catch {
     // 이미 종료됐거나 dormant(proc 없음) — 무시.
+  }
+  // 모든 종료 경로(× kill · idle reap · 프로세스 exit)에서 agent_run 을 마감한다. 예전엔 onExit
+  // 에서만 마감돼, 사용자가 세션을 안 닫거나 ×·reap 으로 끝나면 run 이 영영 running 으로 남아
+  // 이슈가 완료 안 되고 대시보드 '에이전트 진행 중' 카운트가 잔류했다. runId 를 비워 중복 마감 방지.
+  if (session.runId != null) {
+    finishAgentRun(session.runId, ok);
+    session.runId = null;
   }
   if (session.ws && session.ws.readyState === WebSocket.OPEN) session.ws.close();
   sessions.delete(session.id);
