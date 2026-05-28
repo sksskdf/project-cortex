@@ -41,7 +41,7 @@ export type WebhookPRPayload = {
 export type SyncResult =
   | { kind: 'inserted'; prId: number }
   | { kind: 'updated'; prId: number }
-  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-op' };
+  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-op' | 'muted' };
 
 type PRStatus = PRRecord['status'];
 
@@ -138,8 +138,8 @@ export async function handlePullRequestWebhook(
 
   // 자동 onboard — App 이 새 레포에 설치되면 첫 webhook 으로 projects 행 자동 생성.
   // installationId 가 있을 때만 (PAT/legacy 페이로드는 unknown-repo 폴백).
-  // autoMergeEnabled=false 디폴트 — 회사/조직 레포에 App 을 설치하면 남의 PR 까지 자동
-  // 머지될 수 있으므로, 안전하게 꺼진 상태로 시작한다. /projects 에서 명시적으로 켠다.
+  // autoMergeEnabled=false + muted=true 디폴트 — 조직 레포에 App 을 설치하면 남의 PR 이
+  // 인박스를 어지럽히므로, 감지만 하고 관리는 끈 상태로 시작한다. /projects 에서 '관리 시작'.
   if (!project && payload.installationId !== null) {
     const inserted = db
       .insert(projects)
@@ -148,6 +148,7 @@ export async function handlePullRequestWebhook(
         name: payload.repoSlug,
         installationId: payload.installationId,
         autoMergeEnabled: false,
+        muted: true,
       })
       .returning({ id: projects.id, installationId: projects.installationId })
       .get();
@@ -168,6 +169,15 @@ export async function handlePullRequestWebhook(
   if (!project) {
     return { kind: 'skipped', reason: 'unknown-repo' };
   }
+
+  // 뮤트된 프로젝트는 webhook 무시 — 인박스 ingest·분석·트라이아지·자동머지 차단.
+  // 자동 onboard 로 방금 만든 프로젝트(muted=true)도 여기서 바로 빠진다 (행은 생성돼 /projects 에 노출).
+  const muteRow = db
+    .select({ muted: projects.muted })
+    .from(projects)
+    .where(eq(projects.id, project.id))
+    .get();
+  if (muteRow?.muted) return { kind: 'skipped', reason: 'muted' };
 
   const existing = db
     .select({ id: prs.id, status: prs.status, headSha: prs.headSha })
@@ -289,7 +299,7 @@ export async function handlePullRequestWebhook(
 // 그 결과로 자동 머지가 가능해지면 (passed + 다른 조건 충족) 재트라이아지 + 자동 머지 시도.
 export type CheckSyncResult =
   | { kind: 'updated'; prId: number; testsPassed: boolean | null }
-  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-pr' | 'no-installation' };
+  | { kind: 'skipped'; reason: 'unknown-repo' | 'no-pr' | 'no-installation' | 'muted' };
 
 export async function handleCheckWebhook(payload: {
   repoSlug: string;
@@ -297,11 +307,18 @@ export async function handleCheckWebhook(payload: {
   headSha: string;
 }): Promise<CheckSyncResult> {
   const project = db
-    .select({ id: projects.id, installationId: projects.installationId, slug: projects.slug })
+    .select({
+      id: projects.id,
+      installationId: projects.installationId,
+      slug: projects.slug,
+      muted: projects.muted,
+    })
     .from(projects)
     .where(eq(projects.slug, payload.repoSlug))
     .get();
   if (!project) return { kind: 'skipped', reason: 'unknown-repo' };
+  // 뮤트된 프로젝트는 CI 결과도 무시 (관리 차단).
+  if (project.muted) return { kind: 'skipped', reason: 'muted' };
 
   // head_sha 가 같은 PR 을 찾는다. 같은 SHA 의 PR 이 여러 개일 가능성은 거의 없음 (다른
   // 브랜치에서 cherry-pick 했어도 squash 머지로 SHA 가 달라짐). 최신 1개 매칭.

@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
 import { ProjectAutoMergeToggle } from './ProjectAutoMergeToggle';
 import { ProjectBranchDeleteToggle } from './ProjectBranchDeleteToggle';
+import { ProjectMuteToggle } from './ProjectMuteToggle';
 import { ProjectReconcileButton } from './ProjectReconcileButton';
 import { RoadmapDrawer } from './RoadmapDrawer';
 import { WorkspaceCard } from './WorkspaceCard';
@@ -59,7 +60,10 @@ function ProjectCard({
     <article className={styles.card}>
       <header className={styles.cardHead}>
         <div className={styles.cardMeta}>
-          <span className={styles.cardSlug}>{row.slug}</span>
+          <span className={styles.cardSlug}>
+            {row.slug}
+            {row.muted && <span className={styles.mutedBadge}>{t.projects.mutedBadge}</span>}
+          </span>
           {row.name !== row.slug && <span className={styles.cardName}>{row.name}</span>}
         </div>
         <div className={styles.progressInline}>
@@ -85,6 +89,7 @@ function ProjectCard({
       </div>
 
       <div className={styles.actionRow}>
+        <ProjectMuteToggle id={row.id} muted={row.muted} />
         <ProjectAutoMergeToggle row={row} />
         <ProjectBranchDeleteToggle id={row.id} enabled={row.autoDeleteBranchEnabled} />
         <ProjectReconcileButton projectId={row.id} />

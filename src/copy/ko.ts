@@ -136,6 +136,8 @@ export const ko = {
     action: {
       autoMerge: '자동 머지',
       branchDelete: '브랜치 삭제',
+      mute: '뮤트',
+      manage: '관리 시작',
       sync: '동기화',
       roadmap: '로드맵',
     },
@@ -145,6 +147,11 @@ export const ko = {
       enabled
         ? '머지 후 브랜치 자동 삭제 켜짐 — 누르면 끔'
         : '머지 후 브랜치 자동 삭제 꺼짐 — 누르면 켬',
+    muteAria: (muted: boolean) =>
+      muted
+        ? '뮤트됨 — 누르면 관리 시작 (webhook 수신·분석 재개)'
+        : '관리 중 — 누르면 뮤트 (webhook 무시·인박스에서 숨김)',
+    mutedBadge: '뮤트됨',
     seedBadge: '시드',
     progress: {
       label: '진척',

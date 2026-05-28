@@ -9,6 +9,7 @@ import {
   listAutoMergeProjects,
   setProjectAutoDeleteBranch,
   setProjectAutoMerge,
+  setProjectMuted,
 } from './projects';
 
 beforeAll(() => {
@@ -105,6 +106,27 @@ describe('setProjectAutoDeleteBranch', () => {
 
   it('returns not-found for missing project', () => {
     expect(setProjectAutoDeleteBranch(9999, true).kind).toBe('not-found');
+  });
+});
+
+describe('setProjectMuted', () => {
+  it('toggles muted (default false for manual rows)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.muted).toBe(false);
+
+    expect(setProjectMuted(id, true).kind).toBe('updated');
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.muted).toBe(true);
+
+    expect(setProjectMuted(id, false).kind).toBe('updated');
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.muted).toBe(false);
+  });
+
+  it('returns not-found for missing project', () => {
+    expect(setProjectMuted(9999, true).kind).toBe('not-found');
   });
 });
 

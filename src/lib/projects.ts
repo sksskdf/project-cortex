@@ -97,6 +97,7 @@ export type ProjectStatsRow = {
   installationId: number | null;
   autoMergeEnabled: boolean;
   autoDeleteBranchEnabled: boolean;
+  muted: boolean;
   // 활성 PR (open/review-needed/auto-mergeable) — 인박스 + 클러스터 합계.
   activePRs: number;
   // 머지된 PR 누적.
@@ -114,6 +115,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       installationId: projects.installationId,
       autoMergeEnabled: projects.autoMergeEnabled,
       autoDeleteBranchEnabled: projects.autoDeleteBranchEnabled,
+      muted: projects.muted,
     })
     .from(projects)
     .orderBy(asc(projects.slug))
@@ -150,6 +152,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       installationId: r.installationId,
       autoMergeEnabled: r.autoMergeEnabled,
       autoDeleteBranchEnabled: r.autoDeleteBranchEnabled,
+      muted: r.muted,
       activePRs: activeRow?.n ?? 0,
       mergedPRs: mergedRow?.n ?? 0,
       avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
@@ -167,6 +170,18 @@ export function setProjectAutoDeleteBranch(id: number, enabled: boolean): Toggle
   if (!existing) return { kind: 'not-found' };
   db.update(projects).set({ autoDeleteBranchEnabled: enabled }).where(eq(projects.id, id)).run();
   return { kind: 'updated', id, enabled };
+}
+
+// 프로젝트 뮤트 토글. muted=true 면 webhook 무시(인박스/관리 차단), false 면 관리 재개.
+export type ToggleMuteResult =
+  | { kind: 'updated'; id: number; muted: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectMuted(id: number, muted: boolean): ToggleMuteResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ muted }).where(eq(projects.id, id)).run();
+  return { kind: 'updated', id, muted };
 }
 
 // Phase 8 — 수동 레포 등록 (인테이크 마법사).

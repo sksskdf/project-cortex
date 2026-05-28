@@ -11,7 +11,7 @@ import {
   updateGithubApp,
   type SaveAppInput,
 } from '@/lib/github-apps';
-import { setProjectAutoDeleteBranch, setProjectAutoMerge } from '@/lib/projects';
+import { setProjectAutoDeleteBranch, setProjectAutoMerge, setProjectMuted } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
 import { setAiEnabled } from '@/lib/settings';
@@ -138,6 +138,29 @@ export async function toggleProjectAutoDeleteBranchAction(
     revalidatePath('/projects');
     revalidatePath('/');
     return { kind: 'updated', id: result.id, enabled: result.enabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// 프로젝트 뮤트 토글. muted=true 면 webhook 무시(인박스/관리 차단), false 면 관리 재개.
+export type ProjectMuteActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; id: number; muted: boolean }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+export async function toggleProjectMutedAction(
+  id: number,
+  muted: boolean,
+): Promise<ProjectMuteActionState> {
+  try {
+    const result = setProjectMuted(id, muted);
+    if (result.kind === 'not-found') return { kind: 'not-found' };
+    revalidatePath('/projects');
+    revalidatePath('/inbox');
+    revalidatePath('/');
+    return { kind: 'updated', id: result.id, muted: result.muted };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

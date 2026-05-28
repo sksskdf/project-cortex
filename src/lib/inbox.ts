@@ -184,7 +184,9 @@ export async function listInboxQueue(
       ? and(baseWhere, or(like(prs.title, `%${trimmed}%`), like(projects.slug, `%${trimmed}%`)))
       : baseWhere;
   // 프로젝트 레일 선택 시 해당 slug 로 추가 필터 — 인박스 큐 룰·카테고리·검색과 AND.
-  const whereClause = project ? and(searchWhere, eq(projects.slug, project)) : searchWhere;
+  const projectScoped = project ? and(searchWhere, eq(projects.slug, project)) : searchWhere;
+  // 뮤트된 프로젝트의 PR 은 인박스에서 제외 (관리 안 하는 레포). 뮤트 후에도 남아있던 PR 숨김.
+  const whereClause = and(projectScoped, eq(projects.muted, false));
 
   const baseQuery = db
     .select({
