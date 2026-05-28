@@ -120,6 +120,12 @@
   flex-wrap: wrap;
 }
 
+.cloneHint {
+  margin: 0 0 var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-text-02);
+}
+
 .lastPull {
   font-family: var(--ds-typography-font-family-number);
   font-size: var(--ds-typography-font-size-10);

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { Markdown } from '@/components/Markdown';
 import { IssueCompleteButton } from '@/components/IssueCompleteButton';
+import { IssueRoadmapLink } from '@/components/IssueRoadmapLink';
 import { formatRelativeAge } from '@/lib/format';
 import type {
   AgentRunView,
@@ -11,6 +12,7 @@ import type {
   IssueStatus,
   SessionStatus,
 } from '@/lib/issues';
+import type { RoadmapItemOption } from '@/lib/roadmap';
 import styles from './IssueDetail.module.css';
 
 const statusClass: Record<IssueStatus, string> = {
@@ -29,7 +31,13 @@ const sessionClass: Record<SessionStatus, string> = {
 
 const d = t.issues.detail;
 
-export function IssueDetail({ detail }: { detail: IssueDetailData }) {
+export function IssueDetail({
+  detail,
+  roadmapItemOptions,
+}: {
+  detail: IssueDetailData;
+  roadmapItemOptions: ReadonlyArray<RoadmapItemOption>;
+}) {
   return (
     <div className={styles.page}>
       <Link href="/issues" className={styles.back}>
@@ -66,6 +74,13 @@ export function IssueDetail({ detail }: { detail: IssueDetailData }) {
             <dd className={styles.metaVal}>{formatRelativeAge(detail.createdAt.getTime())}</dd>
           </div>
         </dl>
+        {detail.projectSlug && (
+          <IssueRoadmapLink
+            issueId={detail.id}
+            currentItemId={detail.roadmapItemId}
+            options={roadmapItemOptions}
+          />
+        )}
       </header>
 
       <section className={styles.section}>

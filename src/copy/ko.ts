@@ -731,6 +731,17 @@ export const ko = {
         confirmNo: '취소',
         error: '완료 처리에 실패했습니다.',
       },
+      // Phase 18 — 로드맵 산출물 연결.
+      roadmapLink: {
+        label: '로드맵 산출물',
+        none: '연결 안 함',
+        placeholder: '산출물 선택',
+        // 옵션 텍스트 — "Phase 키 · 산출물 제목".
+        option: (phaseKey: string, title: string) => `${phaseKey} · ${title}`,
+        noItems: '이 프로젝트에 로드맵 산출물이 없습니다.',
+        saving: '저장 중…',
+        error: '연결 저장에 실패했습니다.',
+      },
     },
   },
   // Phase 11 — TODO 페이지 + 사이드바 위젯.
@@ -766,21 +777,33 @@ export const ko = {
       project: (slug: string) => `· ${slug}`,
       pr: (number: number) => `· #${number}`,
     },
+    // Phase 18 — TODO 를 이슈에 연결.
+    issueLink: {
+      none: '이슈 연결',
+      linked: (title: string) => `이슈: ${title}`,
+      placeholder: '이슈 선택',
+      clear: '연결 해제',
+      label: '연결할 이슈',
+      noIssues: '연결할 이슈가 없습니다.',
+    },
     widget: {
       title: '오늘 할 일',
       empty: 'TODO 없음',
       more: '전체 보기 →',
     },
   },
-  // Phase 12 — 로컬 워크스페이스 등록 + git pull.
+  // Phase 12 — 로컬 워크스페이스 등록 + git pull / clone.
   workspace: {
     title: '로컬 워크스페이스',
-    subtitle: '로컬 클론 경로를 등록해 git pull / 향후 Claude CLI spawn 의 작업 디렉토리로 사용.',
+    subtitle: '로컬 경로를 등록해 git pull / 향후 Claude CLI spawn 의 작업 디렉토리로 사용.',
     notRegistered: '워크스페이스 미등록',
-    notRegisteredDesc: '로컬 클론 경로를 등록하면 한 클릭으로 git pull 할 수 있어요.',
+    notRegisteredDesc:
+      '로컬 경로를 등록하면 한 클릭으로 받아올 수 있어요. 빈 폴더를 지정하면 GitHub 에서 자동으로 클론합니다.',
     register: '워크스페이스 등록',
     pathLabel: '로컬 절대 경로',
-    pathPlaceholder: '예: /home/user/projects/my-repo 또는 C:\\dev\\my-repo',
+    pathPlaceholder: '예: /home/user/projects/my-repo (빈 폴더면 자동 클론)',
+    // 빈 디렉토리로 등록했을 때 — 아직 .git 이 없어 첫 받아오기가 clone 으로 동작.
+    needsCloneHint: '아직 클론되지 않았습니다 — "리포 받아오기" 를 누르면 GitHub 에서 가져옵니다.',
     submit: '등록',
     cancel: '취소',
     update: '경로 변경',
@@ -790,6 +813,8 @@ export const ko = {
     removeConfirmNo: '취소',
     pullButton: 'git pull',
     pullPending: 'git pull 중…',
+    cloneButton: '리포 받아오기',
+    clonePending: '클론 중…',
     lastPull: (ago: string) => `마지막: ${ago}`,
     result: {
       registered: '워크스페이스를 등록했습니다.',
@@ -799,6 +824,7 @@ export const ko = {
       noProject: '프로젝트를 찾을 수 없습니다.',
       noWorkspace: '등록된 워크스페이스가 없습니다.',
       pulled: 'git pull 완료',
+      cloned: '클론 완료',
       pullFailed: 'git pull 실패',
       error: (message: string) => `처리 실패: ${message}`,
     },

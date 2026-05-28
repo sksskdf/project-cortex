@@ -4,6 +4,7 @@
 import { notFound } from 'next/navigation';
 import { IssueDetail } from '@/components/IssueDetail';
 import { getIssueDetail } from '@/lib/issues';
+import { listRoadmapItemOptions } from '@/lib/roadmap';
 
 export default async function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,5 +14,8 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
   const detail = getIssueDetail(issueId);
   if (!detail) notFound();
 
-  return <IssueDetail detail={detail} />;
+  // 로드맵 산출물 연결 셀렉터용 — 이슈가 속한 프로젝트의 산출물 목록.
+  const roadmapItemOptions = listRoadmapItemOptions(detail.projectId);
+
+  return <IssueDetail detail={detail} roadmapItemOptions={roadmapItemOptions} />;
 }

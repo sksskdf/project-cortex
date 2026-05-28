@@ -10,6 +10,7 @@ import {
   buildDelegatePrompt,
   completeIssueDelegation,
   createIssue,
+  linkIssueToRoadmapItem,
   startAgentRun,
   type CompleteDelegationResult,
 } from '@/lib/issues';
@@ -108,6 +109,23 @@ export async function completeIssueDelegationAction(
       revalidatePath('/'); // 대시보드 '진행 중' 카운트.
     }
     return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 18 — 이슈를 로드맵 산출물에 연결/해제. roadmapItemId=null 이면 연결 해제.
+export type LinkIssueActionState = { kind: 'linked' } | { kind: 'error'; message: string };
+
+export async function linkIssueToRoadmapItemAction(
+  issueId: number,
+  roadmapItemId: number | null,
+): Promise<LinkIssueActionState> {
+  try {
+    linkIssueToRoadmapItem(issueId, roadmapItemId);
+    revalidatePath(`/issues/${issueId}`);
+    revalidatePath('/issues');
+    return { kind: 'linked' };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

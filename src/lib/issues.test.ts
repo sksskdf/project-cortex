@@ -9,6 +9,7 @@ import {
   finishAgentRun,
   getIssueDetail,
   linkIssueToRoadmapItem,
+  listIssueOptions,
   listIssues,
   startAgentRun,
 } from './issues';
@@ -286,5 +287,30 @@ describe('getIssueDetail', () => {
     expect(detail!.runs[0].resultPrNumber).toBe(7);
     expect(detail!.runs[1].status).toBe('failed');
     expect(detail!.runs[1].resultPrNumber).toBeNull();
+  });
+
+  it('exposes projectId', () => {
+    const repoId = seedProject('proj');
+    const issueId = seedIssue(repoId, 'has project');
+    expect(getIssueDetail(issueId)!.projectId).toBe(repoId);
+  });
+});
+
+describe('listIssueOptions', () => {
+  it('returns id + title + project slug, newest-first', () => {
+    const repoId = seedProject('cortex');
+    seedIssue(repoId, 'older');
+    seedIssue(repoId, 'newer');
+
+    const opts = listIssueOptions();
+    expect(opts).toHaveLength(2);
+    // 최신 순 — 큰 id 먼저.
+    expect(opts[0].title).toBe('newer');
+    expect(opts[0].projectSlug).toBe('cortex');
+    expect(opts[1].title).toBe('older');
+  });
+
+  it('returns empty when no issues', () => {
+    expect(listIssueOptions()).toEqual([]);
   });
 });

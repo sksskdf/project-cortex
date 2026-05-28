@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import {
   createTodo,
   deleteTodo,
+  linkTodoToIssue,
   toggleTodoStatus,
   updateTodo,
   type CreateTodoInput,
@@ -65,6 +66,20 @@ export async function deleteTodoAction(todoId: number): Promise<TodoActionState>
   try {
     const r = deleteTodo(todoId);
     if (r.kind === 'deleted') revalidateAll();
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 18 — TODO 를 이슈에 연결/해제. issueId=null 이면 연결 해제.
+export async function linkTodoToIssueAction(
+  todoId: number,
+  issueId: number | null,
+): Promise<TodoActionState> {
+  try {
+    const r = linkTodoToIssue(todoId, issueId);
+    if (r.kind === 'updated') revalidateAll();
     return r;
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
