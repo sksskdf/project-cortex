@@ -389,6 +389,9 @@ function TerminalPane({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>('connecting');
+  // 최신 세션을 ref 에 보관 — 이름 변경(같은 id, 새 객체)이 연결 effect 를 재실행하지 않도록.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
   useEffect(() => {
     let disposed = false;
@@ -397,6 +400,8 @@ function TerminalPane({
     let observer: ResizeObserver | null = null;
 
     (async () => {
+      // 연결 시점 값은 ref 에서 캡처 — 이름이 바뀌어도 이 effect 는 재실행되지 않는다.
+      const s = sessionRef.current;
       const [{ Terminal: TerminalCtor }, { FitAddon }] = await Promise.all([
         import('@xterm/xterm'),
         import('@xterm/addon-fit'),
@@ -421,14 +426,14 @@ function TerminalPane({
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
       // 위임 세션이면 runId 를 함께 전달 — 서버가 세션 종료 시 그 agent_run 을 마감한다.
-      const runIdParam = session.runId != null ? `&runId=${session.runId}` : '';
+      const runIdParam = s.runId != null ? `&runId=${s.runId}` : '';
       // 위임 세션의 초기 prompt 는 URL 대신 연결 직후 메시지로 보낸다(긴 한글 prompt 의 URL 길이
       // 제한 회피). awaitPrompt=1 이면 서버가 prompt 메시지를 받고서 claude 를 spawn 한다.
-      const awaitPromptParam = session.intent === 'new' && session.prompt ? '&awaitPrompt=1' : '';
+      const awaitPromptParam = s.intent === 'new' && s.prompt ? '&awaitPrompt=1' : '';
       const url =
-        `${proto}://${window.location.host}/api/pty?sessionId=${encodeURIComponent(session.id)}` +
-        `&workspaceId=${session.workspaceId}&intent=${session.intent}` +
-        `&name=${encodeURIComponent(session.name)}${runIdParam}${awaitPromptParam}` +
+        `${proto}://${window.location.host}/api/pty?sessionId=${encodeURIComponent(s.id)}` +
+        `&workspaceId=${s.workspaceId}&intent=${s.intent}` +
+        `&name=${encodeURIComponent(s.name)}${runIdParam}${awaitPromptParam}` +
         `&cols=${xterm.cols}&rows=${xterm.rows}`;
       const sock = new WebSocket(url);
       socket = sock;
@@ -450,8 +455,8 @@ function TerminalPane({
         if (disposed) return;
         setStatus('open');
         // 위임 세션: 초기 작업 지시를 보낸다 → 서버가 이걸 받아 claude 를 spawn(positional prompt).
-        if (session.intent === 'new' && session.prompt) {
-          sock.send(JSON.stringify({ type: 'prompt', data: session.prompt }));
+        if (s.intent === 'new' && s.prompt) {
+          sock.send(JSON.stringify({ type: 'prompt', data: s.prompt }));
         }
         sendResize();
         xterm.focus();
@@ -495,7 +500,9 @@ function TerminalPane({
       socket?.close();
       term?.dispose();
     };
-  }, [session, registerKill, onEnded]);
+    // session.id 만 의존 — 이름 변경(같은 id, 새 객체)은 재실행 안 함. id 변경(전환·새 세션)은
+    // key={active.id} 로 어차피 리마운트되므로 안전하다.
+  }, [session.id, registerKill, onEnded]);
 
   return (
     <div className={styles.pane}>
