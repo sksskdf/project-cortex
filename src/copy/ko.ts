@@ -783,15 +783,18 @@ export const ko = {
       more: '전체 보기 →',
     },
   },
-  // Phase 12 — 로컬 워크스페이스 등록 + git pull.
+  // Phase 12 — 로컬 워크스페이스 등록 + git pull / clone.
   workspace: {
     title: '로컬 워크스페이스',
-    subtitle: '로컬 클론 경로를 등록해 git pull / 향후 Claude CLI spawn 의 작업 디렉토리로 사용.',
+    subtitle: '로컬 경로를 등록해 git pull / 향후 Claude CLI spawn 의 작업 디렉토리로 사용.',
     notRegistered: '워크스페이스 미등록',
-    notRegisteredDesc: '로컬 클론 경로를 등록하면 한 클릭으로 git pull 할 수 있어요.',
+    notRegisteredDesc:
+      '로컬 경로를 등록하면 한 클릭으로 받아올 수 있어요. 빈 폴더를 지정하면 GitHub 에서 자동으로 클론합니다.',
     register: '워크스페이스 등록',
     pathLabel: '로컬 절대 경로',
-    pathPlaceholder: '예: /home/user/projects/my-repo 또는 C:\\dev\\my-repo',
+    pathPlaceholder: '예: /home/user/projects/my-repo (빈 폴더면 자동 클론)',
+    // 빈 디렉토리로 등록했을 때 — 아직 .git 이 없어 첫 받아오기가 clone 으로 동작.
+    needsCloneHint: '아직 클론되지 않았습니다 — "리포 받아오기" 를 누르면 GitHub 에서 가져옵니다.',
     submit: '등록',
     cancel: '취소',
     update: '경로 변경',
@@ -801,6 +804,8 @@ export const ko = {
     removeConfirmNo: '취소',
     pullButton: 'git pull',
     pullPending: 'git pull 중…',
+    cloneButton: '리포 받아오기',
+    clonePending: '클론 중…',
     lastPull: (ago: string) => `마지막: ${ago}`,
     result: {
       registered: '워크스페이스를 등록했습니다.',
@@ -810,6 +815,7 @@ export const ko = {
       noProject: '프로젝트를 찾을 수 없습니다.',
       noWorkspace: '등록된 워크스페이스가 없습니다.',
       pulled: 'git pull 완료',
+      cloned: '클론 완료',
       pullFailed: 'git pull 실패',
       error: (message: string) => `처리 실패: ${message}`,
     },
