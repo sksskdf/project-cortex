@@ -3,6 +3,7 @@
 
 import { ko as t } from '@/copy/ko';
 import { AddProjectForm } from '@/components/AddProjectForm';
+import { ImportInstalledRepos } from '@/components/ImportInstalledRepos';
 import { ProjectsList, type ProjectCardData } from '@/components/ProjectsList';
 import { listProjectsWithStats } from '@/lib/projects';
 import { getProjectRoadmap } from '@/lib/roadmap';
@@ -13,6 +14,7 @@ export default async function ProjectsPage() {
   const rows = listProjectsWithStats();
   const active = rows.filter((r) => r.installationId !== null);
   const seed = rows.filter((r) => r.installationId === null);
+  const existingSlugs = rows.map((r) => r.slug);
 
   // 카드별 로드맵 + 워크스페이스 prep — drawer 가 클릭 즉시 보여주도록 미리 fetch.
   const activeCards: ProjectCardData[] = active.map((row) => ({
@@ -28,7 +30,10 @@ export default async function ProjectsPage() {
           <h1 className={styles.title}>{t.projects.title}</h1>
           <p className={styles.subtitle}>{t.projects.subtitle}</p>
         </div>
-        <AddProjectForm />
+        <div className={styles.headerActions}>
+          <ImportInstalledRepos existingSlugs={existingSlugs} />
+          <AddProjectForm />
+        </div>
       </header>
 
       {active.length === 0 && seed.length === 0 ? (

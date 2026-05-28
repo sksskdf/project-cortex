@@ -20,6 +20,13 @@
   min-width: 0;
 }
 
+.headerActions {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-spacing-8);
+  flex-wrap: wrap;
+}
+
 .title {
   margin: 0;
   font-size: var(--ds-typography-font-size-22);
