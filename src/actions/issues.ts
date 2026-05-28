@@ -6,7 +6,12 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { currentUser } from '@/lib/config';
-import { buildDelegatePrompt, createIssue, startAgentRun } from '@/lib/issues';
+import {
+  buildDelegatePrompt,
+  createIssue,
+  linkIssueToRoadmapItem,
+  startAgentRun,
+} from '@/lib/issues';
 import { getWorkspace } from '@/lib/workspace';
 
 const schema = z.object({
@@ -81,6 +86,23 @@ export async function createIssueAction(input: {
     revalidatePath('/');
     revalidatePath('/inbox');
     return { kind: 'created', id: result.id, delegate };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 18 — 이슈를 로드맵 산출물에 연결/해제. roadmapItemId=null 이면 연결 해제.
+export type LinkIssueActionState = { kind: 'linked' } | { kind: 'error'; message: string };
+
+export async function linkIssueToRoadmapItemAction(
+  issueId: number,
+  roadmapItemId: number | null,
+): Promise<LinkIssueActionState> {
+  try {
+    linkIssueToRoadmapItem(issueId, roadmapItemId);
+    revalidatePath(`/issues/${issueId}`);
+    revalidatePath('/issues');
+    return { kind: 'linked' };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

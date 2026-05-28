@@ -18,6 +18,7 @@ import {
   getProjectProgress,
   getProjectRoadmap,
   getPRRoadmapLinks,
+  listRoadmapItemOptions,
   matchAndApplyDoneFromPR,
   reapplyRoadmapMatchesForProject,
   toggleItemStatus,
@@ -87,6 +88,32 @@ describe('createPhase', () => {
 
   it('skips when project missing', () => {
     expect(createPhase({ projectId: 9999, key: '1', title: 'A' }).kind).toBe('no-project');
+  });
+});
+
+describe('listRoadmapItemOptions', () => {
+  it('flattens items in phase→item sort order with phase key/title', () => {
+    const projectId = seedProject();
+    createPhase({ projectId, key: '1', title: 'Phase One' });
+    createPhase({ projectId, key: '2', title: 'Phase Two' });
+    const view = getProjectRoadmap(projectId)!;
+    const phase1 = view.phases.find((p) => p.key === '1')!;
+    const phase2 = view.phases.find((p) => p.key === '2')!;
+    createItem({ phaseId: phase2.id, title: 'item-2a' });
+    createItem({ phaseId: phase1.id, title: 'item-1a' });
+    createItem({ phaseId: phase1.id, title: 'item-1b' });
+
+    const opts = listRoadmapItemOptions(projectId);
+    // Phase sortOrder(1→2) → item sortOrder 순.
+    expect(opts.map((o) => o.title)).toEqual(['item-1a', 'item-1b', 'item-2a']);
+    expect(opts[0].phaseKey).toBe('1');
+    expect(opts[0].phaseTitle).toBe('Phase One');
+    expect(opts[2].phaseKey).toBe('2');
+  });
+
+  it('returns empty when no phases', () => {
+    const projectId = seedProject();
+    expect(listRoadmapItemOptions(projectId)).toEqual([]);
   });
 });
 
