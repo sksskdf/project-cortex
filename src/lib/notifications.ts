@@ -101,7 +101,16 @@ export type CreateNotificationInput =
   | { kind: 'auto-merge-failed'; prId: number; reason: string }
   | { kind: 'ci-failed'; prId: number }
   | { kind: 'cluster-created'; clusterId: number; size: number }
-  | { kind: 'revert-detected'; prId: number };
+  | { kind: 'revert-detected'; prId: number }
+  // 자동화별 전용 알림 — 기존엔 모두 'auto-merge-failed' 재사용이라 무엇이 실패/성공했는지
+  // 구분 불가했음. 성공 알림은 "Cortex 가 무언가 자동으로 했다"는 가시성 (이전엔 조용).
+  | { kind: 'analysis-failed'; prId: number; reason: string }
+  | { kind: 'conflict-resolved'; prId: number }
+  | { kind: 'conflict-resolve-failed'; prId: number; reason: string }
+  | { kind: 'tests-fixed'; prId: number }
+  | { kind: 'test-fix-failed'; prId: number; reason: string }
+  | { kind: 'review-addressed'; prId: number }
+  | { kind: 'review-fix-failed'; prId: number; reason: string };
 
 // PR / cluster 메타를 한 번에 조회. 없으면 알림 자체를 만들지 않음 (orphan 방지).
 export function createNotification(input: CreateNotificationInput): {
@@ -177,6 +186,41 @@ export function createNotification(input: CreateNotificationInput): {
         return {
           title: `Revert 감지 · ${slug} #${pr.number}`,
           body: pr.title,
+        };
+      case 'analysis-failed':
+        return {
+          title: `AI 사전 리뷰 실패 · ${slug} #${pr.number}`,
+          body: input.reason,
+        };
+      case 'conflict-resolved':
+        return {
+          title: `충돌 자동 해결됨 · ${slug} #${pr.number}`,
+          body: pr.title,
+        };
+      case 'conflict-resolve-failed':
+        return {
+          title: `충돌 자동 해결 실패 · ${slug} #${pr.number}`,
+          body: input.reason,
+        };
+      case 'tests-fixed':
+        return {
+          title: `테스트 자동 수정됨 · ${slug} #${pr.number}`,
+          body: pr.title,
+        };
+      case 'test-fix-failed':
+        return {
+          title: `테스트 자동 수정 실패 · ${slug} #${pr.number}`,
+          body: input.reason,
+        };
+      case 'review-addressed':
+        return {
+          title: `리뷰 자동 반영됨 · ${slug} #${pr.number}`,
+          body: pr.title,
+        };
+      case 'review-fix-failed':
+        return {
+          title: `리뷰 자동 반영 실패 · ${slug} #${pr.number}`,
+          body: input.reason,
         };
     }
   })();

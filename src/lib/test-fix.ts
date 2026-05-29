@@ -217,6 +217,11 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
   }
 
   logger.info({ source: 'test-fix', prId, headRef }, 'tests auto-fixed and pushed');
+  try {
+    createNotification({ kind: 'tests-fixed', prId });
+  } catch (err) {
+    logger.error({ source: 'test-fix', prId, err }, 'createNotification(success) failed');
+  }
   return { kind: 'fixed' };
 }
 
@@ -274,10 +279,10 @@ async function comment(
   }
 }
 
-// 전용 알림 kind 가 없어 'auto-merge-failed' 재사용 (자동 머지 진행 불가 통지 — conflict-resolve 와 동일).
+// 테스트 자동 수정 실패 전용 알림.
 function safeNotify(prId: number, reason: string): void {
   try {
-    createNotification({ kind: 'auto-merge-failed', prId, reason });
+    createNotification({ kind: 'test-fix-failed', prId, reason });
   } catch (err) {
     logger.error({ source: 'test-fix', prId, err }, 'createNotification failed');
   }

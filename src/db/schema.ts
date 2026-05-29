@@ -238,7 +238,20 @@ export const appSettings = sqliteTable('app_settings', {
 export const notifications = sqliteTable('notifications', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   kind: text('kind', {
-    enum: ['auto-merged', 'auto-merge-failed', 'ci-failed', 'cluster-created', 'revert-detected'],
+    enum: [
+      'auto-merged',
+      'auto-merge-failed',
+      'ci-failed',
+      'cluster-created',
+      'revert-detected',
+      'analysis-failed',
+      'conflict-resolved',
+      'conflict-resolve-failed',
+      'tests-fixed',
+      'test-fix-failed',
+      'review-addressed',
+      'review-fix-failed',
+    ],
   }).notNull(),
   // 관련 객체 — 클릭 시 이동할 라우트를 라이브러리에서 도출. 모두 nullable.
   prId: integer('pr_id').references(() => prs.id),
