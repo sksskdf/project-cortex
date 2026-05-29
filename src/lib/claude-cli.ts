@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { claudeSpawnEnv, resolveClaude } from './agents';
 import { logger } from './logger';
+import { recordLlmUsage } from './llm-cost';
 
 // 사전 리뷰(Opus thinking) 는 오래 걸릴 수 있어 넉넉히. 호출부가 override 가능.
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -213,12 +214,18 @@ function runOnce(
         });
         return;
       }
-      // R3 — 비용·토큰 관측. 봉투에 사용량이 있으면 호출별로 구조화 로깅 (06-15 크레딧 변경 대비).
+      // R3 — 비용·토큰 관측. 봉투에 사용량이 있으면 호출별로 구조화 로깅 + DB 기록(/reports 집계).
+      // 둘 다 best-effort — 관측 실패가 호출 흐름을 막지 않게.
       if (extracted.usage) {
         logger.info(
           { source: 'claude-cli', model: opts.model ?? null, ...extracted.usage },
           'headless 호출 사용량',
         );
+        try {
+          recordLlmUsage(opts.model ?? null, extracted.usage);
+        } catch (err) {
+          logger.error({ source: 'claude-cli', err }, 'llm usage 기록 실패');
+        }
       }
       done({
         ok: true,

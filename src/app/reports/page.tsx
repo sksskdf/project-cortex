@@ -10,6 +10,7 @@ import {
   DailyMergeChart,
 } from '@/components/ReportsCharts';
 import { getReportsData } from '@/lib/reports';
+import { getLlmCostSummary } from '@/lib/llm-cost';
 import styles from './page.module.css';
 
 type RevertStatus = keyof typeof t.reports.revertStatus;
@@ -18,6 +19,7 @@ export default function ReportsPage() {
   const data = getReportsData();
   const { mergeRate, prevMergeRate, dailyIncoming, dailyMerges, dailyAvgConfidence, reverts } =
     data;
+  const llmCost = getLlmCostSummary();
 
   const delta = mergeRate.autoMergeRate - prevMergeRate.autoMergeRate;
   const deltaText = delta > 0 ? `▲ ${delta}%p` : delta < 0 ? `▼ ${Math.abs(delta)}%p` : `· ±0%p`;
@@ -112,6 +114,48 @@ export default function ReportsPage() {
               );
             })}
           </ul>
+        )}
+      </section>
+
+      <section className={styles.section} aria-label={t.reports.section.llmCost}>
+        <div className={styles.sectionHead}>
+          <h2 className={styles.sectionTitle}>{t.reports.section.llmCost}</h2>
+          <p className={styles.sectionDesc}>{t.reports.section.llmCostDesc}</p>
+        </div>
+        {llmCost.callCount === 0 ? (
+          <div className={styles.empty}>{t.reports.llmCost.empty}</div>
+        ) : (
+          <div className={styles.llmCostBox}>
+            <div className={styles.llmCostStats}>
+              <div className={styles.llmCostStat}>
+                <span className={styles.llmCostLabel}>{t.reports.llmCost.total}</span>
+                <span className={styles.llmCostValue}>
+                  {t.reports.llmCost.usd(llmCost.totalCostUsd)}
+                </span>
+              </div>
+              <div className={styles.llmCostStat}>
+                <span className={styles.llmCostLabel}>{t.reports.llmCost.week}</span>
+                <span className={styles.llmCostValue}>
+                  {t.reports.llmCost.usd(llmCost.weekCostUsd)}
+                </span>
+              </div>
+              <div className={styles.llmCostStat}>
+                <span className={styles.llmCostLabel}>{t.reports.llmCost.calls}</span>
+                <span className={styles.llmCostValue}>
+                  {t.reports.llmCost.callsUnit(llmCost.callCount)}
+                </span>
+              </div>
+            </div>
+            {llmCost.byModel.length > 0 && (
+              <ul className={styles.llmCostModels}>
+                {llmCost.byModel.map((m) => (
+                  <li key={m.model} className={styles.llmCostModelRow}>
+                    {t.reports.llmCost.modelRow(m.model, m.costUsd, m.calls)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </section>
     </div>

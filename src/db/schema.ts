@@ -388,6 +388,18 @@ export const notes = sqliteTable('notes', {
 // Phase 8.x — 다중 GitHub App 설정. .env.local 단일 App 대신 설정 UI 로 여러 App 등록.
 // localhost 단일 사용자 가정이라 private key 는 평문 저장 (.env 평문과 동일 보안 수준).
 // projects.appConfigId 가 이 행을 가리켜 어느 App 자격증명으로 인증할지 결정.
+// Phase 13.6 R3 — 헤드리스 claude 호출의 비용·토큰 사용량 기록. 2026-06-15 부터 구독 플랜
+// claude -p 가 별도 Agent SDK 크레딧을 소모하므로 호출별 비용을 관측/집계(/reports)한다.
+// runClaudeHeadless 가 `--output-format json` 봉투의 total_cost_usd/usage 를 best-effort 로 기록.
+export const llmUsage = sqliteTable('llm_usage', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  model: text('model'), // 호출 모델 (alias 또는 full id). 미지정이면 null.
+  costUsd: real('cost_usd'), // total_cost_usd (봉투에 없으면 null).
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+});
+
 export const githubApps = sqliteTable('github_apps', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(), // 사용자 라벨 (예: 'personal', 'acme-org')
@@ -413,3 +425,4 @@ export type RoadmapItemRow = typeof roadmapItems.$inferSelect;
 export type TodoRow = typeof todos.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type NoteRow = typeof notes.$inferSelect;
+export type LlmUsageRow = typeof llmUsage.$inferSelect;

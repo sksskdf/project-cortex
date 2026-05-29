@@ -597,6 +597,9 @@ export const ko = {
       reverts: 'Revert 감지',
       revertsDesc:
         '제목이 "Revert " 로 시작하는 PR — GitHub revert UI 로 만들어진 케이스. 자동 머지가 잘못된 변경을 머지했을 가능성 신호.',
+      llmCost: 'LLM 비용·사용량',
+      llmCostDesc:
+        '헤드리스 claude 호출(사전 리뷰·테스트 수정·충돌/리뷰 반영)의 누적 비용·토큰. 2026-06-15 부터 구독 플랜 claude -p 가 별도 Agent SDK 크레딧을 소모합니다.',
     },
     mergeRate: {
       compareTo: (prev: number) => `지난 주 ${prev}%`,
@@ -610,6 +613,17 @@ export const ko = {
       github: '외부',
     },
     revertEmpty: '감지된 revert 가 없습니다.',
+    llmCost: {
+      total: '누적 비용',
+      week: '최근 7일',
+      calls: '호출 수',
+      usd: (n: number) => `$${n.toFixed(4)}`,
+      callsUnit: (n: number) => `${n}회`,
+      byModel: '모델별',
+      modelRow: (model: string, usd: number, calls: number) =>
+        `${model} · $${usd.toFixed(4)} · ${calls}회`,
+      empty: '아직 기록된 헤드리스 호출이 없습니다 (또는 봉투에 비용 정보 없음).',
+    },
     revertStatus: {
       merged: '머지됨',
       open: '열림',

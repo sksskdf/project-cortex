@@ -123,6 +123,54 @@
   padding: var(--ds-spacing-12) 0;
 }
 
+/* Phase 13.6 R3 — LLM 비용 요약 카드. */
+.llmCostBox {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-16) var(--ds-spacing-20);
+}
+
+.llmCostStats {
+  display: flex;
+  gap: var(--ds-spacing-32);
+  flex-wrap: wrap;
+}
+
+.llmCostStat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-4);
+}
+
+.llmCostLabel {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.llmCostValue {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-20);
+  font-weight: var(--ds-typography-font-weight-bold);
+  color: var(--ds-color-text-03-high);
+}
+
+.llmCostModels {
+  margin: var(--ds-spacing-14) 0 0;
+  padding: var(--ds-spacing-12) 0 0;
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.llmCostModelRow {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
 .revertList {
   margin: 0;
   padding: 0;
