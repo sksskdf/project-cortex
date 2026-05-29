@@ -1,10 +1,13 @@
 'use client';
 
-import { useOptimistic, useState, useTransition } from 'react';
+// 프로젝트 자동 머지 토글. 균일 토글과 달리 성공 시 재트라이아지 수 메시지를 행 아래 표시.
+// 뮤트(disabled) 면 OFF 표시 + 비활성, 설정값은 DB 보존.
+
 import { ko as t } from '@/copy/ko';
-import { toggleProjectAutoMergeAction, type ProjectAutoMergeActionState } from '@/actions/settings';
+import { toggleProjectAutoMergeAction } from '@/actions/settings';
 import type { ProjectAutoMergeRow } from '@/lib/projects';
 import { ToggleSwitch } from './ToggleSwitch';
+import { useOptimisticToggle } from './useOptimisticToggle';
 import styles from './ProjectAutoMergeToggle.module.css';
 
 export function ProjectAutoMergeToggle({
@@ -14,52 +17,38 @@ export function ProjectAutoMergeToggle({
   row: ProjectAutoMergeRow;
   disabled?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [state, setState] = useState<ProjectAutoMergeActionState>({ kind: 'idle' });
-  const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
-    row.autoMergeEnabled,
-    (_current, next: boolean) => next,
+  const { value, pending, result, toggle } = useOptimisticToggle(row.autoMergeEnabled, (next) =>
+    toggleProjectAutoMergeAction(row.id, next),
   );
-
-  function onToggle() {
-    const next = !optimisticEnabled;
-    setState({ kind: 'idle' });
-    startTransition(async () => {
-      setOptimisticEnabled(next);
-      const result = await toggleProjectAutoMergeAction(row.id, next);
-      setState(result);
-    });
-  }
+  const shown = disabled ? false : value;
 
   // 에러/미발견은 스위치 인라인 에러로, 성공 메시지(재트라이아지 수)는 행 아래에 표시.
   const error =
-    state.kind === 'error'
-      ? t.settings.autoMerge.result.error(state.message)
-      : state.kind === 'not-found'
+    result.kind === 'error'
+      ? t.settings.autoMerge.result.error(result.message)
+      : result.kind === 'not-found'
         ? t.settings.autoMerge.result.notFound
         : undefined;
 
-  // 뮤트면 OFF 표시 + 비활성 (설정값은 DB 보존).
-  const shownChecked = disabled ? false : optimisticEnabled;
   return (
     <div className={styles.wrap}>
       <ToggleSwitch
         label={t.projects.action.autoMerge}
-        checked={shownChecked}
+        checked={shown}
         busy={pending}
         disabled={disabled}
-        onToggle={onToggle}
-        ariaLabel={t.projects.autoMergeAria(shownChecked)}
+        onToggle={() => toggle(!value)}
+        ariaLabel={t.projects.autoMergeAria(shown)}
         error={error}
       />
-      {state.kind === 'updated' ? (
+      {result.kind === 'updated' ? (
         <span
           className={`${styles.result} ${styles.resultSuccess}`}
           role="status"
           aria-live="polite"
         >
-          {state.enabled
-            ? t.settings.autoMerge.result.enabled(row.slug, state.retriagedCount)
+          {result.enabled
+            ? t.settings.autoMerge.result.enabled(row.slug, result.retriagedCount)
             : t.settings.autoMerge.result.disabled(row.slug)}
         </span>
       ) : null}

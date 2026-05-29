@@ -1,40 +1,29 @@
 'use client';
 
-// 프로젝트 뮤트 토글. muted=true 면 webhook 무시(인박스/분석/자동머지 차단), /projects 엔 남음.
-// 자동 onboard 로 새로 감지된 레포는 기본 muted — 여기서 '관리 시작' 으로 해제.
+// 프로젝트 뮤트 토글 (마스터 스위치 'Cortex 관리'). muted=true 면 webhook 무시(인박스/분석/
+// 자동머지 차단), /projects 엔 남음. 켜짐=관리 중(muted=false), 끄면 뮤트. 자동 onboard 로 새로
+// 감지된 레포는 기본 muted — 여기서 '관리 시작' 으로 해제.
 
-import { useOptimistic, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
-import { toggleProjectMutedAction, type ProjectMuteActionState } from '@/actions/settings';
+import { toggleProjectMutedAction } from '@/actions/settings';
 import { ToggleSwitch } from './ToggleSwitch';
+import { useOptimisticToggle } from './useOptimisticToggle';
 
 export function ProjectMuteToggle({ id, muted }: { id: number; muted: boolean }) {
-  const [pending, startTransition] = useTransition();
-  const [state, setState] = useState<ProjectMuteActionState>({ kind: 'idle' });
-  const [optimisticMuted, setOptimisticMuted] = useOptimistic(
-    muted,
-    (_current, next: boolean) => next,
+  // value = muted(DB). 스위치 표시는 반전(checked = 관리 중 = !muted).
+  const { value, pending, result, toggle } = useOptimisticToggle(muted, (next) =>
+    toggleProjectMutedAction(id, next),
   );
-
-  function onToggle() {
-    const next = !optimisticMuted;
-    setState({ kind: 'idle' });
-    startTransition(async () => {
-      setOptimisticMuted(next);
-      setState(await toggleProjectMutedAction(id, next));
-    });
-  }
-
-  // 마스터 스위치 'Cortex 관리' — 켜짐=관리 중(muted=false), 끄면 뮤트.
-  // 이 스위치가 OFF 면 나머지 자동화는 의미 없으므로 그룹 맨 앞에 둔다.
   return (
     <ToggleSwitch
       label={t.projects.action.manageSwitch}
-      checked={!optimisticMuted}
+      checked={!value}
       busy={pending}
-      onToggle={onToggle}
-      ariaLabel={t.projects.muteAria(optimisticMuted)}
-      error={state.kind === 'error' ? t.settings.autoMerge.result.error(state.message) : undefined}
+      onToggle={() => toggle(!value)}
+      ariaLabel={t.projects.muteAria(value)}
+      error={
+        result.kind === 'error' ? t.settings.autoMerge.result.error(result.message) : undefined
+      }
     />
   );
 }

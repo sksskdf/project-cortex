@@ -8,13 +8,16 @@
 
 import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
-import { ProjectAiReviewToggle } from './ProjectAiReviewToggle';
-import { ProjectAutoFixTestsToggle } from './ProjectAutoFixTestsToggle';
+import {
+  toggleProjectAiReviewAction,
+  toggleProjectAutoDeleteBranchAction,
+  toggleProjectAutoFixTestsAction,
+  toggleProjectAutoResolveChangesAction,
+  toggleProjectAutoResolveConflictsAction,
+} from '@/actions/settings';
+import { ProjectAutomationToggle } from './ProjectAutomationToggle';
 import { ProjectAutoMergeToggle } from './ProjectAutoMergeToggle';
-import { ProjectAutoResolveToggle } from './ProjectAutoResolveToggle';
-import { ProjectBranchDeleteToggle } from './ProjectBranchDeleteToggle';
 import { ProjectMuteToggle } from './ProjectMuteToggle';
-import { ProjectResolveChangesToggle } from './ProjectResolveChangesToggle';
 import { ProjectReconcileButton } from './ProjectReconcileButton';
 import { RoadmapDrawer } from './RoadmapDrawer';
 import { WorkspaceCard } from './WorkspaceCard';
@@ -100,27 +103,41 @@ function ProjectCard({
         </div>
         {/* 뮤트(Cortex 관리 OFF) 면 하위 자동화는 동작하지 않음 — 흐리게 + OFF + 비활성. */}
         <div className={`${styles.switches} ${row.muted ? styles.switchesDimmed : ''}`}>
-          <ProjectAiReviewToggle id={row.id} enabled={row.aiReviewEnabled} disabled={row.muted} />
+          <ProjectAutomationToggle
+            label={t.projects.action.aiReview}
+            ariaLabel={t.projects.aiReviewAria}
+            enabled={row.aiReviewEnabled}
+            disabled={row.muted}
+            action={(next) => toggleProjectAiReviewAction(row.id, next)}
+          />
           <ProjectAutoMergeToggle row={row} disabled={row.muted} />
-          <ProjectAutoResolveToggle
-            id={row.id}
+          <ProjectAutomationToggle
+            label={t.projects.action.autoResolve}
+            ariaLabel={t.projects.autoResolveAria}
             enabled={row.autoResolveConflictsEnabled}
             disabled={row.muted}
+            action={(next) => toggleProjectAutoResolveConflictsAction(row.id, next)}
           />
-          <ProjectAutoFixTestsToggle
-            id={row.id}
+          <ProjectAutomationToggle
+            label={t.projects.action.autoFixTests}
+            ariaLabel={t.projects.autoFixTestsAria}
             enabled={row.autoFixTestsEnabled}
             disabled={row.muted}
+            action={(next) => toggleProjectAutoFixTestsAction(row.id, next)}
           />
-          <ProjectResolveChangesToggle
-            id={row.id}
+          <ProjectAutomationToggle
+            label={t.projects.action.resolveChanges}
+            ariaLabel={t.projects.resolveChangesAria}
             enabled={row.autoResolveChangesEnabled}
             disabled={row.muted}
+            action={(next) => toggleProjectAutoResolveChangesAction(row.id, next)}
           />
-          <ProjectBranchDeleteToggle
-            id={row.id}
+          <ProjectAutomationToggle
+            label={t.projects.action.branchDelete}
+            ariaLabel={t.projects.branchDeleteAria}
             enabled={row.autoDeleteBranchEnabled}
             disabled={row.muted}
+            action={(next) => toggleProjectAutoDeleteBranchAction(row.id, next)}
           />
         </div>
       </div>
