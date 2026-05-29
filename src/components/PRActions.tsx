@@ -11,6 +11,7 @@ import {
   type PRRequestChangesState,
 } from '@/actions/pr';
 import type { MergeableState } from '@/lib/github';
+import { useToast } from './Toast';
 import styles from './PRActions.module.css';
 
 type Props = {
@@ -44,6 +45,7 @@ export function PRActions({
   testsPassed,
   autoMergeEnabled,
 }: Props) {
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [mergeState, setMergeState] = useState<PRMergeActionState>({ kind: 'idle' });
   const [requestState, setRequestState] = useState<PRRequestChangesState>({ kind: 'idle' });
@@ -76,6 +78,12 @@ export function PRActions({
       const next = await mergePRAction(viewId);
       setMergeState(next);
       setInFlight(null);
+      // 영속 피드백 — 인라인 메시지는 다음 액션에 사라짐.
+      if (next.kind === 'merged') {
+        toast({ title: t.pr.actionBar.result.merged(next.sha.slice(0, 7)), tone: 'success' });
+      } else if (next.kind === 'error') {
+        toast({ title: t.pr.actionBar.result.error(next.message), tone: 'error' });
+      }
     });
   }
 
@@ -89,6 +97,9 @@ export function PRActions({
       if (next.kind === 'submitted') {
         setRequestOpen(false);
         setRequestBody('');
+        toast({ title: t.pr.actionBar.result.requestSubmitted, tone: 'success' });
+      } else if (next.kind === 'skipped' || next.kind === 'error') {
+        toast({ title: t.pr.actionBar.result.requestError(next.message), tone: 'error' });
       }
     });
   }
@@ -102,6 +113,9 @@ export function PRActions({
       setInFlight(null);
       if (next.kind === 'closed') {
         setCloseConfirmOpen(false);
+        toast({ title: t.pr.actionBar.result.closed(next.number), tone: 'success' });
+      } else if (next.kind === 'skipped' || next.kind === 'error') {
+        toast({ title: t.pr.actionBar.result.closeError(next.message), tone: 'error' });
       }
     });
   }
