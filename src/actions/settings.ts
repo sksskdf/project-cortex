@@ -113,7 +113,9 @@ export async function toggleProjectAutoMergeAction(
 ): Promise<ProjectAutoMergeActionState> {
   try {
     const result = await setProjectAutoMerge(id, enabled);
-    revalidatePath('/settings');
+    // 자동 머지 토글은 /projects 카드에 있다 — /projects 를 revalidate 해야 토글 상태가 새로고침
+    // 되어 낙관적 값이 되돌아가지 않는다(과거 /settings 위치의 잔재 수정). /inbox·/ 도 영향.
+    revalidatePath('/projects');
     revalidatePath('/inbox');
     revalidatePath('/');
     if (result.kind === 'not-found') return { kind: 'not-found' };
