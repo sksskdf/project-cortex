@@ -9,6 +9,7 @@ import { attemptConflictResolution } from './conflict-resolve';
 import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
 import { createNotification } from './notifications';
 import { matchAndApplyDoneFromPR } from './roadmap';
+import { getWorkspace, pullWorkspace } from './workspace';
 
 export type AutoMergeResult =
   | { kind: 'merged'; sha: string }
@@ -116,6 +117,7 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
     await safeDeleteBranch(prId);
     // Phase 10 — PR 본문의 Closes #PHASE-N / Closes #ITEM-N 매칭해 자동 done.
     safeApplyRoadmap(prId);
+    await safeAutoPull(prId);
     safeNotify({ kind: 'auto-merged', prId });
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
@@ -127,6 +129,7 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
       db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
       await safeDeleteBranch(prId);
       safeApplyRoadmap(prId);
+      await safeAutoPull(prId);
       // sha 정확히 모르면 빈 문자열 — UI 는 short sha 7자만 쓰므로 빈 문자열도 큰 문제 없음.
       return { kind: 'merged', sha: '' };
     }
@@ -168,6 +171,22 @@ async function safeDeleteBranch(prId: number): Promise<void> {
     await deleteMergedBranch(prId);
   } catch (err) {
     console.error(`자동 브랜치 삭제 실패 (PR ${prId}):`, err);
+  }
+}
+
+// Phase 20 — 머지 후 해당 프로젝트의 로컬 워크스페이스를 자동 git pull (수동 pull 번거로움 해소).
+// 워크스페이스 등록 자체가 opt-in — 등록 안 했으면 대상 아님. `pull --ff-only` 라 로컬
+// 변경/발산이 있으면 git 이 거부(비파괴), best-effort 라 실패해도 머지엔 영향 없음. 아직 clone
+// 안 된(빈 디렉토리) 워크스페이스는 머지 이벤트에서 무거운 clone 을 트리거하지 않게 skip.
+async function safeAutoPull(prId: number): Promise<void> {
+  try {
+    const pr = db.select({ repoId: prs.repoId }).from(prs).where(eq(prs.id, prId)).get();
+    if (!pr) return;
+    const ws = getWorkspace(pr.repoId);
+    if (!ws || ws.needsClone) return;
+    await pullWorkspace(pr.repoId);
+  } catch (err) {
+    console.error(`머지 후 자동 git pull 실패 (PR ${prId}):`, err);
   }
 }
 
@@ -239,6 +258,7 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
     } else {
       db.insert(triageDecisions).values(values).run();
     }
+    await safeAutoPull(prId);
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
