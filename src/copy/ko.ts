@@ -810,6 +810,8 @@ export const ko = {
       runStarted: '시작',
       runCompleted: '완료',
       runResult: '결과 PR',
+      // running 세션이 오래 지속되면 멈췄을 가능성 — '완료 처리' 버튼으로 정리하라는 안내.
+      staleRun: '오래 실행 중 — 멈춘 세션이면 위 ‘완료 처리’ 로 정리하세요',
       notFound: '이슈를 찾을 수 없습니다.',
       // Phase 13.4 — 위임 완료 처리. 멈춰있는 세션을 마감하고 이슈를 done 으로.
       complete: {

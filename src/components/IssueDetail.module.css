@@ -136,6 +136,12 @@
   color: var(--ds-color-text-02);
 }
 
+/* 오래 실행 중(멈춤 가능) 세션 안내 — '완료 처리' 버튼 발견성 보강. */
+.staleHint {
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-state-warning-text-dark, var(--ds-color-text-02));
+}
+
 .badge {
   font-size: var(--ds-typography-font-size-11);
   font-weight: var(--ds-typography-font-weight-semibold);
