@@ -1049,4 +1049,24 @@ export const ko = {
       },
     },
   },
+  // 라우트 경계(error/loading/not-found) 공통 카피. Next.js App Router 규약 파일에서 사용.
+  errors: {
+    // 일반 에러 경계 — 서버 컴포넌트/액션에서 throw 된 예외.
+    title: '문제가 발생했어요',
+    desc: '화면을 그리는 중 오류가 났습니다. 다시 시도하거나 대시보드로 돌아가 주세요.',
+    retry: '다시 시도',
+    home: '대시보드로',
+    // error.digest — 서버 로그와 대조용 식별자. prod 에서 메시지 대신 노출.
+    digest: (id: string) => `오류 코드: ${id}`,
+    // 루트 레이아웃까지 무너졌을 때의 최소 폴백 (global-error).
+    globalTitle: '앱을 불러오지 못했어요',
+    globalDesc: '잠시 후 다시 시도해 주세요.',
+    globalRetry: '새로고침',
+    // notFound() / 없는 경로.
+    notFoundTitle: '페이지를 찾을 수 없습니다',
+    notFoundDesc: '요청한 페이지가 없거나 옮겨졌어요. 아래에서 이동해 주세요.',
+    notFoundInbox: '인박스로',
+    // 라우트 전환 로딩 폴백.
+    loading: '불러오는 중…',
+  },
 } as const;
