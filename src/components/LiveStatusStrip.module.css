@@ -1,0 +1,65 @@
+.strip {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  margin-bottom: var(--ds-spacing-24);
+  flex-wrap: wrap;
+}
+
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-10) var(--ds-spacing-14);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  background: var(--ds-color-bg-00);
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+}
+
+.seg:hover {
+  border-color: var(--ds-color-line-03);
+  background: var(--ds-color-bg-01);
+}
+
+/* 0 건은 차분하게 — 한눈에 "지금 할 게 없다"가 보이도록. */
+.segIdle {
+  opacity: 0.55;
+}
+
+.segActive {
+  border-color: var(--ds-color-line-03);
+}
+
+.num {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-20);
+  font-weight: var(--ds-typography-font-weight-bold);
+  color: var(--ds-color-text-03-high);
+  line-height: 1;
+}
+
+.label {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+/* 라이브(진행 중 위임·자동화)에 건수가 있으면 맥동 점으로 "돌고 있음" 표시. */
+.pulse {
+  width: var(--ds-spacing-6);
+  height: var(--ds-spacing-6);
+  border-radius: 50%;
+  background: var(--ds-color-state-success-accent);
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

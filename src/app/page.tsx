@@ -16,6 +16,8 @@ import { DashboardNotesWidget } from '@/components/DashboardNotesWidget';
 import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { RecentMergesFeed } from '@/components/RecentMergesFeed';
+import { LiveStatusStrip } from '@/components/LiveStatusStrip';
+import { getLiveStatus } from '@/lib/live-status';
 import { listPinnedNotes } from '@/lib/notes';
 import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
 import { unreadMergedCount } from '@/lib/pr-read';
@@ -266,6 +268,7 @@ export default async function DashboardPage() {
   const notifications = listRecentNotifications();
   const unreadCount = unreadNotificationCount();
   const unreadMerges = unreadMergedCount();
+  const liveStatus = getLiveStatus();
   const dashboardProjects = listDashboardProjects();
   const dashboardTodos = listTodos('open');
   const dashboardPinnedNotes = listPinnedNotes();
@@ -299,6 +302,8 @@ export default async function DashboardPage() {
           <div className={styles.principleDesc}>{t.dashboard.principle.desc}</div>
         </div>
       </div>
+
+      <LiveStatusStrip status={liveStatus} />
 
       <section className={styles.statGrid} aria-label={t.dashboard.stat.regionAria}>
         <div className={styles.stat}>

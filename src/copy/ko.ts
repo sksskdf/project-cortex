@@ -30,6 +30,13 @@ export const ko = {
     comingSoon: '준비 중',
     // 비활성 컨트롤 tooltip 기본값 — 사유가 따로 없을 때.
     comingSoonHint: '준비 중 — 곧 제공됩니다',
+    // Phase 21 (G3) — 비선형 요청 quick-capture (사이드바, 전역).
+    quickCapture: {
+      ariaLabel: '빠른 캡처',
+      placeholder: '빠른 캡처 — 떠오른 요청·아이디어',
+      add: '캡처',
+      captured: '캡처됨 → 할 일로',
+    },
   },
   dashboard: {
     greeting: (name: string) => `안녕하세요, ${name}님`,
@@ -64,6 +71,16 @@ export const ko = {
     principle: {
       title: (count: number) => `이번 주 ${count}건이 자동 머지되었어요`,
       desc: '에이전트가 자신 있는 작업은 자동으로 처리됩니다. 인박스에는 검토가 필요한 것만 올라옵니다.',
+    },
+    // Phase 21 (G1) — 라이브 상태 스트립. 지금 돌아가는 것 한 줄 종합.
+    liveStatus: {
+      ariaLabel: '지금 상태 요약',
+      label: {
+        activeDelegations: '진행 중 위임',
+        automationInFlight: '자동화 진행 중',
+        reviewPending: '검토 대기',
+        unreadMerges: '미확인 머지',
+      },
     },
     stat: {
       pendingReview: '검토 대기',

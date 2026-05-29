@@ -38,6 +38,11 @@ export function getAutomationInFlight(prId: number): AutomationKind | null {
   return inFlight.get(prId) ?? null;
 }
 
+// 진행 중 자동화 총 개수 — G1 라이브 상태 스트립용.
+export function countAutomationInFlight(): number {
+  return inFlight.size;
+}
+
 function safeBroadcast(): void {
   try {
     broadcastSync();
