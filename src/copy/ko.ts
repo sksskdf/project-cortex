@@ -3,6 +3,15 @@ export const ko = {
     name: 'Cortex',
     tagline: '에이전트가 짜고, 사람은 가장 중요한 결정만 합니다.',
   },
+  // Phase 18 — 이슈·TODO·로드맵 공통 상태 어휘. StatusChip 이 kind 별로 이 라벨을 사용.
+  // 엔티티별 status 값의 합집합 (open/planned/in-progress/done/closed) 을 한곳에서 정규화.
+  status: {
+    open: '열림',
+    planned: '예정',
+    'in-progress': '진행 중',
+    done: '완료',
+    closed: '닫힘',
+  },
   nav: {
     section: {
       workspace: '워크스페이스',
@@ -789,13 +798,7 @@ export const ko = {
     title: '이슈',
     subtitle: '작성한 이슈와 위임한 Claude 세션 상태를 봅니다.',
     empty: '아직 이슈가 없습니다. 대시보드에서 새 이슈를 작성해 보세요.',
-    // 이슈 상태 배지.
-    status: {
-      open: '열림',
-      'in-progress': '진행 중',
-      done: '완료',
-      closed: '닫힘',
-    },
+    // 이슈 상태 배지 라벨은 공통 어휘(t.status)로 이전 — StatusChip 가 사용.
     // 최신 claude 세션 상태.
     session: {
       none: '세션 없음',

@@ -11,6 +11,7 @@ import {
   linkTodoToIssueAction,
   toggleTodoStatusAction,
 } from '@/actions/todos';
+import { StatusChip } from '@/components/StatusChip';
 import type { IssueOption } from '@/lib/issues';
 import type { TodoPriority, TodoView } from '@/lib/todos';
 import styles from './TodoList.module.css';
@@ -219,6 +220,8 @@ function TodoRow({
         <span className={styles.title}>{todo.title}</span>
       </label>
       <div className={styles.meta}>
+        {/* 완료는 done 섹션 + 취소선으로 이미 드러나므로 생략 — open/in-progress 만 칩 표기. */}
+        {todo.status !== 'done' && <StatusChip kind="todo" status={todo.status} />}
         {todo.projectSlug && (
           <span className={styles.metaItem}>{t.todos.meta.project(todo.projectSlug)}</span>
         )}
