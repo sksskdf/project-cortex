@@ -148,21 +148,6 @@
   font-size: var(--ds-typography-font-size-13);
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.dotPlanned {
-  background: var(--ds-color-line-02);
-}
-
-.dotInProgress {
-  background: var(--ds-color-state-warning-base);
-}
-
 .itemTitle {
   color: var(--ds-color-text-03-high);
   flex: 1;
@@ -185,10 +170,6 @@
 .itemDone .itemTitle {
   text-decoration: line-through;
   color: var(--ds-color-text-02);
-}
-
-.dotDone {
-  background: var(--ds-color-state-success-accent);
 }
 
 .prLink {

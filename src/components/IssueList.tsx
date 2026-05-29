@@ -3,15 +3,9 @@
 
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
-import type { IssueStatus, IssueView, SessionStatus } from '@/lib/issues';
+import { StatusChip } from '@/components/StatusChip';
+import type { IssueView, SessionStatus } from '@/lib/issues';
 import styles from './IssueList.module.css';
-
-const statusClass: Record<IssueStatus, string> = {
-  open: styles.statusOpen,
-  'in-progress': styles.statusInProgress,
-  done: styles.statusDone,
-  closed: styles.statusClosed,
-};
 
 const sessionClass: Record<SessionStatus, string> = {
   queued: styles.sessionQueued,
@@ -45,9 +39,7 @@ function IssueRow({ issue }: { issue: IssueView }) {
           )}
         </span>
         <span className={styles.meta}>
-          <span className={`${styles.badge} ${statusClass[issue.status]}`}>
-            {t.issues.status[issue.status]}
-          </span>
+          <StatusChip kind="issue" status={issue.status} />
           <span
             className={`${styles.session} ${
               issue.sessionStatus ? sessionClass[issue.sessionStatus] : ''

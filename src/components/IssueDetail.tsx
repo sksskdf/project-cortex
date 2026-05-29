@@ -5,22 +5,11 @@ import { ko as t } from '@/copy/ko';
 import { Markdown } from '@/components/Markdown';
 import { IssueCompleteButton } from '@/components/IssueCompleteButton';
 import { IssueRoadmapLink } from '@/components/IssueRoadmapLink';
+import { StatusChip } from '@/components/StatusChip';
 import { formatRelativeAge } from '@/lib/format';
-import type {
-  AgentRunView,
-  IssueDetail as IssueDetailData,
-  IssueStatus,
-  SessionStatus,
-} from '@/lib/issues';
+import type { AgentRunView, IssueDetail as IssueDetailData, SessionStatus } from '@/lib/issues';
 import type { RoadmapItemOption } from '@/lib/roadmap';
 import styles from './IssueDetail.module.css';
-
-const statusClass: Record<IssueStatus, string> = {
-  open: styles.statusOpen,
-  'in-progress': styles.statusInProgress,
-  done: styles.statusDone,
-  closed: styles.statusClosed,
-};
 
 const sessionClass: Record<SessionStatus, string> = {
   queued: styles.sessionQueued,
@@ -51,9 +40,7 @@ export function IssueDetail({
             {(detail.status === 'open' || detail.status === 'in-progress') && (
               <IssueCompleteButton issueId={detail.id} />
             )}
-            <span className={`${styles.badge} ${statusClass[detail.status]}`}>
-              {t.issues.status[detail.status]}
-            </span>
+            <StatusChip kind="issue" status={detail.status} />
           </div>
         </div>
         <dl className={styles.meta}>

@@ -9,14 +9,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
-import type { OpenItemGroupView, RoadmapStatus } from '@/lib/roadmap';
+import { StatusChip } from '@/components/StatusChip';
+import type { OpenItemGroupView } from '@/lib/roadmap';
 import styles from './RoadmapOpenItems.module.css';
-
-const statusDotClass: Record<RoadmapStatus, string> = {
-  planned: styles.dotPlanned,
-  'in-progress': styles.dotInProgress,
-  done: styles.dotDone,
-};
 
 export function RoadmapOpenItems({ groups }: { groups: ReadonlyArray<OpenItemGroupView> }) {
   const totalOpen = groups.reduce((sum, g) => sum + g.openCount, 0);
@@ -76,7 +71,7 @@ function PhaseGroup({ group }: { group: OpenItemGroupView }) {
                   key={it.id}
                   className={`${styles.item} ${it.status === 'done' ? styles.itemDone : ''}`}
                 >
-                  <span className={`${styles.dot} ${statusDotClass[it.status]}`} aria-hidden />
+                  <StatusChip kind="roadmap" status={it.status} />
                   <span className={styles.itemTitle}>{it.title}</span>
                   {it.doneByPrId !== null && (
                     <Link
