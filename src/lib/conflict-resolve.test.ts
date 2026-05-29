@@ -112,11 +112,20 @@ describe('attemptConflictResolution — guards', () => {
     expect(octokit.pulls.get).not.toHaveBeenCalled();
   });
 
-  it('사람 PR 이면 skip human-pr', async () => {
-    setOctokit(mockOctokit({ mergeableState: 'dirty' }));
+  it('사람 PR 도 충돌 해결 대상 (작성자 무관) — 단일 사용자 가정', async () => {
+    setOctokit(mockOctokit({ mergeableState: 'dirty', headRef: 'feature' }));
+    setClaudeRunner(vi.fn().mockResolvedValue({ ok: true, text: 'done' }));
+    const git = vi.fn((_cwd: string, args: ReadonlyArray<string>): Promise<GitResult> => {
+      if (args.includes('merge') && args.includes('--no-edit') && !args.includes('--abort')) {
+        return Promise.resolve(nonzero('CONFLICT'));
+      }
+      if (args.includes('--diff-filter=U')) return Promise.resolve(ok('src/x.ts\n'));
+      return Promise.resolve(ok());
+    });
+    setGitRunner(git);
     const prId = setup({ authorKind: 'human' });
     const r = await attemptConflictResolution(prId);
-    expect(r).toEqual({ kind: 'skipped', reason: 'human-pr' });
+    expect(r).toEqual({ kind: 'resolved' });
   });
 
   it('워크스페이스 미등록이면 skip no-workspace', async () => {

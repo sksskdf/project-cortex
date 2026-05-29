@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
 import { tryClusterPR } from './clustering';
+import { attemptConflictResolution } from './conflict-resolve';
 import { getPRMergeStatus, listCheckRunsForRef } from './github';
 import { logger } from './logger';
 import { createNotification, isRevertPR } from './notifications';
@@ -104,6 +105,19 @@ async function safeAutoMerge(prId: number): Promise<void> {
       'attemptAutoMerge unexpected error',
     );
   }
+}
+
+// 자동 머지를 안 타는 review-needed PR(사람 PR·플래그 차단·미분석)도 토글 ON·dirty 면 충돌 자동
+// 해결. (자동 머지 PR 은 auto-merge.ts 가 머지 직전에 이미 처리하므로 여기선 비-자동머지 경로만.)
+// best-effort 백그라운드 — git/claude 작업이 수 분 걸릴 수 있어 webhook 응답을 막지 않는다.
+// 토글 OFF·not-dirty·fork 면 attemptConflictResolution 이 즉시 skip (작성자 무관).
+function safeResolveConflicts(prId: number): void {
+  attemptConflictResolution(prId).catch((err) => {
+    logger.error(
+      { source: 'sync', op: 'attemptConflictResolution', prId, err },
+      'attemptConflictResolution unexpected error',
+    );
+  });
 }
 
 // GitHub mergeable_state 를 PR 에 저장 — runTriage(CI 없는 레포 식별) + 인박스 행
@@ -268,6 +282,8 @@ export async function handlePullRequestWebhook(
     } else if (triage.kind === 'decided' && triage.decision === 'human-review') {
       // Phase 6 — 같은 작성자 · 같은 레포 24h 내 유사도 0.85+ PR 3건 모이면 자동 클러스터.
       await safeTryCluster(inserted.id);
+      // 사람 검토 대상이라도 dirty 면 충돌 자동 해결(토글 ON) — 사람이 충돌 없는 PR 을 검토.
+      safeResolveConflicts(inserted.id);
     } else if (triage.kind === 'skipped' && triage.reason === 'no-pre-review') {
       // 분석 실패(LLM 오류·API key 누락·rate limit 등) → preReview 없음 → triage skip.
       // status 가 'open' 으로 남으면 인박스 쿼리(review-needed)에 안 잡혀 사용자 시야에서 사라짐.
@@ -276,6 +292,7 @@ export async function handlePullRequestWebhook(
         .set({ status: 'review-needed', updatedAt: new Date() })
         .where(eq(prs.id, inserted.id))
         .run();
+      safeResolveConflicts(inserted.id);
     }
     // 새 PR 인데 첫 webhook 이 closed+merged 일 수 있음 (reconcile/늦은 수신).
     // body 의 Closes 마커가 있으면 로드맵 매칭 발화.
@@ -325,6 +342,9 @@ export async function handlePullRequestWebhook(
     await safeAutoMerge(existing.id);
   } else if (triage.kind === 'decided' && triage.decision === 'human-review') {
     await safeTryCluster(existing.id);
+    // 사람 검토 대상이라도 dirty 면 충돌 자동 해결(토글 ON). synchronize 마다 재시도되나
+    // 해결 후엔 not-dirty 라 즉시 skip — 루프 없음.
+    safeResolveConflicts(existing.id);
   } else if (
     triage.kind === 'skipped' &&
     triage.reason === 'no-pre-review' &&
@@ -336,6 +356,7 @@ export async function handlePullRequestWebhook(
       .set({ status: 'review-needed', updatedAt: new Date() })
       .where(eq(prs.id, existing.id))
       .run();
+    safeResolveConflicts(existing.id);
   }
 
   // 머지 시점에만 로드맵 매칭 발화. open/synchronize 등은 body 변경돼도 미발화 (확정 시점만).

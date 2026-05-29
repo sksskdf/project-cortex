@@ -7,7 +7,7 @@
 //
 // 안전 가드 (박제):
 // - 프로젝트 autoResolveConflictsEnabled 토글 ON 만 (디폴트 OFF — 명시 활성 전엔 비발화).
-// - agent PR 만 (사람 PR 의 충돌은 사람 결정 우선).
+// - 작성자 무관(사람·agent 모두) — 단일 사용자 가정상 내 PR. 외부 기여는 fork 가드로 차단.
 // - 등록된 워크스페이스(cwd 화이트리스트)에서만. fork/cross-repo 는 비대상.
 // - 충돌 파일 수 한계 초과 시 사람 검토 (의도 충돌 가능성 큼).
 // - claude 가 마커를 다 못 지우면(잔존 마커) 실패 처리 + merge --abort.
@@ -42,7 +42,6 @@ export type ConflictResolveResult =
         | 'no-pr'
         | 'no-project'
         | 'no-installation'
-        | 'human-pr'
         | 'no-workspace'
         | 'workspace-missing'
         | 'fork-or-cross-repo'
@@ -94,9 +93,7 @@ export async function attemptConflictResolution(prId: number): Promise<ConflictR
   if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
   if (!project.autoResolveConflictsEnabled) return { kind: 'skipped', reason: 'disabled' };
 
-  // 사람 PR 의 충돌은 사람 결정 우선 — Cortex 자동 머지 흐름의 agent PR 만.
-  if (pr.authorKind !== 'agent') return { kind: 'skipped', reason: 'human-pr' };
-
+  // 작성자 무관 — 단일 사용자 가정상 사람 PR 도 내 PR. 외부 기여(fork)는 아래 가드로 차단.
   const workspace = getWorkspace(project.id);
   if (!workspace) return { kind: 'skipped', reason: 'no-workspace' };
   if (!existsSync(workspace.localPath)) return { kind: 'skipped', reason: 'workspace-missing' };

@@ -108,11 +108,18 @@ describe('attemptTestFix — guards', () => {
     expect(octokit.pulls.get).not.toHaveBeenCalled();
   });
 
-  it('사람 PR 이면 skip human-pr', async () => {
-    setOctokit(mockOctokit({}));
-    const prId = setup({ authorKind: 'human' });
-    const r = await attemptTestFix(prId);
-    expect(r).toEqual({ kind: 'skipped', reason: 'human-pr' });
+  it('사람 PR 도 수정 대상 (작성자 무관) — 단일 사용자 가정', async () => {
+    setOctokit(mockOctokit({ headRef: 'feature' }));
+    setClaudeRunner(vi.fn().mockResolvedValue({ ok: true, text: 'done' }));
+    const git = vi.fn((_cwd: string, args: ReadonlyArray<string>): Promise<GitResult> => {
+      if (args.includes('status') && args.includes('--porcelain')) {
+        return Promise.resolve(ok(' M src/x.ts\n'));
+      }
+      return Promise.resolve(ok());
+    });
+    setGitRunner(git);
+    const r = await attemptTestFix(setup({ authorKind: 'human' }));
+    expect(r).toEqual({ kind: 'fixed' });
   });
 
   it('워크스페이스 미등록이면 skip no-workspace', async () => {

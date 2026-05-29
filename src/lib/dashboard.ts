@@ -33,6 +33,8 @@ export type ActivityFeedItem = {
   score: number;
   ageText: string;
   repo: string;
+  // GitHub PR 번호 — 최근 머지 행에 #N 노출 (PRRow 와 동일 패턴).
+  number: number;
   kind: MergeKind;
 };
 
@@ -284,6 +286,7 @@ export async function getRecentMerges(limit = 5): Promise<ActivityFeedItem[]> {
       score: row.preReview?.confidence ?? 0,
       ageText: formatRelativeAge(updatedMs),
       repo: row.repoSlug,
+      number: row.pr.number,
       kind,
     };
   });

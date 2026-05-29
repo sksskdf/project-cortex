@@ -407,7 +407,7 @@ export default async function DashboardPage() {
                         {t.dashboard.feed.merged(item.kind, item.agent, item.title, item.score)}
                       </div>
                       <span className={styles.feedTime}>
-                        {item.ageText} · {item.repo}
+                        {item.repo} · #{item.number} · {item.ageText}
                       </span>
                     </div>
                   </Link>

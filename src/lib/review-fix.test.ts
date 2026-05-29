@@ -113,11 +113,19 @@ describe('attemptAddressReview — guards', () => {
     expect(r).toEqual({ kind: 'skipped', reason: 'no-project' });
   });
 
-  it('사람 PR 이면 skip human-pr', async () => {
-    setOctokit(mockOctokit({}));
+  it('사람 PR 도 반영 대상 (작성자 무관) — 단일 사용자 가정', async () => {
+    setOctokit(mockOctokit({ headRef: 'feature' }));
+    setClaudeRunner(vi.fn().mockResolvedValue({ ok: true, text: 'done' }));
+    const git = vi.fn((_cwd: string, args: ReadonlyArray<string>): Promise<GitResult> => {
+      if (args.includes('status') && args.includes('--porcelain')) {
+        return Promise.resolve(ok(' M src/x.ts\n'));
+      }
+      return Promise.resolve(ok());
+    });
+    setGitRunner(git);
     setup({ authorKind: 'human' });
     const r = await attemptAddressReview(input);
-    expect(r).toEqual({ kind: 'skipped', reason: 'human-pr' });
+    expect(r).toEqual({ kind: 'addressed' });
   });
 
   it('리뷰 본문이 비면 skip no-feedback', async () => {
