@@ -12,7 +12,7 @@
 
 이 둘로 90%의 작업이 가능합니다. 모자라면 그때 `docs/` 안의 해당 파일만 추가로 봅니다.
 
-**메모리 없는 새 세션은** `docs/ROADMAP.md` 의 **Decision Log 최신 항목**(가장 최근 결정·진행 상태)과 `.cortex/roadmap.md` 의 **`[ ]` open items**(다음 할 일)를 보면, 지금 어디까지 왔고 뭘 이어가면 되는지 바로 파악됩니다.
+**메모리 없는 새 세션은** README → AGENTS 다음으로 **`.cortex/work-state.md`** 를 읽으세요 — 진행 중 브랜치/PR·다음 단계·맥락을 머신 파서블하게 적어 둔 단기 작업 상태 파일입니다 (파서 `src/lib/work-state.ts`). git log 를 비싸게 재추론하지 않고 "지금 어디까지 왔는지" 바로 알 수 있습니다. 더 깊은 맥락이 필요하면 `docs/ROADMAP.md` 의 **Decision Log 최신 항목**(가장 최근 결정·진행 상태)과 `.cortex/roadmap.md` 의 **`[ ]` open items**(장기 산출물)를 봅니다.
 
 | 모자랄 때 추가로 보는 것 | 언제 |
 |---|---|
