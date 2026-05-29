@@ -43,6 +43,8 @@ const kindDotClass: Record<NotificationKind, string> = {
   'test-fix-failed': styles.dotRed,
   'review-addressed': styles.dotGreen,
   'review-fix-failed': styles.dotRed,
+  'workspace-pulled': styles.dotGreen,
+  'workspace-pull-failed': styles.dotRed,
 };
 
 export function NotificationDropdown({

@@ -656,6 +656,8 @@ export const ko = {
       'test-fix-failed': '테스트 수정 실패',
       'review-addressed': '리뷰 반영',
       'review-fix-failed': '리뷰 반영 실패',
+      'workspace-pulled': '워크스페이스 업데이트',
+      'workspace-pull-failed': '워크스페이스 pull 실패',
     },
     // Phase 10.2 후속 — 브라우저 Notification 권한 토글 chip.
     browserPerm: {
