@@ -19,6 +19,8 @@ export const ko = {
     settings: '설정',
     help: '도움말',
     comingSoon: '준비 중',
+    // 비활성 컨트롤 tooltip 기본값 — 사유가 따로 없을 때.
+    comingSoonHint: '준비 중 — 곧 제공됩니다',
   },
   dashboard: {
     greeting: (name: string) => `안녕하세요, ${name}님`,
@@ -70,8 +72,12 @@ export const ko = {
       todoMore: '인박스 전체 보기 →',
       recentMerge: '최근 머지',
       recentMore: '전체 활동 →',
+      // '전체 활동'(/activity) 은 미구현 — 더보기 자리에 사유 tooltip 으로 노출.
+      recentMoreHint: '전체 활동 — 준비 중 (곧 제공됩니다)',
       workload: '에이전트 워크로드',
       workloadMore: '전체 보기 →',
+      // 워크로드 전체보기(/agents) 는 미구현 — 더보기 자리에 사유 tooltip.
+      workloadMoreHint: '워크로드 전체 보기 — 준비 중 (곧 제공됩니다)',
       clusters: '묶인 클러스터',
       clustersMore: '클러스터 보기 →',
       projects: '프로젝트 진척',
@@ -351,12 +357,17 @@ export const ko = {
     subtitle: '우선순위 순으로 자동 정렬됩니다. 가장 위에서부터 처리하세요.',
     notifications: '알림',
     filter: '필터',
+    // 알림 · 필터는 백엔드 미구현 — 비활성 버튼에 사유 tooltip 으로 노출.
+    notificationsHint: '알림 — 준비 중 (곧 제공됩니다)',
+    filterHint: '필터 — 준비 중 (곧 제공됩니다)',
     sort: {
       priority: '우선순위',
       confidence: '신뢰 점수',
       latest: '최신순',
       author: '작성자',
       ariaLabel: '정렬',
+      // priority(orderInbox) 만 구현 — 나머지 정렬 탭은 비활성. 사유 tooltip.
+      comingSoonHint: '준비 중 — 현재는 우선순위 정렬만 지원합니다',
     },
     search: {
       placeholder: '제목, 작성자, 레포로 검색',

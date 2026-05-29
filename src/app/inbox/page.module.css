@@ -160,15 +160,31 @@
   cursor: pointer;
 }
 
-.iconBtn:hover {
+.iconBtn:hover:not(:disabled) {
   background: var(--ds-color-bg-01);
   border-color: var(--ds-color-line-03);
   color: var(--ds-color-text-03-high);
 }
 
+/* 미구현(알림) — 비활성 시 눌리지 않음을 시각적으로도 명확히. */
+.iconBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .iconBtn svg {
   width: 18px;
   height: 18px;
+}
+
+/* 비활성 버튼(필터) 안의 작은 "준비 중" 배지 — 사이드바 itemSoon 과 동일 톤. */
+.comingSoonBadge {
+  margin-left: var(--ds-spacing-6);
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-11);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
 }
 
 .iconBtnBadge {

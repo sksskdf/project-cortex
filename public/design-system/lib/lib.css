@@ -495,5 +495,6 @@
   background: transparent; border: none; cursor: pointer; color: var(--ds-color-text-02);
   transition: background-color 0.15s, color 0.15s;
 }
-.ds-segment__item:hover { color: var(--ds-color-text-03-high); }
+.ds-segment__item:hover:not(:disabled) { color: var(--ds-color-text-03-high); }
 .ds-segment__item--active { background: var(--ds-color-bg-00); color: var(--ds-color-text-03-high); box-shadow: var(--ds-shadow-scale-black-01); }
+.ds-segment__item:disabled { cursor: not-allowed; opacity: 0.45; }
