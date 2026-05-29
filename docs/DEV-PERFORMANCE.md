@@ -19,9 +19,10 @@
 - **A. 커스텀 서버 + Turbopack 지원 여부 확인**: 설치된 Next 15.x 에서 `next({ dev, turbopack: true })`
   (또는 `turbo: true`) 가 지원되면 적용. 버전에 따라 미지원/경고일 수 있으니 **먼저 확인**.
   미지원이면 B/C 로.
-- **B. dev 와 PTY 분리(가장 확실)**: UI 개발 중엔 표준 `next dev --turbopack`(Turbopack) 로 띄우고,
-  PTY/WebSocket 기능 테스트가 필요할 때만 커스텀 서버로. package.json 에 `dev:next`(turbopack,
-  PTY 없음) + `dev:full`(현재 커스텀 서버) 두 스크립트. 일상 UI 작업은 Turbopack 의 빠른 HMR.
+- **B. dev 와 PTY 분리(가장 확실, 적용됨)**: UI 개발 중엔 `npm run dev:turbo`(`next dev --turbopack`)
+  로 띄워 Turbopack 의 빠른 HMR 을 쓰고, PTY/WebSocket(에이전트 터미널) 기능이 필요할 때만
+  `npm run dev`(커스텀 서버)로. `dev:turbo` 는 커스텀 서버를 안 거치므로 `/api/pty`·세션 제어가 없다
+  — 순수 UI 작업 전용. (package.json 에 `dev:turbo` 추가됨.)
 - **C. 측정 후 판단**: `next dev` 의 컴파일 로그(라우트별 compiled in Xms)로 병목 라우트 확인.
   `/reports`(Recharts 117kB) 등 무거운 라우트가 첫 컴파일을 끌면 lazy import 로 분리.
 - **D. 부팅 비용 절감**: dev 에서 매번 마이그레이션 실행을 스킵 옵션(이미 최신이면 빠르게 통과)

@@ -28,6 +28,17 @@ export function unreadMergedCount(): number {
   return result?.n ?? 0;
 }
 
+// 미확인 머지 PR 을 한 번에 모두 확인 처리 — "최근 머지 N 미확인" 이 쌓였을 때 일괄 정리.
+// updatedAt 은 건드리지 않는다(정렬/표시 시각 보존, markPRRead 주석 참조).
+export function markAllMergedRead(): { updated: number } {
+  const result = db
+    .update(prs)
+    .set({ readAt: new Date() })
+    .where(and(eq(prs.status, 'merged'), isNull(prs.readAt)))
+    .run();
+  return { updated: result.changes };
+}
+
 // 여러 PR 을 한 번에 확인 처리 (후속 모달에서 일괄/넘김 처리용). 이미 읽은 건 건드리지 않음.
 export function markPRsRead(ids: ReadonlyArray<number>): { updated: number } {
   if (ids.length === 0) return { updated: 0 };

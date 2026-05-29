@@ -12,7 +12,16 @@ import { PRPeekModal, type PeekItem } from './PRPeekModal';
 import feed from '@/app/page.module.css';
 import styles from './RecentMergesFeed.module.css';
 
-export function RecentMergesFeed({ items }: { items: ReadonlyArray<ActivityFeedItem> }) {
+// displayLimit — 목록에 보여줄 행 수. 모달 앞뒤 넘김(prev/next)은 items 전체를 순회하므로
+// "5개 제한 풀기" = 더 많은 머지를 items 로 받아 모달에서 전부 넘겨볼 수 있다(행은 displayLimit 만).
+export function RecentMergesFeed({
+  items,
+  displayLimit,
+}: {
+  items: ReadonlyArray<ActivityFeedItem>;
+  displayLimit?: number;
+}) {
+  const rowItems = displayLimit ? items.slice(0, displayLimit) : items;
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   // 이번 세션에 모달에서 본 미확인 PR 의 viewId — 닫을 때 일괄 READ 처리 + 낙관적 점 제거.
   const [viewed, setViewed] = useState<Set<string>>(new Set());
@@ -81,7 +90,7 @@ export function RecentMergesFeed({ items }: { items: ReadonlyArray<ActivityFeedI
   return (
     <div className={feed.feedCard}>
       <div className={feed.feed}>
-        {items.map((item, i) => {
+        {rowItems.map((item, i) => {
           const isRead = item.read || viewed.has(item.href);
           return (
             <button

@@ -108,6 +108,7 @@ export const ko = {
       recentMerge: '최근 머지',
       // Phase 20 — 미확인 머지 PR 수 배지.
       unreadMerges: (n: number) => `${n} 미확인`,
+      markAllRead: '모두 확인',
       recentMore: '전체 활동 →',
       // '전체 활동'(/activity) 은 미구현 — 더보기 자리에 사유 tooltip 으로 노출.
       recentMoreHint: '전체 활동 — 준비 중 (곧 제공됩니다)',
