@@ -10,8 +10,8 @@ import {
 } from './session-store';
 
 const sample: PersistedSession[] = [
-  { id: 'a1', name: '세션 1', workspaceId: 3, createdAt: 1000, lastActivityAt: 2000 },
-  { id: 'b2', name: 'foo', workspaceId: 7, createdAt: 1500, lastActivityAt: 2500 },
+  { id: 'a1', name: '세션 1', workspaceId: 3, createdAt: 1000, lastActivityAt: 2000, runId: null },
+  { id: 'b2', name: 'foo', workspaceId: 7, createdAt: 1500, lastActivityAt: 2500, runId: 42 },
 ];
 
 describe('session-store', () => {
@@ -61,6 +61,12 @@ describe('session-store', () => {
     ];
     writeFileSync(file, JSON.stringify(mixed), 'utf8');
     expect(loadPersistedSessions(file)).toEqual([sample[0]]);
+  });
+
+  it('normalizes a missing runId to null (back-compat with old files)', () => {
+    const legacy = [{ id: 'old', name: 'x', workspaceId: 1, createdAt: 1, lastActivityAt: 1 }];
+    writeFileSync(file, JSON.stringify(legacy), 'utf8');
+    expect(loadPersistedSessions(file)).toEqual([{ ...legacy[0], runId: null }]);
   });
 
   it('overwrites prior contents on re-save', () => {

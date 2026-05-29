@@ -16,6 +16,10 @@ export type PersistedSession = {
   workspaceId: number;
   createdAt: number;
   lastActivityAt: number;
+  // 이 세션이 속한 위임 agent_run id (없으면 null). 재시작 후 복원 시 run 연결을 유지해
+  // (a) resume 후 종료 시 finishAgentRun 마감 가능 (b) 시작 시 orphan 정리에서 제외.
+  // 구버전 파일엔 없을 수 있어 로드 시 null 로 normalize (하위호환).
+  runId: number | null;
 };
 
 // 세션 파일 경로 — DB 와 같은 data 디렉토리(둘 다 CORTEX_DB_PATH 기준).
@@ -35,7 +39,11 @@ export function loadPersistedSessions(path: string): PersistedSession[] {
   try {
     const data: unknown = JSON.parse(raw);
     if (!Array.isArray(data)) return [];
-    return data.filter(isPersistedSession);
+    // runId 누락(구버전 파일)은 null 로 normalize.
+    return data.filter(isPersistedSession).map((s) => ({
+      ...s,
+      runId: typeof s.runId === 'number' ? s.runId : null,
+    }));
   } catch {
     return []; // 손상 — 무시.
   }

@@ -3,7 +3,7 @@
 // 워크스페이스에서 claude CLI 세션을 spawn 한다 (PTY 서버). 위임 prompt 는
 // buildDelegatePrompt 로 이슈 spec 에서 구성.
 
-import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, notInArray, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs, roadmapItems } from '@/db/schema';
 
@@ -95,6 +95,23 @@ export function startAgentRun(issueId: number): number {
     .returning({ id: agentRuns.id })
     .get();
   return row.id;
+}
+
+// Phase 13.4 — 서버 시작 시 orphan 정리. 라이브 pty 세션은 프로세스와 함께 죽으므로, 재시작
+// 직후 'running'/'queued' 인 agent_run 중 복원 가능한 세션(restorableRunIds)에 안 묶인 것은
+// 고아다 → failed 로 마감(이슈가 영영 '진행 중' 잔류 방지). pty.ts 모듈 로드 시 1회 호출.
+export function reconcileOrphanedRuns(restorableRunIds: ReadonlyArray<number>): { failed: number } {
+  const activeCond = inArray(agentRuns.status, ['running', 'queued']);
+  const where =
+    restorableRunIds.length > 0
+      ? and(activeCond, notInArray(agentRuns.id, [...restorableRunIds]))
+      : activeCond;
+  const result = db
+    .update(agentRuns)
+    .set({ status: 'failed', completedAt: new Date() })
+    .where(where)
+    .run();
+  return { failed: result.changes };
 }
 
 // 세션 종료 시 호출 — 정상 종료(exit code 0)면 completed, 아니면 failed 로 마감.
