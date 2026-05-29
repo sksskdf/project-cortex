@@ -162,6 +162,8 @@ export const ko = {
       counter: (i: number, total: number) => `${i} / ${total}`,
       score: (n: number) => `신뢰 ${n}`,
       files: (n: number) => `파일 ${n}`,
+      loading: '불러오는 중…',
+      notFound: 'PR 을 찾을 수 없습니다.',
     },
     workload: {
       count: (current: number, capacity: number) => `${current} / ${capacity}`,

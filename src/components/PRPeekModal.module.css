@@ -208,6 +208,20 @@
   color: var(--ds-color-text-02);
 }
 
+/* 액션 모달 — 로딩 표시 + 액션 버튼 영역. */
+.loading {
+  padding: var(--ds-spacing-32);
+  text-align: center;
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.actions {
+  margin-top: var(--ds-spacing-16);
+  padding-top: var(--ds-spacing-14);
+  border-top: var(--ds-border-width-1) solid var(--ds-color-line-02);
+}
+
 .foot {
   display: flex;
   align-items: center;

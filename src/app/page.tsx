@@ -1,9 +1,8 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
-import { AgentFaceIcon, AlertIcon, CheckIcon, InfoIcon } from '@/components/icons';
+import { CheckIcon } from '@/components/icons';
 import { NewIssueDialog } from '@/components/NewIssueDialog';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
-import { PRRowInlineActions } from '@/components/PRRowInlineActions';
 import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
 import { currentUser } from '@/lib/config';
 import {
@@ -17,6 +16,7 @@ import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { RecentMergesFeed } from '@/components/RecentMergesFeed';
 import { MarkAllReadButton } from '@/components/MarkAllReadButton';
+import { TodayRows } from '@/components/TodayRows';
 import { LiveStatusStrip } from '@/components/LiveStatusStrip';
 import { getLiveStatus } from '@/lib/live-status';
 import { listPinnedNotes } from '@/lib/notes';
@@ -25,35 +25,16 @@ import { unreadMergedCount } from '@/lib/pr-read';
 import { listIssueRepos } from '@/lib/issues';
 import { listDashboardProjects } from '@/lib/roadmap';
 import { listTodos } from '@/lib/todos';
-import type { GaugeTier, PR, StatDelta, TagTone } from '@/lib/types';
+import type { StatDelta } from '@/lib/types';
 import styles from './page.module.css';
 
 type WorkloadBarTone = AgentWorkload['bar'];
-
-const tagToneClass: Record<TagTone, string> = {
-  red: 'ds-tag--red',
-  yellow: 'ds-tag--yellow',
-  purple: 'ds-tag--purple',
-  green: 'ds-tag--green',
-  gray: 'ds-tag--gray',
-  'sky-blue': 'ds-tag--sky-blue',
-  cyan: 'ds-tag--cyan',
-};
-
-const gaugeBarClass: Record<GaugeTier, string> = {
-  success: styles.gaugeBarSuccess,
-  blue: styles.gaugeBarBlue,
-  warning: styles.gaugeBarWarning,
-  error: styles.gaugeBarError,
-};
 
 const workloadBarClass: Record<WorkloadBarTone, string> = {
   blue: styles.workloadBar,
   green: `${styles.workloadBar} ${styles.workloadBarGreen}`,
   yellow: `${styles.workloadBar} ${styles.workloadBarYellow}`,
 };
-
-const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 15;
 
 function inboxStatIcon() {
   return (
@@ -150,27 +131,6 @@ function runningDotIcon() {
   );
 }
 
-function Gauge({ value, tier }: { value: number; tier: GaugeTier }) {
-  const offset = GAUGE_CIRCUMFERENCE - (value / 100) * GAUGE_CIRCUMFERENCE;
-  return (
-    <div className={styles.gauge}>
-      <svg className={styles.gaugeSvg} width={36} height={36} viewBox="0 0 36 36">
-        <circle className={styles.gaugeTrack} cx={18} cy={18} r={15} strokeWidth={3} />
-        <circle
-          className={`${styles.gaugeBar} ${gaugeBarClass[tier]}`}
-          cx={18}
-          cy={18}
-          r={15}
-          strokeWidth={3}
-          strokeDasharray={GAUGE_CIRCUMFERENCE}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <span className={styles.gaugeLabel}>{value}</span>
-    </div>
-  );
-}
-
 function DeltaBadge({ delta }: { delta: StatDelta }) {
   const className =
     delta.direction === 'up'
@@ -185,43 +145,6 @@ function DeltaBadge({ delta }: { delta: StatDelta }) {
       {sign}
       {delta.amount} {delta.comparedTo}
     </span>
-  );
-}
-
-function TodoRowCard({ row }: { row: PR }) {
-  const isAlert = row.reason.tone === 'alert';
-  return (
-    <Link href={`/pr/${row.id}`} className={styles.todoRow}>
-      <Gauge value={row.gauge.value} tier={row.gauge.tier} />
-      <div className={styles.todoBody}>
-        <div className={styles.todoTitle}>{row.title}</div>
-        <div className={styles.todoMeta}>
-          <span
-            className={`${styles.author} ${row.author.kind === 'agent' ? styles.authorAgent : styles.authorHuman}`}
-          >
-            <AgentFaceIcon />
-            {row.author.name}
-          </span>
-          {row.tags.map((tag) => (
-            <span key={tag.label} className={`ds-tag ds-tag--md ${tagToneClass[tag.tone]}`}>
-              {tag.label}
-            </span>
-          ))}
-        </div>
-        <div className={`${styles.todoReason} ${isAlert ? '' : styles.todoReasonInfo}`}>
-          {isAlert ? <AlertIcon size={12} /> : <InfoIcon size={12} />}
-          {row.reason.text}
-        </div>
-      </div>
-      <div className={styles.todoRight}>
-        <span className={styles.todoDiff}>
-          <span className={styles.todoDiffPlus}>+{row.additions}</span>
-          <span className={styles.todoDiffMinus}>−{row.deletions}</span>
-        </span>
-        <span>{row.ageText}</span>
-        {row.actions && <PRRowInlineActions viewId={row.id} actions={row.actions} />}
-      </div>
-    </Link>
   );
 }
 
@@ -386,11 +309,7 @@ export default async function DashboardPage() {
                 {t.dashboard.section.todoMore}
               </Link>
             </div>
-            <div className={styles.todoList}>
-              {todoRows.map((row) => (
-                <TodoRowCard key={row.id} row={row} />
-              ))}
-            </div>
+            <TodayRows rows={todoRows} />
           </section>
 
           <section className={styles.section}>
