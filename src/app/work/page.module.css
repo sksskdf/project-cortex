@@ -1,0 +1,119 @@
+.page {
+  padding: var(--ds-spacing-32) var(--ds-spacing-40);
+  max-width: 1100px;
+}
+
+.header {
+  margin-bottom: var(--ds-spacing-24);
+}
+
+.title {
+  font-size: var(--ds-typography-font-size-24);
+  font-weight: var(--ds-typography-font-weight-bold);
+  letter-spacing: var(--ds-typography-letter-spacing-tight);
+  color: var(--ds-color-text-03-high);
+  margin: 0;
+}
+
+.subtitle {
+  margin-top: var(--ds-spacing-4);
+  font-size: var(--ds-typography-font-size-14);
+  color: var(--ds-color-text-02);
+}
+
+.empty {
+  padding: var(--ds-spacing-40);
+  text-align: center;
+  color: var(--ds-color-text-02);
+  font-size: var(--ds-typography-font-size-14);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+}
+
+.project {
+  margin-bottom: var(--ds-spacing-32);
+}
+
+.projectTitle {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-16);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+  margin: 0 0 var(--ds-spacing-12);
+}
+
+.group {
+  margin-bottom: var(--ds-spacing-16);
+  padding-left: var(--ds-spacing-12);
+  border-left: var(--ds-spacing-2) solid var(--ds-color-line-02);
+}
+
+.groupTitle {
+  font-size: var(--ds-typography-font-size-13);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-02);
+  margin-bottom: var(--ds-spacing-8);
+}
+
+.issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+}
+
+.issue {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-12) var(--ds-spacing-14);
+}
+
+.issueHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  flex-wrap: wrap;
+}
+
+.issueTitle {
+  font-size: var(--ds-typography-font-size-14);
+  color: var(--ds-color-text-03-high);
+  font-weight: var(--ds-typography-font-weight-medium);
+}
+
+.session {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+}
+
+.prLink {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-secondary-01);
+  text-decoration: none;
+}
+
+.prLink:hover {
+  text-decoration: underline;
+}
+
+.todos {
+  list-style: none;
+  margin: var(--ds-spacing-8) 0 0;
+  padding: 0 0 0 var(--ds-spacing-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.todo {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}

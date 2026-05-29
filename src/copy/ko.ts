@@ -17,6 +17,7 @@ export const ko = {
       workspace: '워크스페이스',
     },
     dashboard: '대시보드',
+    work: '작업',
     inbox: '인박스',
     projects: '프로젝트',
     issues: '이슈',
@@ -844,6 +845,20 @@ export const ko = {
     },
   },
   // 이슈 목록 (읽기 전용 v1) — '새 이슈' 로 만든 이슈와 위임된 claude 세션 상태를 한눈에.
+  // Phase 18 — 통합 "작업" 뷰.
+  work: {
+    title: '작업',
+    subtitle: '로드맵 산출물 ▸ 연결된 이슈 ▸ 그 이슈의 할 일·결과 PR 을 한 화면에. 활성 작업만.',
+    empty: '진행 중인 이슈가 없습니다. 대시보드에서 새 이슈를 작성하면 여기에 묶여 보입니다.',
+    unlinked: '로드맵 미연결',
+    session: (s: 'queued' | 'running' | 'completed' | 'failed') =>
+      ({
+        queued: '세션 대기',
+        running: '세션 실행 중',
+        completed: '세션 완료',
+        failed: '세션 실패',
+      })[s],
+  },
   issues: {
     title: '이슈',
     subtitle: '작성한 이슈와 위임한 Claude 세션 상태를 봅니다.',
