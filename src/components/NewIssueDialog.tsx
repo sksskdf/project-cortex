@@ -4,12 +4,13 @@
 // 생성 시 레포에 등록된 워크스페이스가 있으면 이슈명 세션을 자동 spawn(agent_run 기록),
 // 없으면 위임 프롬프트를 띄워 수동 시작하도록 안내한다 (PTY 세션 spawn 은 드로어).
 
-import { useEffect, useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { createIssueAction } from '@/actions/issues';
 import type { IssueRepo } from '@/lib/issues';
 import { useAgentDrawer, type PendingStart } from './AgentDrawer';
+import { useFocusTrap } from './useFocusTrap';
 import styles from './NewIssueDialog.module.css';
 
 const f = t.dashboard.newIssueForm;
@@ -56,14 +57,10 @@ function NewIssueModal({
   const [delegatedPrompt, setDelegatedPrompt] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const titleId = useId();
+  // 포커스 트랩 + Escape 닫기 + 포커스 복원. 초기 포커스는 폼의 제목 input(autoFocus)이
+  // 담당하므로 훅 autoFocus 는 끈다(헤더 닫기 버튼으로 포커스가 가지 않도록).
+  const dialogRef = useFocusTrap<HTMLDivElement>({ onClose, autoFocus: false });
 
   const canSubmit = repoId !== '' && title.trim().length > 0 && spec.trim().length > 0 && !pending;
 
@@ -105,9 +102,17 @@ function NewIssueModal({
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} aria-hidden />
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label={f.title}>
+      <div
+        ref={dialogRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <header className={styles.head}>
-          <h2 className={styles.title}>{f.title}</h2>
+          <h2 className={styles.title} id={titleId}>
+            {f.title}
+          </h2>
           <button
             type="button"
             className={styles.iconBtn}
