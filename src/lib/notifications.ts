@@ -110,7 +110,10 @@ export type CreateNotificationInput =
   | { kind: 'tests-fixed'; prId: number }
   | { kind: 'test-fix-failed'; prId: number; reason: string }
   | { kind: 'review-addressed'; prId: number }
-  | { kind: 'review-fix-failed'; prId: number; reason: string };
+  | { kind: 'review-fix-failed'; prId: number; reason: string }
+  // 머지 후 워크스페이스 자동 git pull 결과 — 조용히 돌던 걸 표면화(가시성).
+  | { kind: 'workspace-pulled'; prId: number }
+  | { kind: 'workspace-pull-failed'; prId: number; reason: string };
 
 // PR / cluster 메타를 한 번에 조회. 없으면 알림 자체를 만들지 않음 (orphan 방지).
 export function createNotification(input: CreateNotificationInput): {
@@ -220,6 +223,16 @@ export function createNotification(input: CreateNotificationInput): {
       case 'review-fix-failed':
         return {
           title: `리뷰 자동 반영 실패 · ${slug} #${pr.number}`,
+          body: input.reason,
+        };
+      case 'workspace-pulled':
+        return {
+          title: `워크스페이스 자동 업데이트 · ${slug}`,
+          body: `머지 후 로컬 워크스페이스를 git pull 했습니다.`,
+        };
+      case 'workspace-pull-failed':
+        return {
+          title: `워크스페이스 자동 pull 실패 · ${slug}`,
           body: input.reason,
         };
     }

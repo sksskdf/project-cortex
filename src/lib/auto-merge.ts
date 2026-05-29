@@ -184,7 +184,14 @@ async function safeAutoPull(prId: number): Promise<void> {
     if (!pr) return;
     const ws = getWorkspace(pr.repoId);
     if (!ws || ws.needsClone) return;
-    await pullWorkspace(pr.repoId);
+    // 결과를 알림으로 표면화 — 이전엔 조용히 돌아 성공/실패를 알 수 없었다(특히 워크스페이스가
+    // 다른 브랜치에 있어 ff-only 가 거부되는 케이스가 보이지 않았음). 실패 사유까지 노출.
+    const result = await pullWorkspace(pr.repoId);
+    if (result.kind === 'pulled' || result.kind === 'cloned') {
+      safeNotify({ kind: 'workspace-pulled', prId });
+    } else if (result.kind === 'failed') {
+      safeNotify({ kind: 'workspace-pull-failed', prId, reason: result.output });
+    }
   } catch (err) {
     console.error(`머지 후 자동 git pull 실패 (PR ${prId}):`, err);
   }

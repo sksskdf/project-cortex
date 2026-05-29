@@ -90,6 +90,24 @@ describe('createNotification', () => {
     expect(row?.body).toBe('GitHub merge rejected');
   });
 
+  it('creates workspace-pulled / workspace-pull-failed notifications', () => {
+    const { prId } = seedPR({ slug: 'acme/web', number: 7, title: 'x' });
+    const ok = createNotification({ kind: 'workspace-pulled', prId });
+    expect(ok.kind).toBe('created');
+    expect(db.select().from(notifications).where(eq(notifications.id, ok.id!)).get()?.kind).toBe(
+      'workspace-pulled',
+    );
+
+    const fail = createNotification({
+      kind: 'workspace-pull-failed',
+      prId,
+      reason: 'git pull 실패: Not possible to fast-forward',
+    });
+    const row = db.select().from(notifications).where(eq(notifications.id, fail.id!)).get();
+    expect(row?.kind).toBe('workspace-pull-failed');
+    expect(row?.body).toContain('fast-forward');
+  });
+
   it('skips creating when PR missing', () => {
     const r = createNotification({ kind: 'ci-failed', prId: 9999 });
     expect(r.kind).toBe('skipped');

@@ -257,6 +257,8 @@ export const notifications = sqliteTable('notifications', {
       'test-fix-failed',
       'review-addressed',
       'review-fix-failed',
+      'workspace-pulled',
+      'workspace-pull-failed',
     ],
   }).notNull(),
   // 관련 객체 — 클릭 시 이동할 라우트를 라이브러리에서 도출. 모두 nullable.
