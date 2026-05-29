@@ -22,6 +22,7 @@ import {
   matchAndApplyDoneFromPR,
   reapplyRoadmapMatchesForProject,
   toggleItemStatus,
+  updateItemTitle,
   updatePhaseStatus,
 } from './roadmap';
 
@@ -60,6 +61,49 @@ function seedPR(projectId: number, body: string | null = null, number = 1): numb
     .returning({ id: prs.id })
     .get().id;
 }
+
+describe('updateItemTitle', () => {
+  it('제목을 갱신한다', () => {
+    const pid = seedProject();
+    const phase = createPhase({ projectId: pid, key: '1', title: 'P', goal: null });
+    if (phase.kind !== 'created') throw new Error('phase');
+    const item = createItem({ phaseId: phase.id, title: '옛 제목' });
+    if (item.kind !== 'created') throw new Error('item');
+
+    expect(updateItemTitle(item.id, '새 제목').kind).toBe('updated');
+    expect(db.select().from(roadmapItems).where(eq(roadmapItems.id, item.id)).get()?.title).toBe(
+      '새 제목',
+    );
+  });
+
+  it('빈 제목은 invalid', () => {
+    const pid = seedProject();
+    const phase = createPhase({ projectId: pid, key: '1', title: 'P', goal: null });
+    if (phase.kind !== 'created') throw new Error('phase');
+    const item = createItem({ phaseId: phase.id, title: 'x' });
+    if (item.kind !== 'created') throw new Error('item');
+    expect(updateItemTitle(item.id, '   ').kind).toBe('invalid');
+  });
+
+  it('없는 항목은 not-found', () => {
+    expect(updateItemTitle(99999, 'y').kind).toBe('not-found');
+  });
+
+  it('git source 항목 편집 시 sourceOverrideAt 마킹', () => {
+    const pid = seedProject();
+    const phase = createPhase({ projectId: pid, key: '1', title: 'P', goal: null });
+    if (phase.kind !== 'created') throw new Error('phase');
+    const id = db
+      .insert(roadmapItems)
+      .values({ phaseId: phase.id, title: 'git항목', sortOrder: 0, source: 'git' })
+      .returning({ id: roadmapItems.id })
+      .get().id;
+    updateItemTitle(id, '편집됨');
+    expect(
+      db.select().from(roadmapItems).where(eq(roadmapItems.id, id)).get()?.sourceOverrideAt,
+    ).not.toBeNull();
+  });
+});
 
 describe('createPhase', () => {
   it('creates with auto sortOrder', () => {

@@ -291,6 +291,8 @@ export const ko = {
       submit: '추가',
       cancel: '취소',
       delete: '삭제',
+      save: '저장',
+      editLabel: '산출물 이름 편집',
       autoDoneBadge: '자동 완료',
       autoDoneTip: (prId: number) => `PR #${prId} 머지로 자동 완료됨`,
     },
