@@ -1,0 +1,132 @@
+/* error.tsx · not-found.tsx · loading.tsx 공용 스타일.
+   모두 AppShell 의 <main> 안에서 렌더되므로 화면 중앙 정렬은 main 영역 기준. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: calc(100vh - var(--ds-spacing-64));
+  padding: var(--ds-spacing-40) var(--ds-spacing-24);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-32);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ds-spacing-12);
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--ds-border-radius-input);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ds-color-soft-red);
+  color: var(--ds-color-state-error-strong);
+  margin-bottom: var(--ds-spacing-4);
+}
+
+.iconMuted {
+  background: var(--ds-color-soft-gray-pale);
+  color: var(--ds-color-text-02);
+}
+
+.icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.title {
+  font-size: var(--ds-typography-font-size-20);
+  font-weight: var(--ds-typography-font-weight-bold);
+  letter-spacing: var(--ds-typography-letter-spacing-tight);
+  color: var(--ds-color-text-03-high);
+  margin: 0;
+}
+
+.desc {
+  font-size: var(--ds-typography-font-size-14);
+  color: var(--ds-color-text-02);
+  line-height: var(--ds-typography-line-height-148);
+  margin: 0;
+}
+
+.digest {
+  font-family: var(--ds-typography-font-family-number);
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--ds-spacing-8);
+  margin-top: var(--ds-spacing-8);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* 라우트 전환 로딩 — 매 이동마다 떠도 거슬리지 않게 아주 차분하게.
+   다크 배경에 옅은 텍스트 + 느린 페이드 펄스만. */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--ds-spacing-64));
+  padding: var(--ds-spacing-40);
+}
+
+.loadingText {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  font-size: var(--ds-typography-font-size-14);
+  color: var(--ds-color-text-02);
+  animation: boundaryPulse 1.4s ease-in-out infinite;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--ds-color-line-03);
+  border-top-color: var(--ds-color-text-02);
+  border-radius: 50%;
+  animation: boundarySpin 0.7s linear infinite;
+}
+
+@keyframes boundaryPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes boundarySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 모션 최소화 선호 시 애니메이션 정지 — 깜빡임/회전 제거. */
+@media (prefers-reduced-motion: reduce) {
+  .loadingText {
+    animation: none;
+    opacity: 0.8;
+  }
+  .spinner {
+    animation: none;
+  }
+}
