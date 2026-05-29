@@ -16,7 +16,7 @@ import {
   type RequestChangesResult,
 } from '@/lib/auto-merge';
 import { analyzePR } from '@/lib/pre-review';
-import { markPRRead, markPRsRead } from '@/lib/pr-read';
+import { markAllMergedRead, markPRRead, markPRsRead } from '@/lib/pr-read';
 
 export type PRMergeActionState =
   | { kind: 'idle' }
@@ -273,6 +273,20 @@ export async function markPRsReadAction(
     return { updated: 0 };
   }
 
+  revalidatePath('/inbox');
+  revalidatePath('/');
+  return { updated };
+}
+
+// Phase 20 — 미확인 머지 일괄 확인 처리. "최근 머지 N 미확인" 이 쌓였을 때 한 번에 정리.
+export async function markAllMergedReadAction(): Promise<{ updated: number }> {
+  let updated = 0;
+  try {
+    updated = markAllMergedRead().updated;
+  } catch (err) {
+    console.error('markAllMergedRead 실패:', err);
+    return { updated: 0 };
+  }
   revalidatePath('/inbox');
   revalidatePath('/');
   return { updated };

@@ -1,0 +1,17 @@
+.btn {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-secondary-01);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

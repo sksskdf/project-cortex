@@ -16,6 +16,7 @@ import { DashboardNotesWidget } from '@/components/DashboardNotesWidget';
 import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { RecentMergesFeed } from '@/components/RecentMergesFeed';
+import { MarkAllReadButton } from '@/components/MarkAllReadButton';
 import { LiveStatusStrip } from '@/components/LiveStatusStrip';
 import { getLiveStatus } from '@/lib/live-status';
 import { listPinnedNotes } from '@/lib/notes';
@@ -262,7 +263,9 @@ export default async function DashboardPage() {
   const [dashboardStats, todoRows, recentMerges, dashboardClusters] = await Promise.all([
     getDashboardStats(),
     getTodayRows(3),
-    getRecentMerges(5),
+    // 행은 5개만 보여주되(displayLimit), 모달 앞뒤 넘김은 더 많은 머지를 순회할 수 있도록
+    // 넉넉히 로드("5개 제한 풀기"). 라이트 요약이라 200건 로드도 가볍다.
+    getRecentMerges(200),
     getDashboardClusters(),
   ]);
   const notifications = listRecentNotifications();
@@ -403,17 +406,9 @@ export default async function DashboardPage() {
                   </span>
                 )}
               </h2>
-              {/* /activity 라우트는 Phase 7 (보고서) 진입 시 활성화. 사유를 title/aria 로 안내. */}
-              <span
-                className={styles.sectionMoreDisabled}
-                role="note"
-                title={t.dashboard.section.recentMoreHint}
-                aria-label={t.dashboard.section.recentMoreHint}
-              >
-                {t.nav.comingSoon}
-              </span>
+              <MarkAllReadButton count={unreadMerges} />
             </div>
-            <RecentMergesFeed items={recentMerges} />
+            <RecentMergesFeed items={recentMerges} displayLimit={5} />
           </section>
         </div>
 

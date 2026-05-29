@@ -445,7 +445,8 @@ CLI claude 세션은 대화형·선형이라 길어지면 한눈에 파악하기
 - [x] **dev 서버 속도 진단** — `docs/DEV-PERFORMANCE.md`. 원인: 커스텀 서버(PTY ws)라 dev 가
       Turbopack 이 아닌 webpack 경로. 권고: dev 스크립트 분리(B — Turbopack `next dev` + 필요 시
       커스텀 서버) 또는 커스텀서버 Turbopack 지원 확인(A). 측정은 사용자 머신.
-      - [ ] (결정/구현) 스크립트 분리 적용 — 방향 정해지면 자율 구현 가능(package.json 스크립트 추가).
+      - [x] 스크립트 분리 적용 — `dev:turbo`(`next dev --turbopack`, PTY 없음·빠른 HMR, UI 전용) 추가.
+            에이전트 터미널 필요 시 `dev`(커스텀 서버). 측정은 사용자 머신.
 
 ---
 

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { prs, projects } from '@/db/schema';
-import { markPRRead, markPRsRead, unreadMergedCount } from './pr-read';
+import { markAllMergedRead, markPRRead, markPRsRead, unreadMergedCount } from './pr-read';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -88,6 +88,24 @@ describe('unreadMergedCount', () => {
     // open PR 을 읽음 처리해도 머지 미확인 카운트엔 영향 없음.
     markPRRead(open, true);
     expect(unreadMergedCount()).toBe(1);
+  });
+});
+
+describe('markAllMergedRead', () => {
+  it('미확인 머지를 모두 확인 처리(머지 아님·이미 확인은 제외)', () => {
+    const repoId = setupProject();
+    setupPR(repoId, 1, 'merged'); // 미확인 머지
+    setupPR(repoId, 2, 'merged'); // 미확인 머지
+    const open = setupPR(repoId, 3, 'open'); // 머지 아님
+    expect(unreadMergedCount()).toBe(2);
+
+    const r = markAllMergedRead();
+    expect(r.updated).toBe(2);
+    expect(unreadMergedCount()).toBe(0);
+    // open PR 은 영향 없음.
+    expect(readAtOf(open)).toBeNull();
+    // 멱등 — 다시 호출하면 0.
+    expect(markAllMergedRead().updated).toBe(0);
   });
 });
 
