@@ -19,7 +19,7 @@ import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
-import { finishAgentRun } from '@/lib/issues';
+import { finishAgentRun, reconcileOrphanedRuns } from '@/lib/issues';
 import {
   defaultSessionStorePath,
   loadPersistedSessions,
@@ -102,8 +102,24 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
     exitSub: NO_SUB,
     createdAt: meta.createdAt,
     lastActivityAt: meta.lastActivityAt,
-    runId: null,
+    // 복원된 run 연결 유지 — resume 후 종료 시 finishAgentRun 마감 + 시작 시 orphan 정리 제외.
+    runId: meta.runId,
   });
+}
+
+// 시작 시 orphan 정리 — 이전 프로세스의 라이브 세션은 그 프로세스와 함께 죽었으므로, 복원
+// 가능한(영속 메타에 남은) run 을 제외한 'running'/'queued' agent_run 은 고아다. failed 로 마감해
+// 이슈가 영영 '진행 중' 으로 잔류하지 않게 한다. (서버 부팅 시 1회 — 이 모듈 로드 시점.)
+{
+  const restorableRunIds = [...sessions.values()]
+    .map((s) => s.runId)
+    .filter((x): x is number => x !== null);
+  try {
+    reconcileOrphanedRuns(restorableRunIds);
+  } catch (err) {
+    // DB 미초기화 등 — best-effort, 서버 기동을 막지 않음.
+    console.error('orphan agent_run 정리 실패:', err);
+  }
 }
 
 function toPersisted(s: Session): PersistedSession {
@@ -113,6 +129,7 @@ function toPersisted(s: Session): PersistedSession {
     workspaceId: s.workspaceId,
     createdAt: s.createdAt,
     lastActivityAt: s.lastActivityAt,
+    runId: s.runId,
   };
 }
 // 현재 레지스트리 전체를 파일에 기록 (≤8개라 매 변경 시 전체 재기록해도 가볍다).

@@ -11,6 +11,7 @@ import {
   linkIssueToRoadmapItem,
   listIssueOptions,
   listIssues,
+  reconcileOrphanedRuns,
   startAgentRun,
 } from './issues';
 
@@ -157,6 +158,45 @@ describe('startAgentRun / finishAgentRun', () => {
     const runId = startAgentRun(seedIssue(repoId, 'x', 'in-progress'));
     finishAgentRun(runId, false);
     expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe('failed');
+  });
+});
+
+describe('reconcileOrphanedRuns', () => {
+  it('복원 불가한 running/queued run 을 failed 로 마감', () => {
+    const repoId = seedProject('repo');
+    const orphan = startAgentRun(seedIssue(repoId, 'a', 'in-progress'));
+    const restorable = startAgentRun(seedIssue(repoId, 'b', 'in-progress'));
+
+    const r = reconcileOrphanedRuns([restorable]);
+    expect(r.failed).toBe(1);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, orphan)).get()?.status).toBe(
+      'failed',
+    );
+    // 복원 가능 세션의 run 은 그대로 running.
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, restorable)).get()?.status).toBe(
+      'running',
+    );
+  });
+
+  it('복원 목록이 비면 모든 running/queued 를 failed', () => {
+    const repoId = seedProject('repo');
+    const a = startAgentRun(seedIssue(repoId, 'a', 'in-progress'));
+    const b = startAgentRun(seedIssue(repoId, 'b', 'in-progress'));
+    const r = reconcileOrphanedRuns([]);
+    expect(r.failed).toBe(2);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, a)).get()?.status).toBe('failed');
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, b)).get()?.status).toBe('failed');
+  });
+
+  it('이미 completed/failed 인 run 은 건드리지 않음', () => {
+    const repoId = seedProject('repo');
+    const done = startAgentRun(seedIssue(repoId, 'a', 'in-progress'));
+    finishAgentRun(done, true);
+    const r = reconcileOrphanedRuns([]);
+    expect(r.failed).toBe(0);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, done)).get()?.status).toBe(
+      'completed',
+    );
   });
 });
 
