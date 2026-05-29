@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import type { CurrentUser, SidebarCounts } from '@/lib/types';
 import { useHelp } from './HelpOverlay';
+import { QuickCapture } from './QuickCapture';
 import styles from './Sidebar.module.css';
 
 type NavItem = {
@@ -290,6 +291,8 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
           ))}
         </ul>
       </nav>
+
+      <QuickCapture />
 
       <div className={styles.divider} />
 
