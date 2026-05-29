@@ -442,46 +442,45 @@ CLI claude 세션은 대화형·선형이라 길어지면 한눈에 파악하기
 
 ---
 
-## 로드맵 완료 — 남은 항목 분류 (2026-05-29 기준)
+## 로드맵 완료 — 남은 항목 분류 (2026-05-29, 세션 2 갱신)
 
-자율 구현 가능한 트랙 A/B + 보조 항목은 모두 처리(#188~#199). 남은 `[ ]` 는 셋으로 갈린다.
+**§1 자율 구현 가능 항목은 사실상 전부 완료**(아래). 남은 `[ ]` 는 §2 결정 대기 / §3 런타임·반복
+검증 필요로, 이 (브라우저·claude CLI·dev 서버 없는) 환경에서 자율 "완료"가 구조적으로 불가하다.
 
-### 1) 자율 구현 가능 — 진행 중/예정 (결정 불필요)
+### 1) 자율 구현 가능 — ✅ 이번 세션(#204~#211) 완료
 
-- (A7-1) 모달 포커스 트랩 — 진행 중. (Phase 16) `.cortex/work-state` 파일 — 진행 중.
-- (B5) 토글 race 가드 — 소규모, 단일 사용자라 후순위지만 구현 가능.
-- (Phase 18) 통합 "작업" 뷰 + 승격 플로우 — 구현 가능(중규모 UI).
-- (Phase 14) 요소 단위 contextual 도움말 — 구현 가능(중규모).
-- (Phase 10.4) UI 에서 로드맵 산출물 추가·편집 — 구현 가능(중규모, roadmap CRUD).
-- **(Phase 20) PR 검토 UX** — READ 마킹 · 라이트 모달 뷰어 · "확인할 부분" 요약 · 머지 후 자동 pull.
-  자율 구현 가능, ROI 높음(자동 머지 신뢰 흐름 직결). 2026-05-29 인입.
-- (Phase 9 후속) dev 서버 속도 진단 — 구현/진단 가능. 패키징 테스트는 런타임 검증(§3) 성격.
-- (Phase 13.6) `.cortex` 스킬 전역 적용 — 구현 가능(스킬 설치 보장 + 주입 일관).
+- ✅ (Phase 13.4) 서버 시작 시 orphan agent_run 정리 — #204
+- ✅ (Phase 20) PR 검토 UX 전체: READ 마킹 · 라이트 모달 뷰어(앞뒤 넘김·READ) · "확인할 부분"
+  요약 · 머지 후 자동 git pull. 인박스 모달은 역할분리로 해결(검토 전용=모달, 인박스=상세 페이지).
+- ✅ (Phase 13.6) CLI 활용 1단계: R1 json-schema 파싱 · R2 스킬 헤드리스 전역화 · R3 비용 관측 ·
+  R5 fallback-model + 리서치 보고서. `.cortex` 스킬 전역(R2)은 코딩 자동화에 가드레일 주입으로 적용.
+- ✅ (Phase 21) glanceability: G1 라이브 상태 스트립 · G3 비선형 요청 quick-capture (G2 는 §3).
+- ✅ (Phase 18) 통합 "작업" 뷰 `/work` (대시보드 3소스는 G1+/work 로 충족).
+- ✅ (Phase 14) 요소 contextual 툴팁 InfoTip.
+- ✅ (Phase 10.4) UI 산출물 추가·편집(RoadmapBoard) · (Phase 16) work-state(#201) — 정합화 확인.
+- 보류(저가치): (B5) 토글 race 가드 — 이전에 misleading 반환으로 판단해 revert, 단일 사용자라 불요.
 
 ### 2) 사용자 결정 필요 — 결정하면 즉시 구현 (completion 차단)
 
-- **Phase 6 클러스터링 keep/cut** — 실사용 저조. "유지/제거/고도화" 중 택. (현재: 유지·보류)
-- **Phase 8 새 리포 생성(PAT)** — fine-grained PAT 발급·저장 정책 필요(보안). PAT 주입 방식 결정 시 구현.
-- **Phase 8 로컬 경로 먼저 등록→연결** — `projects.slug` nullable/draft 스키마 방향 결정 필요.
-- **Phase 13.4 위임 자동 완료 기준** — (b) 세션 사망 감지(서버 재시작 시 orphan 정리)는 #204 로 구현.
-  남은 정책 택1: (a) running N시간+ 자동 idle 타임아웃 (c) 결과 PR 머지 시 완료. 정책 정하면 구현.
-- **Phase 17 DB 중앙화** — 중앙 DB 선택(예: libSQL/Turso vs Postgres) + 단일 사용자 가정 유지
-  범위 결정 필요. 큰 인프라 변경.
-- **Phase 19 외부 노출 + 인증** — Cloudflare Tunnel/Access vs 앱 레벨 세션 등 배포·인증 모델
-  결정 필요. (pty/세션 엔드포인트 무인증이라 외부 노출 전 필수 — 보안 중대)
-- **Phase 19 Cloudflare 제거 / 고정 웹훅 URL** — 웹훅은 공개 도달 주소가 필수라 터널 자체 제거는
-  불가. URL 가변성 완화책 택1: (a) named tunnel 고정 도메인 (b) GitHub App webhook URL 1회 고정
-  (c) 폴링 대안. 트레이드오프 결정 필요.
-- **Phase 21 glanceability 설계** — 상태 한눈 보드/세션 타임라인/비선형 요청 캡처는 구현 가능하나
-  "어떤 뷰가 실제로 한눈 파악에 도움 되는가"는 설계 방향 결정 선행(추측 구현 금지, 좋은 아이디어 필요).
+- ✅ **(결정됨) 수신 모드** — 현행 웹훅 유지(폴링 미채택). Cloudflare 제거 안 함. (`docs/WEBHOOK-DELIVERY.md`)
+- ✅ **(결정됨) glanceability 방향** — G1+G3 채택·구현 완료. (`docs/GLANCEABILITY.md`)
+- **Phase 6 클러스터링 keep/cut** — 실사용 저조. 유지/제거/고도화 택1. (현재: 유지·보류)
+- **Phase 8 새 리포 생성(PAT) / 로컬-먼저 등록** — PAT 정책(보안) · slug nullable 스키마 방향 결정.
+- **Phase 13.4 위임 자동 완료 기준(잔여)** — 택1: (a) idle 타임아웃 (c) 결과 PR 머지 연동.
+- **Phase 17 DB 중앙화** — libSQL/Turso vs Postgres + 범위. 큰 인프라.
+- **Phase 19 외부 노출 + 인증** — Cloudflare Access vs 앱 세션. pty/세션 무인증이라 외부 노출 전 필수.
+- (dev 스크립트 분리) — Turbopack 분리 적용 여부 (`docs/DEV-PERFORMANCE.md`).
 
-### 3) 반복·런타임 검증 필요 — 단발 구현 아님 (지속 작업)
+### 3) 반복·런타임 검증 필요 — 단발 구현 아님 / 블라인드 위험
 
-- **Phase 4.7 AI 리뷰 품질 고도화** — 실제 머지 결과 피드백·프롬프트/모델 튜닝·회귀 평가 세트.
-  데이터 기반 반복이라 1회 PR 로 "완료" 되지 않음.
-- **Phase 13.5/13.6 claude CLI 고도화** — stream-json 진행 표시·MCP 도구 노출·hooks·모델
-  escalation·토큰 측정. 실기기/CI 런타임 검증 선행 필요(claude CLI 부재 환경에선 typecheck 만 통과).
-- **Phase 15 반응형/패키징 전 검토** — 지속 항목.
+- **Phase 16 worktree 격리** — 코어 세션 spawn(cwd)+--resume·정리 변경. 런타임 검증 선행(블라인드 위험).
+- **Phase 13.5/13.6 고도화(잔여)** — stream-json 진행 표시 · MCP 도구 노출 · hooks · 모델 escalation.
+  claude CLI 런타임 검증 선행. (G2 세션 타임라인은 stream-json 의존.)
+- **Phase 4.7 AI 리뷰 품질** — 실 머지 피드백·프롬프트/모델 튜닝·회귀셋. 데이터 기반 반복.
+- **Phase 9 패키징 테스트** — 프로덕션 빌드 + 실제 OS 서비스 등록 검증(사용자 머신).
+- **Phase 15 반응형** — 단일 사용자 localhost 최하 우선순위. 다중 브레이크포인트 시각 검증 필요.
+- **Phase 10.4 자동 양방향 sync** — Cortex→git 자동 PR + cortex marker 무한루프 방지. git-write 부작용.
 
-> 요약: 트랙 A/B 완주. **completion 의 실제 차단 요인은 §2 의 결정 6건**. 각 항목에 택1 옵션을
-> 적어뒀으니, 결정해주시면 해당 항목부터 바로 구현한다. §1 은 결정 없이도 계속 진행 가능.
+> 요약: **§1(자율) 완주.** 남은 completion 차단 요인은 §2 결정 6건 + §3 런타임·반복 항목.
+> §2 를 결정해주시면 해당 항목부터 즉시 구현(예: 클러스터링 cut, Phase 13.4 idle 타임아웃은 자율
+> 구현 가능). §3 은 사용자 머신/claude CLI 런타임에서의 검증이 선행되어야 안전하다.
