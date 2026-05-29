@@ -14,7 +14,9 @@ import {
 import {
   setProjectAiReview,
   setProjectAutoDeleteBranch,
+  setProjectAutoFixTests,
   setProjectAutoMerge,
+  setProjectAutoResolveChanges,
   setProjectAutoResolveConflicts,
   setProjectMuted,
 } from '@/lib/projects';
@@ -207,6 +209,50 @@ export async function toggleProjectAutoResolveConflictsAction(
 ): Promise<ProjectAutoResolveActionState> {
   try {
     const result = setProjectAutoResolveConflicts(id, enabled);
+    if (result.kind === 'not-found') return { kind: 'not-found' };
+    revalidatePath('/projects');
+    revalidatePath('/');
+    return { kind: 'updated', id: result.id, enabled: result.enabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// 프로젝트별 CI 테스트 실패 자동 수정 토글 (Phase 13.3). 디폴트 OFF.
+export type ProjectAutoFixTestsActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+export async function toggleProjectAutoFixTestsAction(
+  id: number,
+  enabled: boolean,
+): Promise<ProjectAutoFixTestsActionState> {
+  try {
+    const result = setProjectAutoFixTests(id, enabled);
+    if (result.kind === 'not-found') return { kind: 'not-found' };
+    revalidatePath('/projects');
+    revalidatePath('/');
+    return { kind: 'updated', id: result.id, enabled: result.enabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// 프로젝트별 변경 요청 리뷰 자동 반영 토글 (Phase 13.1). 디폴트 OFF.
+export type ProjectAutoResolveChangesActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+export async function toggleProjectAutoResolveChangesAction(
+  id: number,
+  enabled: boolean,
+): Promise<ProjectAutoResolveChangesActionState> {
+  try {
+    const result = setProjectAutoResolveChanges(id, enabled);
     if (result.kind === 'not-found') return { kind: 'not-found' };
     revalidatePath('/projects');
     revalidatePath('/');

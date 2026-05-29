@@ -100,6 +100,8 @@ export type ProjectStatsRow = {
   muted: boolean;
   aiReviewEnabled: boolean;
   autoResolveConflictsEnabled: boolean;
+  autoFixTestsEnabled: boolean;
+  autoResolveChangesEnabled: boolean;
   // 활성 PR (open/review-needed/auto-mergeable) — 인박스 + 클러스터 합계.
   activePRs: number;
   // 머지된 PR 누적.
@@ -120,6 +122,8 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       muted: projects.muted,
       aiReviewEnabled: projects.aiReviewEnabled,
       autoResolveConflictsEnabled: projects.autoResolveConflictsEnabled,
+      autoFixTestsEnabled: projects.autoFixTestsEnabled,
+      autoResolveChangesEnabled: projects.autoResolveChangesEnabled,
     })
     .from(projects)
     .orderBy(asc(projects.slug))
@@ -159,6 +163,8 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       muted: r.muted,
       aiReviewEnabled: r.aiReviewEnabled,
       autoResolveConflictsEnabled: r.autoResolveConflictsEnabled,
+      autoFixTestsEnabled: r.autoFixTestsEnabled,
+      autoResolveChangesEnabled: r.autoResolveChangesEnabled,
       activePRs: activeRow?.n ?? 0,
       mergedPRs: mergedRow?.n ?? 0,
       avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
@@ -218,6 +224,35 @@ export function setProjectAutoResolveConflicts(
     .set({ autoResolveConflictsEnabled: enabled })
     .where(eq(projects.id, id))
     .run();
+  return { kind: 'updated', id, enabled };
+}
+
+// CI 테스트 실패 자동 수정 프로젝트별 토글 (Phase 13.3). 디폴트 OFF — claude 가 워크스페이스에서
+// 테스트를 고쳐 push 하므로 신뢰 선행. .cortex/project.yml 의 auto_fix_tests 와 연동.
+export type ToggleAutoFixTestsResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectAutoFixTests(id: number, enabled: boolean): ToggleAutoFixTestsResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ autoFixTestsEnabled: enabled }).where(eq(projects.id, id)).run();
+  return { kind: 'updated', id, enabled };
+}
+
+// 변경 요청 리뷰 자동 반영 프로젝트별 토글 (Phase 13.1). 디폴트 OFF — claude 가 워크스페이스에서
+// 코드를 고쳐 push 하므로 신뢰 선행. .cortex/project.yml 의 auto_resolve_changes 와 연동.
+export type ToggleAutoResolveChangesResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectAutoResolveChanges(
+  id: number,
+  enabled: boolean,
+): ToggleAutoResolveChangesResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ autoResolveChangesEnabled: enabled }).where(eq(projects.id, id)).run();
   return { kind: 'updated', id, enabled };
 }
 
