@@ -1,3 +1,11 @@
+/* onOpen 모드 — 행이 <button> 일 때 기본 버튼 스타일 리셋(.row 스타일 유지). */
+.rowButton {
+  width: 100%;
+  text-align: left;
+  background: none;
+  font: inherit;
+}
+
 .row {
   display: flex;
   align-items: flex-start;

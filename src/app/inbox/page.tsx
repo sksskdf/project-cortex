@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
-import { PRRow } from '@/components/PRRow';
+import { InboxRows } from '@/components/InboxRows';
 import { BellIcon, ClusterIcon } from '@/components/icons';
 import {
   getInboxCategories,
@@ -351,9 +351,7 @@ export default async function InboxPage({
         )}
 
         <div className={styles.queue}>
-          {inboxQueue.map((pr) => (
-            <PRRow key={pr.id} pr={pr} selectable />
-          ))}
+          <InboxRows rows={inboxQueue} />
         </div>
       </main>
     </div>

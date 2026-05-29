@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import type { PR, ReasonTone, TagTone } from '@/lib/types';
 import { ko as t } from '@/copy/ko';
@@ -30,11 +32,21 @@ const rowToneClass: Record<ReasonTone, string> = {
   info: '',
 };
 
-export function PRRow({ pr, selectable = false }: { pr: PR; selectable?: boolean }) {
+// onOpen 가 있으면 행을 클릭 시 페이지 이동 대신 그 핸들러(보통 액션 모달 열기)를 호출하는
+// 버튼으로 렌더한다. 이 모드에선 인라인 액션을 숨긴다 — operation 은 모달이 담당.
+export function PRRow({
+  pr,
+  selectable = false,
+  onOpen,
+}: {
+  pr: PR;
+  selectable?: boolean;
+  onOpen?: () => void;
+}) {
   const reasonIcon = pr.reason.tone === 'alert' ? <AlertIcon /> : <InfoIcon />;
   const rowClass = `${styles.row} ${rowToneClass[pr.reason.tone]}`.trim();
-  return (
-    <Link href={`/pr/${pr.id}`} className={rowClass}>
+  const inner = (
+    <>
       {selectable && <span className={styles.check} aria-hidden="true" />}
       <Gauge value={pr.gauge.value} tier={pr.gauge.tier} />
       <div className={styles.body}>
@@ -79,7 +91,25 @@ export function PRRow({ pr, selectable = false }: { pr: PR; selectable?: boolean
           <span>{pr.ageText}</span>
         </div>
       </div>
-      {pr.actions && <PRRowInlineActions viewId={pr.id} actions={pr.actions} />}
+      {!onOpen && pr.actions && <PRRowInlineActions viewId={pr.id} actions={pr.actions} />}
+    </>
+  );
+
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        className={`${rowClass} ${styles.rowButton}`}
+        onClick={onOpen}
+        aria-haspopup="dialog"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <Link href={`/pr/${pr.id}`} className={rowClass}>
+      {inner}
     </Link>
   );
 }
