@@ -144,6 +144,8 @@ export const ko = {
       manageSwitch: 'Cortex 관리',
       aiReview: 'AI 리뷰',
       autoResolve: '충돌 해결',
+      autoFixTests: '테스트 수정',
+      resolveChanges: '리뷰 반영',
       sync: '동기화',
       roadmap: '로드맵',
     },
@@ -166,6 +168,14 @@ export const ko = {
       enabled
         ? '머지 충돌 자동 해결 켜짐 — 누르면 끔 (claude CLI 가 충돌 해소 후 push)'
         : '머지 충돌 자동 해결 꺼짐 — 누르면 켬',
+    autoFixTestsAria: (enabled: boolean) =>
+      enabled
+        ? 'CI 테스트 실패 자동 수정 켜짐 — 누르면 끔 (claude CLI 가 테스트 고쳐 push)'
+        : 'CI 테스트 실패 자동 수정 꺼짐 — 누르면 켬',
+    resolveChangesAria: (enabled: boolean) =>
+      enabled
+        ? '변경 요청 리뷰 자동 반영 켜짐 — 누르면 끔 (claude CLI 가 반영 후 push)'
+        : '변경 요청 리뷰 자동 반영 꺼짐 — 누르면 켬',
     seedBadge: '시드',
     progress: {
       label: '진척',

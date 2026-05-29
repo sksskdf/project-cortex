@@ -9,10 +9,12 @@
 import { useState } from 'react';
 import { ko as t } from '@/copy/ko';
 import { ProjectAiReviewToggle } from './ProjectAiReviewToggle';
+import { ProjectAutoFixTestsToggle } from './ProjectAutoFixTestsToggle';
 import { ProjectAutoMergeToggle } from './ProjectAutoMergeToggle';
 import { ProjectAutoResolveToggle } from './ProjectAutoResolveToggle';
 import { ProjectBranchDeleteToggle } from './ProjectBranchDeleteToggle';
 import { ProjectMuteToggle } from './ProjectMuteToggle';
+import { ProjectResolveChangesToggle } from './ProjectResolveChangesToggle';
 import { ProjectReconcileButton } from './ProjectReconcileButton';
 import { RoadmapDrawer } from './RoadmapDrawer';
 import { WorkspaceCard } from './WorkspaceCard';
@@ -103,6 +105,16 @@ function ProjectCard({
           <ProjectAutoResolveToggle
             id={row.id}
             enabled={row.autoResolveConflictsEnabled}
+            disabled={row.muted}
+          />
+          <ProjectAutoFixTestsToggle
+            id={row.id}
+            enabled={row.autoFixTestsEnabled}
+            disabled={row.muted}
+          />
+          <ProjectResolveChangesToggle
+            id={row.id}
+            enabled={row.autoResolveChangesEnabled}
             disabled={row.muted}
           />
           <ProjectBranchDeleteToggle

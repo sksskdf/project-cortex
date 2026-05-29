@@ -9,6 +9,8 @@ import {
   listAutoMergeProjects,
   setProjectAiReview,
   setProjectAutoDeleteBranch,
+  setProjectAutoFixTests,
+  setProjectAutoResolveChanges,
   setProjectAutoMerge,
   setProjectAutoResolveConflicts,
   setProjectMuted,
@@ -173,6 +175,50 @@ describe('setProjectAutoResolveConflicts', () => {
 
   it('returns not-found for missing project', () => {
     expect(setProjectAutoResolveConflicts(9999, true).kind).toBe('not-found');
+  });
+});
+
+describe('setProjectAutoFixTests', () => {
+  it('toggles autoFixTestsEnabled (default false)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.autoFixTestsEnabled).toBe(
+      false,
+    );
+
+    expect(setProjectAutoFixTests(id, true).kind).toBe('updated');
+    expect(db.select().from(projects).where(eq(projects.id, id)).get()?.autoFixTestsEnabled).toBe(
+      true,
+    );
+  });
+
+  it('returns not-found for missing project', () => {
+    expect(setProjectAutoFixTests(9999, true).kind).toBe('not-found');
+  });
+});
+
+describe('setProjectAutoResolveChanges', () => {
+  it('toggles autoResolveChangesEnabled (default false)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    expect(
+      db.select().from(projects).where(eq(projects.id, id)).get()?.autoResolveChangesEnabled,
+    ).toBe(false);
+
+    expect(setProjectAutoResolveChanges(id, true).kind).toBe('updated');
+    expect(
+      db.select().from(projects).where(eq(projects.id, id)).get()?.autoResolveChangesEnabled,
+    ).toBe(true);
+  });
+
+  it('returns not-found for missing project', () => {
+    expect(setProjectAutoResolveChanges(9999, true).kind).toBe('not-found');
   });
 });
 
