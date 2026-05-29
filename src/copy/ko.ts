@@ -82,6 +82,14 @@ export const ko = {
         reviewPending: '검토 대기',
         unreadMerges: '미확인 머지',
       },
+      // Phase 14 — 각 지표 contextual 힌트(hover).
+      hint: {
+        activeDelegations: 'Claude 에 위임돼 실행/대기 중인 이슈 작업 수. 클릭하면 이슈 목록.',
+        automationInFlight:
+          '백그라운드 자동화(충돌 해결·테스트 수정·리뷰 반영)가 도는 중. 클릭하면 인박스.',
+        reviewPending: '검토가 필요한 PR 수(뮤트 프로젝트 제외). 클릭하면 인박스.',
+        unreadMerges: '머지됐지만 아직 내가 확인하지 않은 PR 수. 클릭하면 인박스.',
+      },
     },
     stat: {
       pendingReview: '검토 대기',

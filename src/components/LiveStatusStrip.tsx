@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import type { LiveStatus } from '@/lib/live-status';
+import { InfoTip } from './InfoTip';
 import styles from './LiveStatusStrip.module.css';
 
 type Segment = { key: keyof LiveStatus; href: string; live?: boolean };
@@ -23,15 +24,16 @@ export function LiveStatusStrip({ status }: { status: LiveStatus }) {
         const n = status[key];
         const active = n > 0;
         return (
-          <Link
-            key={key}
-            href={href}
-            className={`${styles.seg} ${active ? styles.segActive : styles.segIdle}`}
-          >
-            {live && active && <span className={styles.pulse} aria-hidden />}
-            <span className={styles.num}>{n}</span>
-            <span className={styles.label}>{s.label[key]}</span>
-          </Link>
+          <InfoTip key={key} text={s.hint[key]}>
+            <Link
+              href={href}
+              className={`${styles.seg} ${active ? styles.segActive : styles.segIdle}`}
+            >
+              {live && active && <span className={styles.pulse} aria-hidden />}
+              <span className={styles.num}>{n}</span>
+              <span className={styles.label}>{s.label[key]}</span>
+            </Link>
+          </InfoTip>
         );
       })}
     </div>
