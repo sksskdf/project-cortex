@@ -183,6 +183,13 @@
       "when": 1780900000000,
       "tag": "0025_pr_read_at",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1781000000000,
+      "tag": "0026_llm_usage",
+      "breakpoints": true
     }
   ]
 }
