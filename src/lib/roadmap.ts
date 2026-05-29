@@ -517,6 +517,28 @@ export function toggleItemStatus(
   return { kind: 'updated' };
 }
 
+// 산출물 제목 편집. git source 행을 고치면 sourceOverrideAt 마킹(다음 sync 가 안 덮어쓰게) —
+// toggleItemStatus 와 동일 정책. 빈 제목은 거부.
+export function updateItemTitle(
+  itemId: number,
+  title: string,
+): { kind: 'updated' } | { kind: 'not-found' } | { kind: 'invalid' } {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) return { kind: 'invalid' };
+  const existing = db
+    .select({ id: roadmapItems.id, source: roadmapItems.source })
+    .from(roadmapItems)
+    .where(eq(roadmapItems.id, itemId))
+    .get();
+  if (!existing) return { kind: 'not-found' };
+  const updates: Record<string, unknown> = { title: trimmed, updatedAt: new Date() };
+  if (existing.source === 'git') {
+    updates.sourceOverrideAt = new Date();
+  }
+  db.update(roadmapItems).set(updates).where(eq(roadmapItems.id, itemId)).run();
+  return { kind: 'updated' };
+}
+
 export function deleteItem(itemId: number): { kind: 'deleted' } | { kind: 'not-found' } {
   const existing = db
     .select({ id: roadmapItems.id })

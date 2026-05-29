@@ -12,6 +12,7 @@ import {
   deleteItemAction,
   deletePhaseAction,
   toggleItemStatusAction,
+  updateItemTitleAction,
   updatePhaseStatusAction,
 } from '@/actions/roadmap';
 import type {
@@ -335,6 +336,8 @@ function AddItemForm({
 
 function ItemRow({ projectId, item }: { projectId: number; item: RoadmapItemView }) {
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.title);
 
   function onToggle() {
     const next: RoadmapStatus = item.status === 'done' ? 'planned' : 'done';
@@ -347,6 +350,57 @@ function ItemRow({ projectId, item }: { projectId: number; item: RoadmapItemView
     startTransition(async () => {
       await deleteItemAction(projectId, item.id);
     });
+  }
+
+  function onSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    const next = draft.trim();
+    if (next === '' || next === item.title) {
+      setEditing(false);
+      setDraft(item.title);
+      return;
+    }
+    startTransition(async () => {
+      await updateItemTitleAction(projectId, item.id, next);
+      setEditing(false);
+    });
+  }
+
+  if (editing) {
+    return (
+      <li className={styles.item}>
+        <form className={styles.itemEditForm} onSubmit={onSaveEdit}>
+          <input
+            className={styles.formInput}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={pending}
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            aria-label={t.roadmap.item.editLabel}
+          />
+          <button
+            type="button"
+            className="ds-btn ds-btn--sm ds-btn--outlined-basic"
+            onClick={() => {
+              setEditing(false);
+              setDraft(item.title);
+            }}
+            disabled={pending}
+          >
+            <span className="ds-btn__label">{t.roadmap.item.cancel}</span>
+          </button>
+          <button
+            type="submit"
+            className="ds-btn ds-btn--sm ds-btn--filled-blue"
+            disabled={pending}
+            aria-busy={pending}
+          >
+            <span className="ds-btn__label">{t.roadmap.item.save}</span>
+          </button>
+        </form>
+      </li>
+    );
   }
 
   return (
@@ -376,6 +430,19 @@ function ItemRow({ projectId, item }: { projectId: number; item: RoadmapItemView
           </span>
         </>
       )}
+      <button
+        type="button"
+        className={styles.itemEdit}
+        onClick={() => {
+          setDraft(item.title);
+          setEditing(true);
+        }}
+        disabled={pending}
+        aria-label={t.roadmap.item.editLabel}
+        title={t.roadmap.item.editLabel}
+      >
+        ✎
+      </button>
       <button
         type="button"
         className={styles.itemDelete}

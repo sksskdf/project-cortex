@@ -10,6 +10,7 @@ import {
   deleteItem,
   deletePhase,
   toggleItemStatus,
+  updateItemTitle,
   updatePhaseStatus,
   type RoadmapStatus,
 } from '@/lib/roadmap';
@@ -105,6 +106,21 @@ export async function toggleItemStatusAction(
 ): Promise<RoadmapActionState> {
   try {
     const r = toggleItemStatus(itemId, status);
+    if (r.kind === 'updated') revalidateAll(projectId);
+    return r;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateItemTitleAction(
+  projectId: number,
+  itemId: number,
+  title: string,
+): Promise<RoadmapActionState> {
+  try {
+    const r = updateItemTitle(itemId, title);
+    if (r.kind === 'invalid') return { kind: 'error', message: '제목은 필수입니다.' };
     if (r.kind === 'updated') revalidateAll(projectId);
     return r;
   } catch (err) {
