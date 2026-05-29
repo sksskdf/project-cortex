@@ -702,6 +702,12 @@ export const ko = {
       },
     },
     // Phase 13.6 — Cortex 워크플로 스킬 설치. ~/.claude/skills/cortex 에 기록 → 모든 claude 세션에서 참조.
+    worktree: {
+      title: '에이전트 worktree 격리 (실험)',
+      desc: '켜면 위임 claude 세션이 별도 git worktree(전용 브랜치)에서 실행됩니다. 메인 체크아웃의 브랜치가 안 바뀌어 dev 서버 오락가락·잔존 브랜치 문제를 막습니다. 기본 OFF — 켜기 전 워크스페이스가 git repo 여야 하고, 동작을 직접 확인하세요. OFF 면 기존처럼 워크스페이스에서 실행.',
+      on: '격리 ON',
+      off: '격리 OFF',
+    },
     skill: {
       title: 'Cortex 스킬',
       desc: 'Cortex 워크플로·컨벤션을 claude code 스킬로 ~/.claude/skills/cortex 에 설치합니다. 불러온 프로젝트에서 작업할 때 claude 가 Cortex 흐름(커밋 트레일러·로드맵 done 컨벤션·.cortex·PR 검증)을 참조합니다.',

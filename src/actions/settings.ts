@@ -22,7 +22,7 @@ import {
 } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
-import { setAiEnabled } from '@/lib/settings';
+import { setAgentWorktreeEnabled, setAiEnabled } from '@/lib/settings';
 
 export type SettingsActionState =
   | { kind: 'idle' }
@@ -38,6 +38,22 @@ export async function toggleAiEnabledAction(enabled: boolean): Promise<SettingsA
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', message };
+  }
+}
+
+// Phase 16 — 위임 세션 worktree 격리 토글 (기본 OFF, opt-in).
+export type WorktreeActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; enabled: boolean }
+  | { kind: 'error'; message: string };
+
+export async function toggleAgentWorktreeAction(enabled: boolean): Promise<WorktreeActionState> {
+  try {
+    const row = setAgentWorktreeEnabled(enabled);
+    revalidatePath('/settings');
+    return { kind: 'updated', enabled: row.agentWorktreeEnabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 
