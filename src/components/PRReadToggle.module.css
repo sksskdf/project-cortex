@@ -1,0 +1,26 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+}
+
+.dot {
+  display: inline-block;
+  width: var(--ds-spacing-6);
+  height: var(--ds-spacing-6);
+  border-radius: 50%;
+  margin-right: var(--ds-spacing-6);
+}
+
+.dotUnread {
+  background: var(--ds-color-state-info-accent);
+}
+
+.dotRead {
+  background: var(--ds-color-state-success-accent);
+}
+
+.error {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-state-error-accent);
+}

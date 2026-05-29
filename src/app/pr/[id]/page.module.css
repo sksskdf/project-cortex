@@ -169,6 +169,15 @@
   margin-bottom: var(--ds-spacing-24);
 }
 
+/* Phase 20 — 게이지 + 확인/미확인 토글을 우측 상단에 세로 스택. */
+.headRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ds-spacing-10);
+  flex-shrink: 0;
+}
+
 .titleWrap {
   flex: 1;
   min-width: 0;

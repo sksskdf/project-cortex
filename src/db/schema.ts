@@ -134,6 +134,9 @@ export const prs = sqliteTable(
     // sync 가 getPRMergeStatus 로 갱신. 인박스 행 머지 게이팅(충돌/차단 사유) + 'CI 없는
     // 레포(clean + testsPassed null)는 머지 가능' 판정(triage)에 사용. null 이면 미수신.
     mergeableState: text('mergeable_state'),
+    // Phase 20 — 사용자가 이 PR 을 확인했는지. null = 미확인. 자동 머지가 늘면서 "이미 머지됐지만
+    // 내가 아직 안 본" PR 을 추적(특히 최근 머지). notifications.readAt 과 동일 패턴.
+    readAt: integer('read_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },

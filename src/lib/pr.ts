@@ -107,6 +107,8 @@ export type PRDetailView = {
   // Phase 20 — 사용자가 직접 확인하면 좋을 체크포인트(사전 리뷰 산출). 빈 배열 = 특이사항 없음,
   // null = 분석 안 됨/legacy(섹션 숨김). PR 상세 마지막 단락에 항상 노출.
   whatToCheck: string[] | null;
+  // Phase 20 — 사용자가 이 PR 을 확인했는지 (readAt !== null). 확인/미확인 토글에 사용.
+  read: boolean;
 };
 
 function parsePrId(viewId: string): number | null {
@@ -412,6 +414,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     reviews,
     automation: getAutomationInFlight(row.pr.id),
     whatToCheck: row.preReview?.whatToCheck ?? null,
+    read: row.pr.readAt !== null,
   } as const;
 
   // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.

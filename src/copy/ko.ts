@@ -80,6 +80,8 @@ export const ko = {
       todo: '지금 처리할 것',
       todoMore: '인박스 전체 보기 →',
       recentMerge: '최근 머지',
+      // Phase 20 — 미확인 머지 PR 수 배지.
+      unreadMerges: (n: number) => `${n} 미확인`,
       recentMore: '전체 활동 →',
       // '전체 활동'(/activity) 은 미구현 — 더보기 자리에 사유 tooltip 으로 노출.
       recentMoreHint: '전체 활동 — 준비 중 (곧 제공됩니다)',
@@ -120,6 +122,8 @@ export const ko = {
         human: '수동',
         github: '외부',
       },
+      // Phase 20 — 미확인 머지 표시.
+      unread: '미확인',
     },
     workload: {
       count: (current: number, capacity: number) => `${current} / ${capacity}`,
@@ -437,6 +441,11 @@ export const ko = {
       title: '내가 확인하면 될 부분',
       ariaLabel: '사용자 확인 권장 체크포인트',
       empty: '특별히 확인할 부분이 없습니다 — 안전한 변경으로 판단했어요.',
+    },
+    read: {
+      read: '확인함',
+      markRead: '확인함으로 표시',
+      markUnread: '미확인으로 되돌리기',
     },
     fixtureBanner: '이 PR 은 아직 분석되지 않았습니다',
     fixtureBannerDesc:
