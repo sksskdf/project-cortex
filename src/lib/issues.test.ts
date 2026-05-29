@@ -12,6 +12,7 @@ import {
   listIssueOptions,
   listIssues,
   reconcileOrphanedRuns,
+  reconcileStaleRuns,
   startAgentRun,
 } from './issues';
 
@@ -195,6 +196,52 @@ describe('reconcileOrphanedRuns', () => {
     const r = reconcileOrphanedRuns([]);
     expect(r.failed).toBe(0);
     expect(db.select().from(agentRuns).where(eq(agentRuns.id, done)).get()?.status).toBe(
+      'completed',
+    );
+  });
+});
+
+describe('reconcileStaleRuns', () => {
+  // 오래된 startedAt 의 running run 을 직접 삽입.
+  function staleRun(repoId: number, title: string, startedAt: Date | null): number {
+    const issueId = seedIssue(repoId, title, 'in-progress');
+    return db
+      .insert(agentRuns)
+      .values({ issueId, agent: 'claude', status: 'running', startedAt })
+      .returning({ id: agentRuns.id })
+      .get().id;
+  }
+
+  it('임계값보다 오래된 running 은 failed, 최근 것은 유지', () => {
+    const repoId = seedProject('repo');
+    const old = staleRun(repoId, 'old', new Date(Date.now() - 25 * 60 * 60 * 1000)); // 25h 전
+    const fresh = staleRun(repoId, 'fresh', new Date(Date.now() - 1 * 60 * 60 * 1000)); // 1h 전
+
+    const r = reconcileStaleRuns(24 * 60 * 60 * 1000);
+    expect(r.failed).toBe(1);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, old)).get()?.status).toBe('failed');
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, fresh)).get()?.status).toBe(
+      'running',
+    );
+  });
+
+  it('startedAt 이 null 이면 제외(아직 시작 안 함)', () => {
+    const repoId = seedProject('repo');
+    const queued = staleRun(repoId, 'q', null);
+    const r = reconcileStaleRuns(24 * 60 * 60 * 1000);
+    expect(r.failed).toBe(0);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, queued)).get()?.status).toBe(
+      'running',
+    );
+  });
+
+  it('completed run 은 오래됐어도 무변경', () => {
+    const repoId = seedProject('repo');
+    const old = staleRun(repoId, 'old', new Date(Date.now() - 100 * 60 * 60 * 1000));
+    finishAgentRun(old, true);
+    const r = reconcileStaleRuns(24 * 60 * 60 * 1000);
+    expect(r.failed).toBe(0);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, old)).get()?.status).toBe(
       'completed',
     );
   });

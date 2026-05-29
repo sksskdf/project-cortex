@@ -3,7 +3,7 @@
 // 워크스페이스에서 claude CLI 세션을 spawn 한다 (PTY 서버). 위임 prompt 는
 // buildDelegatePrompt 로 이슈 spec 에서 구성.
 
-import { and, asc, count, desc, eq, inArray, notInArray, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, lt, notInArray, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { agentRuns, issues, projects, prs, roadmapItems } from '@/db/schema';
 
@@ -110,6 +110,21 @@ export function reconcileOrphanedRuns(restorableRunIds: ReadonlyArray<number>): 
     .update(agentRuns)
     .set({ status: 'failed', completedAt: new Date() })
     .where(where)
+    .run();
+  return { failed: result.changes };
+}
+
+// Phase 13.4 — idle 타임아웃 자동 완료. 서버가 계속 떠 있어도 'running' 으로 maxAgeMs 이상
+// 고정된 agent_run 은 (대화형 세션 미종료 등) 사실상 멈춘 것 → failed 로 마감해 이슈 '진행 중'
+// 잔류·대시보드 카운트 누적을 막는다. (서버 재시작 시 고아 정리는 reconcileOrphanedRuns 가 담당;
+// 이건 서버가 안 죽은 채 오래 방치된 케이스.) 보수적 임계값(기본 24h) — 정상 작업은 그 전에 끝남.
+// startedAt 이 null 인 queued 는 제외(아직 시작 안 함 — 재시작 고아 정리 대상).
+export function reconcileStaleRuns(maxAgeMs: number): { failed: number } {
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  const result = db
+    .update(agentRuns)
+    .set({ status: 'failed', completedAt: new Date() })
+    .where(and(inArray(agentRuns.status, ['running', 'queued']), lt(agentRuns.startedAt, cutoff)))
     .run();
   return { failed: result.changes };
 }

@@ -19,7 +19,7 @@ import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
-import { finishAgentRun, reconcileOrphanedRuns } from '@/lib/issues';
+import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import {
   defaultSessionStorePath,
   loadPersistedSessions,
@@ -120,6 +120,22 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
     // DB 미초기화 등 — best-effort, 서버 기동을 막지 않음.
     console.error('orphan agent_run 정리 실패:', err);
   }
+}
+
+// Phase 13.4 — idle 타임아웃 주기 스윕. 서버가 계속 떠 있어도 오래 'running' 으로 방치된
+// agent_run 을 주기적으로 마감(기본 24h 임계, 1h 마다). unref 로 프로세스 종료를 막지 않음.
+const STALE_RUN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const STALE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+{
+  const sweep = () => {
+    try {
+      reconcileStaleRuns(STALE_RUN_MAX_AGE_MS);
+    } catch (err) {
+      console.error('stale agent_run 스윕 실패:', err);
+    }
+  };
+  sweep(); // 부팅 시 1회.
+  setInterval(sweep, STALE_SWEEP_INTERVAL_MS).unref();
 }
 
 function toPersisted(s: Session): PersistedSession {
