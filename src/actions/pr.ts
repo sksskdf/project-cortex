@@ -16,7 +16,10 @@ import {
   type RequestChangesResult,
 } from '@/lib/auto-merge';
 import { analyzePR } from '@/lib/pre-review';
+import { getPRDetail } from '@/lib/pr';
 import { markAllMergedRead, markPRRead, markPRsRead } from '@/lib/pr-read';
+import type { GaugeTier } from '@/lib/types';
+import type { MergeableState } from '@/lib/github';
 
 export type PRMergeActionState =
   | { kind: 'idle' }
@@ -276,6 +279,64 @@ export async function markPRsReadAction(
   revalidatePath('/inbox');
   revalidatePath('/');
   return { updated };
+}
+
+// Phase 20 — 라이트 액션 모달용 PR 요약 + 액션 게이팅. 목록(인박스·지금 처리할 것)에서 PR 을
+// 누르면 페이지 이동 없이 이걸 가져와 모달로 가볍게 확인하고 머지/변경요청 등을 바로 실행한다.
+// getPRDetail 의 게이팅 로직을 그대로 재사용(중복/drift 방지) — 다만 diff/tree 등 무거운 필드는 뺀
+// 경량 subset 만 반환. (diff fetch 오버헤드는 v1 에선 수용 — 정확성 우선.)
+export type PRPeekData = {
+  viewId: string;
+  title: string;
+  repo: string;
+  number: number;
+  authorName: string;
+  authorKind: 'agent' | 'human';
+  ageText: string;
+  score: number;
+  tier: GaugeTier;
+  summary: string;
+  whatToCheck: string[] | null;
+  additions: number;
+  deletions: number;
+  filesChanged: number;
+  read: boolean;
+  isMerged: boolean;
+  canMerge: boolean;
+  canRequestChanges: boolean;
+  mergeableState: MergeableState | null;
+  mergeBlockedByCI: boolean;
+  testsPassed: boolean | null;
+  autoMergeEnabled: boolean;
+};
+
+export async function getPRPeekAction(viewId: string): Promise<PRPeekData | null> {
+  const d = await getPRDetail(viewId);
+  if (!d) return null;
+  return {
+    viewId,
+    title: d.pr.title,
+    repo: d.pr.repo ?? '',
+    number: d.pr.number ?? 0,
+    authorName: d.pr.author.name,
+    authorKind: d.pr.author.kind,
+    ageText: d.pr.ageText,
+    score: d.pr.gauge.value,
+    tier: d.pr.gauge.tier,
+    summary: d.fixture.aiSummary.summarySegments.map((s) => s.text).join(' '),
+    whatToCheck: d.whatToCheck,
+    additions: d.pr.additions ?? 0,
+    deletions: d.pr.deletions ?? 0,
+    filesChanged: d.pr.fileCount ?? 0,
+    read: d.read,
+    isMerged: d.isMerged,
+    canMerge: d.canMerge,
+    canRequestChanges: d.canRequestChanges,
+    mergeableState: d.mergeableState,
+    mergeBlockedByCI: d.mergeBlockedByCI,
+    testsPassed: d.testsPassed,
+    autoMergeEnabled: d.autoMergeEnabled,
+  };
 }
 
 // Phase 20 — 미확인 머지 일괄 확인 처리. "최근 머지 N 미확인" 이 쌓였을 때 한 번에 정리.

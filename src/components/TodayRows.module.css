@@ -1,0 +1,9 @@
+/* "지금 처리할 것" 행을 모달 트리거 버튼으로 — 기존 .todoRow(앵커) 스타일을 쓰되 버튼 리셋. */
+.rowBtn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
