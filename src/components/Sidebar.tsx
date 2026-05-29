@@ -35,6 +35,19 @@ const dashboardIcon = (
   </svg>
 );
 
+const workIcon = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 6h18M3 12h18M3 18h12" />
+  </svg>
+);
+
 const inboxIcon = (
   <svg
     viewBox="0 0 24 24"
@@ -234,6 +247,7 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
   // /reports: Phase 7 — 활성. /help: Phase 14 — 라우트 이동 대신 도움말 오버레이 (onSelect).
   const mainItems: ReadonlyArray<NavItem> = [
     { href: '/', label: t.nav.dashboard, icon: dashboardIcon },
+    { href: '/work', label: t.nav.work, icon: workIcon },
     {
       href: '/inbox',
       label: t.nav.inbox,
