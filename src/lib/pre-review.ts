@@ -58,6 +58,58 @@ const triageResultSchema = z.object({
   summary: z.string(),
 });
 
+// R1 (Phase 13.6) — claude CLI `--json-schema` 로 넘길 JSON Schema. zod 와 1:1 미러.
+// CLI 가 스키마 검증된 structured_output 을 돌려줘 parseJsonFromText(산문-속-객체 추출)
+// 취약점을 제거한다. 추출 후에도 zod 로 재검증(enum/범위) — 미지원 CLI 폴백 시 동일 경로.
+const llmResultJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    confidence: { type: 'integer', minimum: 0, maximum: 100 },
+    flags: { type: 'array', items: { type: 'string', enum: RISK_FLAGS } },
+    summary: { type: 'string' },
+    comments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          path: { type: 'string' },
+          line: { type: 'integer', minimum: 1 },
+          body: { type: 'string' },
+        },
+        required: ['path', 'line', 'body'],
+      },
+    },
+    hunkAnnotations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          hunkId: { type: 'string' },
+          decision: { type: 'string', enum: ['auto', 'review'] },
+          reason: { type: 'string' },
+        },
+        required: ['hunkId', 'decision'],
+      },
+    },
+  },
+  required: ['confidence', 'flags', 'summary', 'comments', 'hunkAnnotations'],
+} as const;
+
+const triageResultJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    needsDeepReview: { type: 'boolean' },
+    confidence: { type: 'integer', minimum: 0, maximum: 100 },
+    flagCandidates: { type: 'array', items: { type: 'string', enum: RISK_FLAGS } },
+    summary: { type: 'string' },
+  },
+  required: ['needsDeepReview', 'confidence', 'flagCandidates', 'summary'],
+} as const;
+
 // Haiku 결과로 Opus 호출 생략이 안전한지 판정. 셋 다 만족해야 단순 PR.
 function isSimpleByTriage(t: z.infer<typeof triageResultSchema>): boolean {
   return t.needsDeepReview === false && t.flagCandidates.length === 0 && t.confidence >= 80;
@@ -91,9 +143,11 @@ async function callTriageLLM(
     instruction:
       '위 입력의 규칙대로 PR 을 1차 분류하고, 지정 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_TRIAGE_MODEL,
+    jsonSchema: triageResultJsonSchema,
   });
   if (!res.ok) throw new Error(`triage(CLI) 실패: ${res.reason}`);
-  return triageResultSchema.parse(parseJsonFromText(res.text));
+  // structured_output(스키마 검증) 우선, 미지원 CLI 폴백 시 텍스트 파싱. zod 로 재검증.
+  return triageResultSchema.parse(res.structured ?? parseJsonFromText(res.text));
 }
 
 async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llmResultSchema>> {
@@ -102,9 +156,11 @@ async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llm
     instruction:
       '위 입력을 분석해 지정된 JSON 스키마에 맞는 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_MODEL,
+    jsonSchema: llmResultJsonSchema,
   });
   if (!res.ok) throw new Error(`pre-review(CLI) 실패: ${res.reason}`);
-  return llmResultSchema.parse(parseJsonFromText(res.text));
+  // structured_output(스키마 검증) 우선, 미지원 CLI 폴백 시 텍스트 파싱. zod 로 재검증.
+  return llmResultSchema.parse(res.structured ?? parseJsonFromText(res.text));
 }
 
 export async function analyzePR(prId: number): Promise<AnalyzeResult> {

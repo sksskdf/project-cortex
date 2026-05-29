@@ -130,6 +130,52 @@ describe('analyzePR (claude CLI)', () => {
     expect(runner.mock.calls[0][0].model).toBe('claude-opus-4-7');
   });
 
+  it('R1 — 메인 호출에 jsonSchema 를 전달', async () => {
+    const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
+    setOctokit(makeOctokitWithDiff(diff));
+    const runner = makeRunner({
+      confidence: 90,
+      flags: [],
+      summary: 'ok',
+      comments: [],
+      hunkAnnotations: [],
+    });
+    setClaudeRunner(runner);
+
+    await analyzePR(setupPR({}));
+
+    const arg = runner.mock.calls[0][0];
+    expect(arg.jsonSchema).toBeDefined();
+    // llmResultJsonSchema 의 핵심 필드가 들어있는지(triage 가 아니라 메인 스키마).
+    expect(arg.jsonSchema.properties.hunkAnnotations).toBeDefined();
+    expect(arg.jsonSchema.required).toContain('confidence');
+  });
+
+  it('R1 — structured_output 가 있으면 텍스트 파싱 대신 그것을 사용', async () => {
+    const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
+    setOctokit(makeOctokitWithDiff(diff));
+    // text 는 파싱 불가한 산문 — structured 를 안 쓰면 throw → analyzed 실패.
+    setClaudeRunner(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: '분석 결과를 정리하면 다음과 같습니다 (JSON 아님).',
+        structured: {
+          confidence: 88,
+          flags: [],
+          summary: 'structured 경로',
+          comments: [],
+          hunkAnnotations: [],
+        },
+      }),
+    );
+
+    const r = await analyzePR(setupPR({}));
+    expect(r.kind).toBe('analyzed');
+    if (r.kind !== 'analyzed') return;
+    expect(r.row.confidence).toBe(88);
+    expect(r.row.summary).toBe('structured 경로');
+  });
+
   it('두 번째 호출은 캐시 반환 — claude CLI 재호출 안 함', async () => {
     const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
     setOctokit(makeOctokitWithDiff(diff));

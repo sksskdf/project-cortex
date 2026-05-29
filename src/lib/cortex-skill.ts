@@ -54,6 +54,22 @@ PR 본문에 아래 형식을 적으면 머지 시 해당 항목이 자동으로
 - 훅을 건너뛰거나(\`--no-verify\`) 서명을 우회하지 않는다 — 실패하면 원인을 고친다.
 `;
 
+// R2 (Phase 13.6) — 헤드리스 코딩 자동화(test-fix·conflict-resolve·review-fix)에 일관 주입하는
+// Cortex 가드레일. 슬래시 스킬(`/cortex` 등)은 `-p` 헤드리스에서 안 먹으므로, 시스템 프롬프트
+// (`--append-system-prompt-file`)로 방법론을 전역 적용한다. 이들은 좁은 자동 수정 작업이고
+// git/PR 은 하네스가 관리하므로, 전체 위임용 스킬(PR 생성·로드맵 컨벤션 등)이 아니라 범위·안전
+// 규칙만 담는다. 멀티턴(테스트 재실행→수정 반복)에도 시스템 프롬프트라 일관 유지된다.
+export const CORTEX_HEADLESS_GUIDANCE = `# Cortex 작업 가드레일
+
+이 작업은 Cortex 가 관리하는 레포의 자동 수정 작업입니다. 다음을 지키세요.
+
+- 주어진 작업 범위만 해결하세요. 불필요한 리팩터링·추상화·미래 대비 코드를 더하지 마세요.
+- 새 파일·문서보다 기존 파일 편집을 우선하세요. 주석은 "왜"가 비자명할 때만.
+- 주변 코드의 스타일·네이밍·구조를 따르세요.
+- 되돌리기 어려운 git 작업(force push, reset --hard, 브랜치 삭제, 히스토리 재작성)이나
+  훅 우회(--no-verify)·서명 우회는 하지 마세요. 커밋·푸시는 하네스가 관리합니다.
+`;
+
 export function cortexSkillPath(): string {
   return join(homedir(), '.claude', 'skills', 'cortex', 'SKILL.md');
 }

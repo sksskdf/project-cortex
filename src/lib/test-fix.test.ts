@@ -156,6 +156,8 @@ describe('attemptTestFix — 수정 흐름', () => {
     expect(r).toEqual({ kind: 'fixed' });
     expect(claude).toHaveBeenCalledTimes(1);
     expect(claude.mock.calls[0][0].dangerouslyAllowAllTools).toBe(true);
+    // R2 — Cortex 가드레일을 시스템 프롬프트로 주입.
+    expect(claude.mock.calls[0][0].appendSystemPrompt).toContain('Cortex 작업 가드레일');
     const pushed = git.mock.calls.some((c) => c[1].includes('push') && c[1].includes('feature'));
     expect(pushed).toBe(true);
     const committed = git.mock.calls.some((c) => c[1].includes('commit'));
