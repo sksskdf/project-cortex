@@ -2,7 +2,6 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, type PRRecord } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
-import { tryClusterPR } from './clustering';
 import { attemptConflictResolution } from './conflict-resolve';
 import { getPRMergeStatus, listCheckRunsForRef } from './github';
 import { logger } from './logger';
@@ -156,21 +155,6 @@ function safeRoadmapMatch(prId: number): void {
   }
 }
 
-// human-review 결정 PR 에 대해 클러스터링 시도. clusterId 가 부여되면 인박스에서
-// 사라지고 클러스터 화면에 묶임. 실패해도 sync 응답에 영향 없음.
-// AI off 면 preReview.changedPaths 가 없어 자카드 계산 무의미 — skip.
-async function safeTryCluster(prId: number): Promise<void> {
-  if (!isAiEnabledForPr(prId)) return;
-  try {
-    await tryClusterPR(prId);
-  } catch (err) {
-    logger.error(
-      { source: 'sync', op: 'tryClusterPR', prId, err },
-      'tryClusterPR unexpected error',
-    );
-  }
-}
-
 // reconcile 흐름 (수동 동기화) 은 AI 분석 명시 bypass — 크레딧 0. webhook 흐름은
 // 기본 동작 (analyzePR + triage + autoMerge) 유지.
 export type SyncSource = 'webhook' | 'reconcile';
@@ -280,8 +264,7 @@ export async function handlePullRequestWebhook(
     if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
       await safeAutoMerge(inserted.id);
     } else if (triage.kind === 'decided' && triage.decision === 'human-review') {
-      // Phase 6 — 같은 작성자 · 같은 레포 24h 내 유사도 0.85+ PR 3건 모이면 자동 클러스터.
-      await safeTryCluster(inserted.id);
+      // Phase 6 클러스터링은 비활성(자동 클러스터링 중단) — 사람 검토 PR 은 인박스에 그대로 표시.
       // 사람 검토 대상이라도 dirty 면 충돌 자동 해결(토글 ON) — 사람이 충돌 없는 PR 을 검토.
       safeResolveConflicts(inserted.id);
     } else if (triage.kind === 'skipped' && triage.reason === 'no-pre-review') {
@@ -341,7 +324,7 @@ export async function handlePullRequestWebhook(
   if (triage.kind === 'decided' && triage.decision === 'auto-merge') {
     await safeAutoMerge(existing.id);
   } else if (triage.kind === 'decided' && triage.decision === 'human-review') {
-    await safeTryCluster(existing.id);
+    // 자동 클러스터링 비활성 — 사람 검토 PR 은 인박스에 그대로 표시.
     // 사람 검토 대상이라도 dirty 면 충돌 자동 해결(토글 ON). synchronize 마다 재시도되나
     // 해결 후엔 not-dirty 라 즉시 skip — 루프 없음.
     safeResolveConflicts(existing.id);

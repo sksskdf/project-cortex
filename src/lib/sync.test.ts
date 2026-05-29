@@ -401,11 +401,9 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     expect(editing.runner).not.toHaveBeenCalled();
   });
 
-  // Phase 6 DoD — 24시간 이내, 같은 에이전트, 유사도 0.85+ PR 3건 이상이 자동으로 클러스터됨.
-  // mockOctokitDiff 가 모두 같은 diff (src/x.ts) 를 반환하므로 자카드=1.0 → 임계치 초과.
-  // mock Anthropic 응답 confidence=80 (90 미만) → runTriage 가 human-review → tryClusterPR 호출.
-  // createdAt 은 tryClusterPR 의 24h 윈도우(Date.now 기준) 안에 들어오도록 현재 시각 사용.
-  it('동일 패턴 PR 3건이 들어오면 자동 클러스터링', async () => {
+  // 자동 클러스터링 비활성(Phase 6 cut) — 동일 패턴 PR 3건이 들어와도 클러스터되지 않고
+  // 모두 인박스에 그대로 남는다(clusterId null). 사용자 결정으로 sync 의 자동 클러스터링 제거.
+  it('동일 패턴 PR 3건이 들어와도 자동 클러스터링 안 함 (비활성)', async () => {
     const now = new Date();
     await handlePullRequestWebhook(
       basePayload({ number: 1001, headSha: 'sha-c1', createdAt: now, updatedAt: now }),
@@ -417,53 +415,6 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
       basePayload({ number: 1003, headSha: 'sha-c3', createdAt: now, updatedAt: now }),
     );
 
-    const clustered = db
-      .select({ clusterId: prs.clusterId })
-      .from(prs)
-      .where(eq(prs.authorId, 'devin'))
-      .all();
-    const ids = new Set(clustered.map((r) => r.clusterId).filter((v): v is number => v !== null));
-    expect(ids.size).toBe(1);
-    expect(clustered.every((r) => r.clusterId !== null)).toBe(true);
-  });
-
-  it('PR 2건만 들어오면 클러스터링 안 됨 (최소 3건)', async () => {
-    const now = new Date();
-    await handlePullRequestWebhook(
-      basePayload({ number: 1001, headSha: 'sha-c1', createdAt: now, updatedAt: now }),
-    );
-    await handlePullRequestWebhook(
-      basePayload({ number: 1002, headSha: 'sha-c2', createdAt: now, updatedAt: now }),
-    );
-
-    const rows = db.select({ clusterId: prs.clusterId }).from(prs).all();
-    expect(rows.every((r) => r.clusterId === null)).toBe(true);
-  });
-
-  it('블로킹 플래그(migration) 가 있으면 클러스터링 제외', async () => {
-    const now = new Date();
-    // 처음 2건은 plain agent PR (flag 없음).
-    await handlePullRequestWebhook(
-      basePayload({ number: 1001, headSha: 'sha-c1', createdAt: now, updatedAt: now }),
-    );
-    await handlePullRequestWebhook(
-      basePayload({ number: 1002, headSha: 'sha-c2', createdAt: now, updatedAt: now }),
-    );
-
-    // 3번째 PR 은 migration 플래그.
-    const flagged = mockClaudeRunner({
-      confidence: 80,
-      flags: ['migration'],
-      summary: 'risky',
-      comments: [],
-      hunkAnnotations: [],
-    });
-    setClaudeRunner(flagged.runner);
-    await handlePullRequestWebhook(
-      basePayload({ number: 1003, headSha: 'sha-c3', createdAt: now, updatedAt: now }),
-    );
-
-    // tryClusterPR 가 blocking-flag 로 skip → 클러스터 형성 안 됨.
     const rows = db.select({ clusterId: prs.clusterId }).from(prs).all();
     expect(rows.every((r) => r.clusterId === null)).toBe(true);
   });

@@ -121,22 +121,6 @@ const notesIcon = (
   </svg>
 );
 
-const clustersIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx={6} cy={6} r={3} />
-    <circle cx={18} cy={6} r={3} />
-    <circle cx={12} cy={18} r={3} />
-    <path d="M9 8l3 8m3-8l-3 8" />
-  </svg>
-);
-
 const reportsIcon = (
   <svg
     viewBox="0 0 24 24"
@@ -280,12 +264,8 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       icon: notesIcon,
       count: counts.notes,
     },
-    {
-      href: '/clusters',
-      label: t.nav.clusters,
-      icon: clustersIcon,
-      count: counts.clusters,
-    },
+    // 클러스터링 비활성(자동 클러스터링 중단) — 기본 네비에서 제외. 기존 클러스터는 /clusters
+    // URL 로 여전히 관리 가능(필요 시 dissolve). 데이터/스키마/라우트는 보존.
     { href: '/reports', label: t.nav.reports, icon: reportsIcon },
   ];
 
