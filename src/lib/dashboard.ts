@@ -36,6 +36,8 @@ export type ActivityFeedItem = {
   // GitHub PR 번호 — 최근 머지 행에 #N 노출 (PRRow 와 동일 패턴).
   number: number;
   kind: MergeKind;
+  // Phase 20 — 사용자가 확인했는지 (readAt !== null). 최근 머지에서 미확인 점으로 표시.
+  read: boolean;
 };
 
 export type DashboardClusterSummary = {
@@ -288,6 +290,7 @@ export async function getRecentMerges(limit = 5): Promise<ActivityFeedItem[]> {
       repo: row.repoSlug,
       number: row.pr.number,
       kind,
+      read: row.pr.readAt !== null,
     };
   });
 }

@@ -7,6 +7,7 @@ import { CheckIcon, ChevronLeftIcon, HelpIcon, InfoIcon, WarnIcon } from '@/comp
 import { AnalyzeRequestButton } from '@/components/AnalyzeRequestButton';
 import { Markdown } from '@/components/Markdown';
 import { PRActions } from '@/components/PRActions';
+import { PRReadToggle } from '@/components/PRReadToggle';
 import { RoadmapBadge } from '@/components/RoadmapBadge';
 import { getPRRoadmapLinks } from '@/lib/roadmap';
 import { type AiCheck, type TreeFile, type TreeGroup } from '@/fixtures/pr-detail';
@@ -153,6 +154,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     reviews,
     automation,
     whatToCheck,
+    read,
     prDbId,
     projectId,
   } = view;
@@ -229,7 +231,10 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
               ))}
             </div>
           </div>
-          <PRGauge value={pr.gauge.value} tier={pr.gauge.tier} />
+          <div className={styles.headRight}>
+            <PRGauge value={pr.gauge.value} tier={pr.gauge.tier} />
+            <PRReadToggle viewId={pr.id} initialRead={read} />
+          </div>
         </div>
 
         {automation && (

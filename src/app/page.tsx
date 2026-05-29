@@ -17,6 +17,7 @@ import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { listPinnedNotes } from '@/lib/notes';
 import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
+import { unreadMergedCount } from '@/lib/pr-read';
 import { listIssueRepos } from '@/lib/issues';
 import { listDashboardProjects } from '@/lib/roadmap';
 import { listTodos } from '@/lib/todos';
@@ -263,6 +264,7 @@ export default async function DashboardPage() {
   ]);
   const notifications = listRecentNotifications();
   const unreadCount = unreadNotificationCount();
+  const unreadMerges = unreadMergedCount();
   const dashboardProjects = listDashboardProjects();
   const dashboardTodos = listTodos('open');
   const dashboardPinnedNotes = listPinnedNotes();
@@ -384,7 +386,17 @@ export default async function DashboardPage() {
 
           <section className={styles.section}>
             <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>{t.dashboard.section.recentMerge}</h2>
+              <h2 className={styles.sectionTitle}>
+                {t.dashboard.section.recentMerge}
+                {unreadMerges > 0 && (
+                  <span
+                    className={styles.unreadBadge}
+                    aria-label={t.dashboard.section.unreadMerges(unreadMerges)}
+                  >
+                    {unreadMerges}
+                  </span>
+                )}
+              </h2>
               {/* /activity 라우트는 Phase 7 (보고서) 진입 시 활성화. 사유를 title/aria 로 안내. */}
               <span
                 className={styles.sectionMoreDisabled}
@@ -411,6 +423,13 @@ export default async function DashboardPage() {
                     </span>
                     <div className={styles.feedBody}>
                       <div className={styles.feedText}>
+                        {!item.read && (
+                          <span
+                            className={styles.unreadDot}
+                            aria-label={t.dashboard.feed.unread}
+                            title={t.dashboard.feed.unread}
+                          />
+                        )}
                         {t.dashboard.feed.merged(item.kind, item.agent, item.title, item.score)}
                       </div>
                       <span className={styles.feedTime}>

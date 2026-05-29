@@ -228,6 +228,30 @@
   margin: 0;
 }
 
+/* Phase 20 — "최근 머지 N 미확인" 배지. 미확인 머지 PR 수를 글랜스로. */
+.unreadBadge {
+  display: inline-block;
+  margin-left: var(--ds-spacing-8);
+  padding: 0 var(--ds-spacing-6);
+  font-size: var(--ds-typography-font-size-11);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-04-primary);
+  background: var(--ds-color-state-info-accent);
+  border-radius: var(--ds-border-radius-label);
+  vertical-align: middle;
+}
+
+/* 미확인 머지 행의 점 표시. */
+.unreadDot {
+  display: inline-block;
+  width: var(--ds-spacing-6);
+  height: var(--ds-spacing-6);
+  margin-right: var(--ds-spacing-6);
+  border-radius: 50%;
+  background: var(--ds-color-state-info-accent);
+  vertical-align: middle;
+}
+
 .sectionMore {
   font-size: var(--ds-typography-font-size-13);
   color: var(--ds-color-secondary-01);

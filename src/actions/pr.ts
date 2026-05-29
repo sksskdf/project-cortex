@@ -16,6 +16,7 @@ import {
   type RequestChangesResult,
 } from '@/lib/auto-merge';
 import { analyzePR } from '@/lib/pre-review';
+import { markPRRead } from '@/lib/pr-read';
 
 export type PRMergeActionState =
   | { kind: 'idle' }
@@ -231,6 +232,29 @@ export async function closePRAction(viewId: string): Promise<PRCloseState> {
   if (result.kind === 'closed') return { kind: 'closed', number: result.number };
   if (result.kind === 'failed') return { kind: 'error', message: result.reason };
   return { kind: 'skipped', message: mapCloseSkipReason(result.reason) };
+}
+
+// Phase 20 — PR 확인/미확인 토글. 사용자가 머지된 PR 을 검토했는지 추적.
+export type PRReadActionState =
+  | { kind: 'idle' }
+  | { kind: 'marked'; read: boolean }
+  | { kind: 'error'; message: string };
+
+export async function markPRReadAction(viewId: string, read: boolean): Promise<PRReadActionState> {
+  const dbId = parsePrId(viewId);
+  if (dbId === null) return { kind: 'error', message: '잘못된 PR ID 입니다.' };
+
+  try {
+    markPRRead(dbId, read);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { kind: 'error', message };
+  }
+
+  revalidatePath(`/pr/${viewId}`);
+  revalidatePath('/inbox');
+  revalidatePath('/');
+  return { kind: 'marked', read };
 }
 
 function mapCloseSkipReason(
