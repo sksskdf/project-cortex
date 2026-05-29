@@ -21,6 +21,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
+import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
 import { addPRComment, getPRMergeStatus } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
@@ -154,6 +155,8 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
   await git(cwd, ['clean', '-fd']);
 
   // 2) 테스트 실행·수정을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
+  // in-flight 표시 시작 — 종료는 성공 return/ fail(터미널)에서 clear.
+  setAutomationInFlight(prId, 'fixing-tests');
   const fixed = await runClaudeHeadless({
     input: testFixPrompt(project.slug, headRef),
     instruction:
@@ -217,6 +220,7 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
   }
 
   logger.info({ source: 'test-fix', prId, headRef }, 'tests auto-fixed and pushed');
+  clearAutomationInFlight(prId);
   try {
     createNotification({ kind: 'tests-fixed', prId });
   } catch (err) {
@@ -256,6 +260,7 @@ async function fail(
   reason: string,
 ): Promise<TestFixResult> {
   logger.error({ source: 'test-fix', prId, reason }, 'test fix failed');
+  clearAutomationInFlight(prId);
   await comment(
     installationId,
     ref,

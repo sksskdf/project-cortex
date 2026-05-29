@@ -13,6 +13,7 @@ import {
 import { currentUser } from '@/lib/config';
 import { ko as t } from '@/copy/ko';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { getAutomationInFlight } from '@/lib/automation-state';
 import { computeMergeGate } from '@/lib/merge-gate';
 import { orderInbox } from '@/lib/queue';
 import type { PR, PRRowActionState, ReasonTone, SidebarCounts } from '@/lib/types';
@@ -254,6 +255,8 @@ export async function listInboxQueue(
         row.pr.mergeableState,
         row.autoMergeEnabled,
       ),
+      // 진행 중 claude 자동화 (인메모리 라이브). 없으면 null.
+      automation: getAutomationInFlight(row.pr.id),
     };
     return { item, flags };
   });

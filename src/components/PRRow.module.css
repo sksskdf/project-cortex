@@ -125,3 +125,41 @@
 .diffMinus {
   color: var(--ds-color-state-error-strong);
 }
+
+/* 진행 중 claude 자동화 칩 — info 톤 + 펄스 점. */
+.automation {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-4);
+  padding: 0 var(--ds-spacing-6);
+  height: 20px;
+  border-radius: var(--ds-border-radius-input);
+  background: var(--ds-color-soft-blue, var(--ds-color-bg-01));
+  color: var(--ds-color-state-info-accent);
+  font-size: var(--ds-typography-font-size-11);
+  white-space: nowrap;
+}
+
+.automationDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-color-state-info-accent);
+  animation: automation-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes automation-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .automationDot {
+    animation: none;
+  }
+}

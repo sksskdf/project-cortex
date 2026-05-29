@@ -48,6 +48,12 @@ export function PRRow({ pr, selectable = false }: { pr: PR; selectable?: boolean
         </div>
         <div className={styles.top}>
           <AuthorChip author={pr.author} />
+          {pr.automation && (
+            <span className={styles.automation} role="status">
+              <span className={styles.automationDot} aria-hidden="true" />
+              {t.row.automation[pr.automation]}
+            </span>
+          )}
           {pr.tags.map((tag) => (
             <span key={tag.label} className={`ds-tag ds-tag--md ${tagToneClass[tag.tone]}`}>
               {tag.label}

@@ -67,6 +67,9 @@ export type PR = {
   gauge: PRGauge;
   // 인박스 / 대시보드 행에서 인라인 액션 노출. 없으면 (e.g. fixture 데이터) 액션 없음.
   actions?: PRRowActionState;
+  // 진행 중인 claude 자동화 (충돌해결·테스트수정·리뷰반영). 인메모리(automation-state) 라이브.
+  // null/미지정이면 표시 안 함.
+  automation?: import('@/lib/automation-state').AutomationKind | null;
 };
 
 export type SidebarCounts = {

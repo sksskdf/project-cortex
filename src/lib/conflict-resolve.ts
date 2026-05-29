@@ -22,6 +22,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
+import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
 import { addPRComment, getPRMergeStatus } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
@@ -177,6 +178,8 @@ export async function attemptConflictResolution(prId: number): Promise<ConflictR
   }
 
   // 4) 충돌 파일 마커 해소를 claude 에 위임 (cwd 안에서 파일 편집).
+  // in-flight 표시 시작 — 종료는 pushHead/fail(터미널 헬퍼)에서 clear.
+  setAutomationInFlight(prId, 'resolving-conflict');
   const resolved = await runClaudeHeadless({
     input: conflictPrompt(project.slug, baseRef, headRef, conflictFiles),
     instruction:
@@ -242,6 +245,7 @@ async function pushHead(
     return fail(prId, installationId, ref, number, `git push 실패: ${tail(pushed.stderr)}`);
   }
   logger.info({ source: 'conflict-resolve', prId, headRef }, 'conflict resolved and pushed');
+  clearAutomationInFlight(prId);
   // 성공도 알림 — 사용자가 "Cortex 가 충돌을 자동 해결했다"를 인지 (이전엔 조용).
   try {
     createNotification({ kind: 'conflict-resolved', prId });
@@ -280,6 +284,7 @@ async function fail(
   reason: string,
 ): Promise<ConflictResolveResult> {
   logger.error({ source: 'conflict-resolve', prId, reason }, 'conflict resolution failed');
+  clearAutomationInFlight(prId);
   await comment(
     installationId,
     ref,
