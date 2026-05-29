@@ -8,6 +8,20 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBrowserNotifyPref } from '@/lib/notify-pref';
+import { useToast, type ToastTone } from './Toast';
+
+// 알림 kind → 토스트 톤. 성공 자동화는 success(초록), 실패는 error(빨강), 그 외 info.
+const SUCCESS_KINDS = new Set([
+  'auto-merged',
+  'conflict-resolved',
+  'tests-fixed',
+  'review-addressed',
+]);
+function toneForKind(kind: string): ToastTone {
+  if (SUCCESS_KINDS.has(kind)) return 'success';
+  if (kind.endsWith('-failed')) return 'error';
+  return 'info';
+}
 
 // GitHub 가 같은 PR 의 여러 이벤트 (opened → labeled → synchronize) 를 짧은 간격에
 // 연속 발송하는 경우가 흔함. 매번 router.refresh() 하면 RSC 트리가 N 번 재마운트
@@ -26,6 +40,7 @@ type SsePayload =
 
 export function WebhookListener() {
   const router = useRouter();
+  const toast = useToast();
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleRefresh = () => {
@@ -43,7 +58,16 @@ export function WebhookListener() {
         if (data.type === 'sync') {
           scheduleRefresh();
         } else if (data.type === 'notification') {
-          // 권한 granted + 앱 토글 ON 일 때만 표시. 미설정/거부/토글 OFF 면 조용히 skip.
+          // 인앱 토스트 — 권한 불필요, 항상 표시. 자동화(머지·충돌해결·테스트수정·리뷰반영)가
+          // 돌거나 실패하면 즉시 우하단에 뜸. 클릭하면 해당 PR 로 이동.
+          toast({
+            title: data.title,
+            body: data.body,
+            tone: toneForKind(data.kind),
+            href: data.href,
+          });
+          // 브라우저 Notification — 권한 granted + 앱 토글 ON 일 때만(백그라운드 탭 대비).
+          // 미설정/거부/토글 OFF 면 조용히 skip (인앱 토스트가 폴백).
           if (
             typeof Notification !== 'undefined' &&
             Notification.permission === 'granted' &&
@@ -73,6 +97,6 @@ export function WebhookListener() {
       if (timer) clearTimeout(timer);
       source.close();
     };
-  }, [router]);
+  }, [router, toast]);
   return null;
 }

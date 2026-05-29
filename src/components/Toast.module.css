@@ -1,0 +1,89 @@
+/* 화면 우하단 고정 스택 — 에이전트 드로어(우측)와 안 겹치게 좌측 여백 확보는 드로어가 알아서.
+   가장 최근 토스트가 아래. */
+.viewport {
+  position: fixed;
+  right: var(--ds-spacing-24);
+  bottom: var(--ds-spacing-24);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-10);
+  max-width: 360px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-spacing-10);
+  padding: var(--ds-spacing-12) var(--ds-spacing-14);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-left-width: 3px;
+  border-radius: var(--ds-border-radius-card);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: toast-in 160ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.success {
+  border-left-color: var(--ds-color-state-success-accent);
+}
+.error {
+  border-left-color: var(--ds-color-state-error-accent);
+}
+.info {
+  border-left-color: var(--ds-color-state-info-accent);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.title {
+  font-size: var(--ds-typography-font-size-13);
+  font-weight: 600;
+  color: var(--ds-color-text-03-high);
+}
+
+.body {
+  font-size: var(--ds-typography-font-size-12);
+  color: var(--ds-color-text-02);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--ds-color-text-03-high);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.close:hover {
+  color: var(--ds-color-text-03-high);
+}
