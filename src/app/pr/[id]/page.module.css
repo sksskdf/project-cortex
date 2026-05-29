@@ -624,3 +624,39 @@
   display: flex;
   gap: var(--ds-spacing-8);
 }
+
+/* 진행 중 claude 자동화 배너 — PR 상세 상단. info 톤 + 펄스 점. */
+.automationBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-8);
+  padding: var(--ds-spacing-10) var(--ds-spacing-14);
+  border-radius: var(--ds-border-radius-card);
+  background: var(--ds-color-soft-blue, var(--ds-color-bg-01));
+  color: var(--ds-color-state-info-accent);
+  font-size: var(--ds-typography-font-size-13);
+}
+
+.automationBannerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ds-color-state-info-accent);
+  animation: pr-automation-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pr-automation-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .automationBannerDot {
+    animation: none;
+  }
+}

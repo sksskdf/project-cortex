@@ -23,6 +23,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
+import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
 import { addPRComment, getPRMergeStatus } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
@@ -170,6 +171,8 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
   await git(cwd, ['clean', '-fd']);
 
   // 2) 리뷰 피드백 반영을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
+  // in-flight 표시 시작 — 종료는 성공 return / fail(터미널)에서 clear.
+  setAutomationInFlight(pr.id, 'addressing-review');
   const fixed = await runClaudeHeadless({
     input: reviewFixPrompt(project.slug, headRef, feedback),
     instruction:
@@ -236,6 +239,7 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
     { source: 'review-fix', prId: pr.id, headRef },
     'review changes auto-addressed and pushed',
   );
+  clearAutomationInFlight(pr.id);
   try {
     createNotification({ kind: 'review-addressed', prId: pr.id });
   } catch (err) {
@@ -278,6 +282,7 @@ async function fail(
   reason: string,
 ): Promise<ReviewFixResult> {
   logger.error({ source: 'review-fix', prId, reason }, 'review auto-address failed');
+  clearAutomationInFlight(prId);
   await comment(
     installationId,
     ref,

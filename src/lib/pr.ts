@@ -11,6 +11,7 @@ import {
 } from '@/fixtures/pr-detail';
 import { parseUnifiedDiff } from '@/lib/diff-parser';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
+import { getAutomationInFlight, type AutomationKind } from '@/lib/automation-state';
 import { ciSatisfied } from '@/lib/merge-gate';
 import {
   getPRDiff,
@@ -101,6 +102,8 @@ export type PRDetailView = {
   // GitHub 의 PR 리뷰 이력 — 사용자가 보낸 변경 요청·승인·코멘트 시간순. installation
   // 없거나 fetch 실패 시 빈 배열. UI 가 비어있으면 섹션 자체 숨김.
   reviews: ReadonlyArray<PRReviewSummary>;
+  // 진행 중인 claude 자동화 (충돌해결·테스트수정·리뷰반영). 인메모리 라이브. null 이면 없음.
+  automation: AutomationKind | null;
 };
 
 function parsePrId(viewId: string): number | null {
@@ -404,6 +407,7 @@ export async function getPRDetail(viewId: string): Promise<PRDetailView | null> 
     testsPassed: row.pr.testsPassed,
     autoMergeEnabled: row.autoMergeEnabled,
     reviews,
+    automation: getAutomationInFlight(row.pr.id),
   } as const;
 
   // preReview 가 있고 diff 컬럼에 실 데이터가 들어 있을 때만 analyzed 빌드.

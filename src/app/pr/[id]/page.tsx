@@ -151,6 +151,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     testsPassed,
     autoMergeEnabled,
     reviews,
+    automation,
     prDbId,
     projectId,
   } = view;
@@ -229,6 +230,13 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <PRGauge value={pr.gauge.value} tier={pr.gauge.tier} />
         </div>
+
+        {automation && (
+          <div className={styles.automationBanner} role="status" aria-live="polite">
+            <span className={styles.automationBannerDot} aria-hidden="true" />
+            {t.row.automation[automation]}
+          </div>
+        )}
 
         {source === 'fixture' && (
           <div className={styles.fixtureBanner} role="note">

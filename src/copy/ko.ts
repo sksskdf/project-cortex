@@ -360,6 +360,12 @@ export const ko = {
       deleteBranch: '브랜치 삭제',
       deleteBranchAria: 'head 브랜치 삭제',
     },
+    // 진행 중 claude 자동화 칩 — 인박스 행·PR 상세에 라이브 표시.
+    automation: {
+      'resolving-conflict': '충돌 해결 중',
+      'fixing-tests': '테스트 수정 중',
+      'addressing-review': '리뷰 반영 중',
+    },
   },
   inbox: {
     title: '인박스',
