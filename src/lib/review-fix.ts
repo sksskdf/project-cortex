@@ -8,7 +8,7 @@
 //
 // 안전 가드 (test-fix 와 동일 선상):
 // - 프로젝트 autoResolveChangesEnabled 토글 ON 만 (디폴트 OFF — 명시 활성 전엔 비발화).
-// - agent PR 만 (사람 PR 의 리뷰는 사람이 반영).
+// - 작성자 무관(사람·agent 모두) — 단일 사용자 가정상 내 PR. 외부 기여는 fork 가드로 차단.
 // - 리뷰 본문이 비어 있으면 비발화 (반영할 지시가 없음).
 // - 등록된 워크스페이스(cwd 화이트리스트)에서만. fork/cross-repo 는 비대상.
 // - PR 당 MAX_FIX_ATTEMPTS 회 — 못 고친 채 push 가 반복되는 루프 차단.
@@ -50,7 +50,6 @@ export type ReviewFixResult =
         | 'no-project'
         | 'no-installation'
         | 'no-pr'
-        | 'human-pr'
         | 'no-feedback'
         | 'no-workspace'
         | 'workspace-missing'
@@ -114,9 +113,7 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
     .get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
 
-  // 사람 PR 의 리뷰는 사람이 반영 — agent PR 만.
-  if (pr.authorKind !== 'agent') return { kind: 'skipped', reason: 'human-pr' };
-
+  // 작성자 무관 — 단일 사용자 가정상 사람 PR 도 내 PR. 외부 기여(fork)는 아래 가드로 차단.
   const feedback = input.feedback.trim();
   if (feedback === '') return { kind: 'skipped', reason: 'no-feedback' };
 
