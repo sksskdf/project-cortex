@@ -173,6 +173,9 @@ describe('attemptConflictResolution — 해결 흐름', () => {
     // push origin feature 가 호출됐는지.
     const pushed = git.mock.calls.some((c) => c[1].includes('push') && c[1].includes('feature'));
     expect(pushed).toBe(true);
+    // 성공도 알림으로 표면화 (자동화 가시성).
+    const notifs = db.select().from(notifications).all();
+    expect(notifs.some((n) => n.kind === 'conflict-resolved')).toBe(true);
   });
 
   it('충돌 파일이 한계를 넘으면 skip too-large + merge --abort', async () => {

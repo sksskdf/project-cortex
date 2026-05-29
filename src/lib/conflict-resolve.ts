@@ -242,6 +242,12 @@ async function pushHead(
     return fail(prId, installationId, ref, number, `git push 실패: ${tail(pushed.stderr)}`);
   }
   logger.info({ source: 'conflict-resolve', prId, headRef }, 'conflict resolved and pushed');
+  // 성공도 알림 — 사용자가 "Cortex 가 충돌을 자동 해결했다"를 인지 (이전엔 조용).
+  try {
+    createNotification({ kind: 'conflict-resolved', prId });
+  } catch (err) {
+    logger.error({ source: 'conflict-resolve', prId, err }, 'createNotification(success) failed');
+  }
   return { kind: 'resolved' };
 }
 
@@ -297,10 +303,9 @@ async function comment(
   }
 }
 
-// 충돌 해결 전용 알림 kind 가 없어 'auto-merge-failed' 재사용 (자동 머지 진행 불가 통지).
 function safeNotify(prId: number, reason: string): void {
   try {
-    createNotification({ kind: 'auto-merge-failed', prId, reason });
+    createNotification({ kind: 'conflict-resolve-failed', prId, reason });
   } catch (err) {
     logger.error({ source: 'conflict-resolve', prId, err }, 'createNotification failed');
   }

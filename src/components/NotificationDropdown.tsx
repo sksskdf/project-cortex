@@ -36,6 +36,13 @@ const kindDotClass: Record<NotificationKind, string> = {
   'ci-failed': styles.dotRed,
   'cluster-created': styles.dotPurple,
   'revert-detected': styles.dotYellow,
+  'analysis-failed': styles.dotRed,
+  'conflict-resolved': styles.dotGreen,
+  'conflict-resolve-failed': styles.dotRed,
+  'tests-fixed': styles.dotGreen,
+  'test-fix-failed': styles.dotRed,
+  'review-addressed': styles.dotGreen,
+  'review-fix-failed': styles.dotRed,
 };
 
 export function NotificationDropdown({

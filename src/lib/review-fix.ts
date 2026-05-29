@@ -236,6 +236,11 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
     { source: 'review-fix', prId: pr.id, headRef },
     'review changes auto-addressed and pushed',
   );
+  try {
+    createNotification({ kind: 'review-addressed', prId: pr.id });
+  } catch (err) {
+    logger.error({ source: 'review-fix', prId: pr.id, err }, 'createNotification(success) failed');
+  }
   return { kind: 'addressed' };
 }
 
@@ -296,10 +301,10 @@ async function comment(
   }
 }
 
-// 전용 알림 kind 가 없어 'auto-merge-failed' 재사용 (test-fix·conflict-resolve 와 동일).
+// 리뷰 자동 반영 실패 전용 알림.
 function safeNotify(prId: number, reason: string): void {
   try {
-    createNotification({ kind: 'auto-merge-failed', prId, reason });
+    createNotification({ kind: 'review-fix-failed', prId, reason });
   } catch (err) {
     logger.error({ source: 'review-fix', prId, err }, 'createNotification failed');
   }

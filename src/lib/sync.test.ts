@@ -344,9 +344,9 @@ describe('handlePullRequestWebhook + analyzePR + runTriage integration', () => {
     ).toBeUndefined();
     // 분석 실패해도 PR.status='review-needed' 라 인박스에 등장 — 묻히지 않음.
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
-    // 분석 실패가 알림으로도 노출돼야 함 — 'auto-merge-failed' kind 재사용.
+    // 분석 실패가 전용 'analysis-failed' 알림으로 노출돼야 함 (이전엔 'auto-merge-failed' 재사용).
     const notif = db.select().from(notifications).where(eq(notifications.prId, prId)).get();
-    expect(notif?.kind).toBe('auto-merge-failed');
+    expect(notif?.kind).toBe('analysis-failed');
     expect(notif?.body).toContain('AI 사전 리뷰 분석 실패');
   });
 

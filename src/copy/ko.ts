@@ -553,6 +553,13 @@ export const ko = {
       'ci-failed': 'CI 실패',
       'cluster-created': '새 클러스터',
       'revert-detected': 'Revert 감지',
+      'analysis-failed': '분석 실패',
+      'conflict-resolved': '충돌 해결',
+      'conflict-resolve-failed': '충돌 해결 실패',
+      'tests-fixed': '테스트 수정',
+      'test-fix-failed': '테스트 수정 실패',
+      'review-addressed': '리뷰 반영',
+      'review-fix-failed': '리뷰 반영 실패',
     },
     // Phase 10.2 후속 — 브라우저 Notification 권한 토글 chip.
     browserPerm: {
