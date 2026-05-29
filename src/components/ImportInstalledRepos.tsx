@@ -6,7 +6,7 @@
 // addInstalledRepoAction 호출. 이미 등록된 slug 는 비활성 + '등록됨' 배지.
 // 자동 onboard 와 별개로 webhook 도착 전이라도 미리 등록 가능.
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useId, useState, useTransition } from 'react';
 import { ko as t } from '@/copy/ko';
 import {
   addInstalledRepoAction,
@@ -15,6 +15,7 @@ import {
   type ListInstalledReposActionState,
 } from '@/actions/projects';
 import type { InstallationWithRepos } from '@/lib/github';
+import { useFocusTrap } from './useFocusTrap';
 import styles from './ImportInstalledRepos.module.css';
 
 const f = t.projects.import;
@@ -66,14 +67,9 @@ function ImportModal({
   >({ kind: 'idle' });
   const [pending, startTransition] = useTransition();
   const existing = new Set(existingSlugs);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const titleId = useId();
+  // 포커스 트랩 + 초기 포커스 + Escape 닫기 + 포커스 복원.
+  const dialogRef = useFocusTrap<HTMLDivElement>({ onClose });
 
   useEffect(() => {
     let cancelled = false;
@@ -126,10 +122,18 @@ function ImportModal({
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} aria-hidden />
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label={f.title}>
+      <div
+        ref={dialogRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <header className={styles.head}>
           <div>
-            <h2 className={styles.title}>{f.title}</h2>
+            <h2 className={styles.title} id={titleId}>
+              {f.title}
+            </h2>
             <p className={styles.subtitle}>{f.subtitle}</p>
           </div>
           <button

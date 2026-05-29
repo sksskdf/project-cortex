@@ -5,8 +5,9 @@
 // 단축키를 한눈에 보여준다. '둘러보기' 를 누르면 사이드바 섹션을 차례로 spotlight 하는
 // 가벼운 가이드 투어(라이브러리 없이 직접 구현)로 전환된다.
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useState } from 'react';
 import { ko as t } from '@/copy/ko';
+import { useFocusTrap } from './useFocusTrap';
 import styles from './HelpOverlay.module.css';
 
 type HelpCtx = { openHelp: () => void };
@@ -121,14 +122,26 @@ function HelpOverlay({
   onClose: () => void;
 }) {
   const inTour = tourStep !== null;
+  const titleId = useId();
+  // 포커스 트랩 + 초기 포커스 + 포커스 복원. Escape/'?'/방향키는 HelpProvider 가
+  // 전역으로 처리하므로 훅의 Escape 와 중복되어도 close 는 멱등하다.
+  const dialogRef = useFocusTrap<HTMLDivElement>({ onClose });
 
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} aria-hidden />
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={t.help.title}>
+      <div
+        ref={dialogRef}
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <header className={styles.head}>
           <div className={styles.titleBlock}>
-            <h2 className={styles.title}>{t.help.title}</h2>
+            <h2 className={styles.title} id={titleId}>
+              {t.help.title}
+            </h2>
             <p className={styles.subtitle}>{t.help.subtitle}</p>
           </div>
           <button

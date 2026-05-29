@@ -6,9 +6,9 @@
 // 간편/빠른 조회가 목표 — 편집은 전체 화면 (/projects/[id]/roadmap) 에서.
 
 import Link from 'next/link';
-import { useEffect } from 'react';
 import { ko as t } from '@/copy/ko';
 import { RoadmapOpenItems } from './RoadmapOpenItems';
+import { useFocusTrap } from './useFocusTrap';
 import type { ProjectRoadmapView } from '@/lib/roadmap';
 import styles from './RoadmapDrawer.module.css';
 
@@ -19,19 +19,14 @@ export function RoadmapDrawer({
   view: ProjectRoadmapView;
   onClose: () => void;
 }) {
-  // ESC 닫기.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // 포커스 트랩 + 초기 포커스 + Escape 닫기 + 포커스 복원.
+  const drawerRef = useFocusTrap<HTMLElement>({ onClose });
 
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} aria-hidden />
       <aside
+        ref={drawerRef}
         className={styles.drawer}
         role="dialog"
         aria-modal="true"
