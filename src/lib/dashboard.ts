@@ -5,7 +5,7 @@ import { clusterNotes } from '@/fixtures/dashboard';
 import { flagsToTags, formatRelativeAge, gaugeTierFromConfidence, reasonTone } from '@/lib/format';
 import { deriveRowActions } from '@/lib/inbox';
 import { orderInbox } from '@/lib/queue';
-import type { PR, ReasonTone, StatDelta } from '@/lib/types';
+import type { GaugeTier, PR, ReasonTone, StatDelta } from '@/lib/types';
 
 export type DashboardStats = {
   pendingReview: { value: number; delta: StatDelta };
@@ -38,6 +38,14 @@ export type ActivityFeedItem = {
   kind: MergeKind;
   // Phase 20 — 사용자가 확인했는지 (readAt !== null). 최근 머지에서 미확인 점으로 표시.
   read: boolean;
+  // Phase 20 — 라이트 모달 뷰어가 페이지 이동 없이 보여줄 요약. 사전 리뷰 없으면 null/빈 배열.
+  summary: string | null;
+  whatToCheck: string[];
+  additions: number;
+  deletions: number;
+  filesChanged: number;
+  authorKind: 'agent' | 'human';
+  tier: GaugeTier;
 };
 
 export type DashboardClusterSummary = {
@@ -291,6 +299,13 @@ export async function getRecentMerges(limit = 5): Promise<ActivityFeedItem[]> {
       number: row.pr.number,
       kind,
       read: row.pr.readAt !== null,
+      summary: row.preReview?.summary ?? null,
+      whatToCheck: row.preReview?.whatToCheck ?? [],
+      additions: row.pr.linesAdded,
+      deletions: row.pr.linesRemoved,
+      filesChanged: row.pr.filesChanged,
+      authorKind: row.pr.authorKind,
+      tier: gaugeTierFromConfidence(row.preReview?.confidence ?? 0),
     };
   });
 }

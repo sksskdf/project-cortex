@@ -125,6 +125,17 @@ export const ko = {
       // Phase 20 — 미확인 머지 표시.
       unread: '미확인',
     },
+    // Phase 20 — 라이트 PR 미리보기 모달(최근 머지에서 행 클릭 시).
+    peek: {
+      ariaLabel: 'PR 미리보기',
+      close: '닫기',
+      prev: '이전',
+      next: '다음',
+      openFull: '전체 보기 →',
+      counter: (i: number, total: number) => `${i} / ${total}`,
+      score: (n: number) => `신뢰 ${n}`,
+      files: (n: number) => `파일 ${n}`,
+    },
     workload: {
       count: (current: number, capacity: number) => `${current} / ${capacity}`,
       empty: '진행 중인 에이전트가 없습니다 — 이슈에서 에이전트를 시작하면 여기에 표시됩니다.',

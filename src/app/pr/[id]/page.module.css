@@ -372,7 +372,7 @@
 .whatToCheck {
   background: var(--ds-color-bg-00);
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
-  border-left: var(--ds-spacing-3) solid var(--ds-color-state-info-accent);
+  border-left: var(--ds-spacing-3) solid var(--ds-color-secondary-01);
   border-radius: var(--ds-border-radius-card);
   padding: var(--ds-spacing-16) var(--ds-spacing-20);
   margin-bottom: var(--ds-spacing-14);
@@ -681,7 +681,7 @@
   padding: var(--ds-spacing-10) var(--ds-spacing-14);
   border-radius: var(--ds-border-radius-card);
   background: var(--ds-color-soft-blue, var(--ds-color-bg-01));
-  color: var(--ds-color-state-info-accent);
+  color: var(--ds-color-secondary-01);
   font-size: var(--ds-typography-font-size-13);
 }
 
@@ -689,7 +689,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ds-color-state-info-accent);
+  background: var(--ds-color-secondary-01);
   animation: pr-automation-pulse 1.2s ease-in-out infinite;
 }
 

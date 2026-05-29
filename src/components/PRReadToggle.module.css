@@ -13,7 +13,7 @@
 }
 
 .dotUnread {
-  background: var(--ds-color-state-info-accent);
+  background: var(--ds-color-secondary-01);
 }
 
 .dotRead {
