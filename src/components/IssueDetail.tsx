@@ -106,7 +106,15 @@ export function IssueDetail({
   );
 }
 
+// running 세션이 이 시간 넘게 지속되면 '멈췄을 가능성' 으로 본다 — 실제 대화형 작업이 이보다
+// 오래 가는 경우는 드물고, 서버 재시작/탭 종료로 finishAgentRun 이 안 와 고정된 케이스가 흔함.
+const STALE_RUN_MS = 3 * 60 * 60 * 1000;
+
 function RunRow({ run }: { run: AgentRunView }) {
+  const stale =
+    run.status === 'running' &&
+    run.startedAt !== null &&
+    Date.now() - run.startedAt.getTime() > STALE_RUN_MS;
   return (
     <li className={styles.run}>
       <span className={`${styles.session} ${sessionClass[run.status]}`}>
@@ -116,6 +124,11 @@ function RunRow({ run }: { run: AgentRunView }) {
         {run.startedAt && `${d.runStarted} ${formatRelativeAge(run.startedAt.getTime())}`}
         {run.completedAt && ` · ${d.runCompleted} ${formatRelativeAge(run.completedAt.getTime())}`}
       </span>
+      {stale && (
+        <span className={styles.staleHint} role="note">
+          {d.staleRun}
+        </span>
+      )}
       {run.resultPrId !== null && run.resultPrNumber !== null && (
         <Link href={`/pr/${run.resultPrId}`} className={styles.prLink}>
           {d.runResult} {t.issues.pr(run.resultPrNumber)}
