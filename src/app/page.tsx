@@ -385,8 +385,15 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.recentMerge}</h2>
-              {/* /activity 라우트는 Phase 7 (보고서) 진입 시 활성화. */}
-              <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
+              {/* /activity 라우트는 Phase 7 (보고서) 진입 시 활성화. 사유를 title/aria 로 안내. */}
+              <span
+                className={styles.sectionMoreDisabled}
+                role="note"
+                title={t.dashboard.section.recentMoreHint}
+                aria-label={t.dashboard.section.recentMoreHint}
+              >
+                {t.nav.comingSoon}
+              </span>
             </div>
             <div className={styles.feedCard}>
               <div className={styles.feed}>
@@ -457,8 +464,15 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.workload}</h2>
-              {/* /agents 라우트는 Phase 13 (Claude CLI 통합) 진입 시 활성화. */}
-              <span className={styles.sectionMoreDisabled}>{t.nav.comingSoon}</span>
+              {/* /agents 라우트는 Phase 13 (Claude CLI 통합) 진입 시 활성화. 사유를 title/aria 로 안내. */}
+              <span
+                className={styles.sectionMoreDisabled}
+                role="note"
+                title={t.dashboard.section.workloadMoreHint}
+                aria-label={t.dashboard.section.workloadMoreHint}
+              >
+                {t.nav.comingSoon}
+              </span>
             </div>
             <WorkloadCard rows={agentWorkloads} />
           </section>

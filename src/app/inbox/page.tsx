@@ -266,11 +266,12 @@ export default async function InboxPage({
             <span className={styles.sub}>{t.inbox.subtitle}</span>
           </div>
           <div className={styles.actions}>
-            {/* 알림 · 필터는 백엔드 미구현 — disabled. */}
+            {/* 알림 · 필터는 백엔드 미구현 — disabled. 사유를 title/aria 로 안내. */}
             <button
               type="button"
               className={styles.iconBtn}
-              aria-label={t.inbox.notifications}
+              aria-label={t.inbox.notificationsHint}
+              title={t.inbox.notificationsHint}
               disabled
             >
               <BellIcon />
@@ -280,14 +281,18 @@ export default async function InboxPage({
               className="ds-btn ds-btn--md ds-btn--outlined-basic"
               disabled
               aria-disabled="true"
+              aria-label={t.inbox.filterHint}
+              title={t.inbox.filterHint}
             >
               <span className="ds-btn__label">{t.inbox.filter}</span>
+              <span className={styles.comingSoonBadge}>{t.nav.comingSoon}</span>
             </button>
           </div>
         </div>
 
         <div className={styles.toolbar}>
-          {/* 정렬은 현재 priority(orderInbox) 만 구현 — 나머지 탭은 disabled. */}
+          {/* 정렬은 현재 priority(orderInbox) 만 구현 — 나머지 탭은 disabled.
+              사유를 title/aria-label 로 안내해 "눌렀는데 반응 없음" 을 방지. */}
           <div className="ds-segment" role="tablist" aria-label={t.inbox.sort.ariaLabel}>
             {sortTabs.map((tab) => (
               <button
@@ -297,6 +302,10 @@ export default async function InboxPage({
                 aria-selected={tab.active}
                 disabled={!tab.active}
                 aria-disabled={!tab.active}
+                title={tab.active ? undefined : t.inbox.sort.comingSoonHint}
+                aria-label={
+                  tab.active ? undefined : `${tab.label} — ${t.inbox.sort.comingSoonHint}`
+                }
                 className={`ds-segment__item ${tab.active ? 'ds-segment__item--active' : ''}`}
               >
                 {tab.label}
