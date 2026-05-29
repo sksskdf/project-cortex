@@ -7,10 +7,12 @@ import { db } from '@/db/client';
 import { prs } from '@/db/schema';
 
 // PR 1건을 확인/미확인으로 표시. read=true → readAt=now, false → readAt=null.
+// updatedAt 은 건드리지 않는다 — 확인 표시는 메타일 뿐 PR 내용 변경이 아니므로, 최근 머지의
+// 정렬(updatedAt desc)·표시 시각(머지/생성 시점)이 확인할 때마다 바뀌면 안 된다.
 export function markPRRead(prId: number, read: boolean): { updated: number } {
   const result = db
     .update(prs)
-    .set({ readAt: read ? new Date() : null, updatedAt: new Date() })
+    .set({ readAt: read ? new Date() : null })
     .where(eq(prs.id, prId))
     .run();
   return { updated: result.changes };
@@ -31,7 +33,7 @@ export function markPRsRead(ids: ReadonlyArray<number>): { updated: number } {
   if (ids.length === 0) return { updated: 0 };
   const result = db
     .update(prs)
-    .set({ readAt: new Date(), updatedAt: new Date() })
+    .set({ readAt: new Date() }) // updatedAt 미변경 — 정렬/표시 시각 보존(markPRRead 주석 참조).
     .where(and(inArray(prs.id, [...ids]), isNull(prs.readAt)))
     .run();
   return { updated: result.changes };

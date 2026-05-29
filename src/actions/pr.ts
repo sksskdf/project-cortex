@@ -16,7 +16,7 @@ import {
   type RequestChangesResult,
 } from '@/lib/auto-merge';
 import { analyzePR } from '@/lib/pre-review';
-import { markPRRead } from '@/lib/pr-read';
+import { markPRRead, markPRsRead } from '@/lib/pr-read';
 
 export type PRMergeActionState =
   | { kind: 'idle' }
@@ -255,6 +255,27 @@ export async function markPRReadAction(viewId: string, read: boolean): Promise<P
   revalidatePath('/inbox');
   revalidatePath('/');
   return { kind: 'marked', read };
+}
+
+// Phase 20 — 라이트 모달 뷰어가 앞뒤로 넘기며 본 PR 들을 닫을 때 일괄 확인 처리.
+// viewId 목록("pr-N")을 받아 유효한 것만 일괄 read. 이미 읽은 건 markPRsRead 가 멱등 처리.
+export async function markPRsReadAction(
+  viewIds: ReadonlyArray<string>,
+): Promise<{ updated: number }> {
+  const ids = viewIds.map(parsePrId).filter((x): x is number => x !== null);
+  if (ids.length === 0) return { updated: 0 };
+
+  let updated = 0;
+  try {
+    updated = markPRsRead(ids).updated;
+  } catch (err) {
+    console.error('markPRsRead 실패:', err);
+    return { updated: 0 };
+  }
+
+  revalidatePath('/inbox');
+  revalidatePath('/');
+  return { updated };
 }
 
 function mapCloseSkipReason(

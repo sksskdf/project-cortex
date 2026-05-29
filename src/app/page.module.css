@@ -236,7 +236,7 @@
   font-size: var(--ds-typography-font-size-11);
   font-weight: var(--ds-typography-font-weight-semibold);
   color: var(--ds-color-text-04-primary);
-  background: var(--ds-color-state-info-accent);
+  background: var(--ds-color-secondary-01);
   border-radius: var(--ds-border-radius-label);
   vertical-align: middle;
 }
@@ -248,7 +248,7 @@
   height: var(--ds-spacing-6);
   margin-right: var(--ds-spacing-6);
   border-radius: 50%;
-  background: var(--ds-color-state-info-accent);
+  background: var(--ds-color-secondary-01);
   vertical-align: middle;
 }
 

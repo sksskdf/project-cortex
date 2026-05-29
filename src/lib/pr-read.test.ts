@@ -61,6 +61,16 @@ describe('markPRRead', () => {
     expect(markPRRead(id, false).updated).toBe(1);
     expect(readAtOf(id)).toBeNull();
   });
+
+  it('updatedAt 을 건드리지 않는다 — 확인 표시가 최근 머지 정렬/표시 시각을 바꾸면 안 됨', () => {
+    const repoId = setupProject();
+    const id = setupPR(repoId, 1);
+    const before = db.select({ u: prs.updatedAt }).from(prs).where(eq(prs.id, id)).get()?.u;
+
+    markPRRead(id, true);
+    const after = db.select({ u: prs.updatedAt }).from(prs).where(eq(prs.id, id)).get()?.u;
+    expect(after?.getTime()).toBe(before?.getTime());
+  });
 });
 
 describe('unreadMergedCount', () => {

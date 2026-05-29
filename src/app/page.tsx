@@ -15,6 +15,7 @@ import {
 import { DashboardNotesWidget } from '@/components/DashboardNotesWidget';
 import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
+import { RecentMergesFeed } from '@/components/RecentMergesFeed';
 import { listPinnedNotes } from '@/lib/notes';
 import { listRecentNotifications, unreadNotificationCount } from '@/lib/notifications';
 import { unreadMergedCount } from '@/lib/pr-read';
@@ -407,39 +408,7 @@ export default async function DashboardPage() {
                 {t.nav.comingSoon}
               </span>
             </div>
-            <div className={styles.feedCard}>
-              <div className={styles.feed}>
-                {recentMerges.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/pr/${item.href}`}
-                    className={`${styles.feedItem} ${styles.clusterLink}`}
-                  >
-                    <span
-                      className={`${styles.feedKind} ${styles[`feedKind_${item.kind}`]}`}
-                      aria-hidden="true"
-                    >
-                      {t.dashboard.feed.mergeKindBadge[item.kind]}
-                    </span>
-                    <div className={styles.feedBody}>
-                      <div className={styles.feedText}>
-                        {!item.read && (
-                          <span
-                            className={styles.unreadDot}
-                            aria-label={t.dashboard.feed.unread}
-                            title={t.dashboard.feed.unread}
-                          />
-                        )}
-                        {t.dashboard.feed.merged(item.kind, item.agent, item.title, item.score)}
-                      </div>
-                      <span className={styles.feedTime}>
-                        {item.repo} · #{item.number} · {item.ageText}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <RecentMergesFeed items={recentMerges} />
           </section>
         </div>
 

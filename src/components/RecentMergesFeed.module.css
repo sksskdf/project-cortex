@@ -1,0 +1,9 @@
+/* 최근 머지 행을 모달 트리거 버튼으로 — 기존 .feedItem(앵커) 스타일을 그대로 쓰되 버튼 리셋. */
+.rowBtn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
