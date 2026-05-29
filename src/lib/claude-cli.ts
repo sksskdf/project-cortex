@@ -16,6 +16,7 @@ import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { claudeSpawnEnv, resolveClaude } from './agents';
+import { logger } from './logger';
 
 // 사전 리뷰(Opus thinking) 는 오래 걸릴 수 있어 넉넉히. 호출부가 override 가능.
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -47,8 +48,16 @@ export type ClaudeRunOptions = {
   appendSystemPrompt?: string;
 };
 
+// R3 (Phase 13.6) — `--output-format json` 봉투의 비용·토큰 사용량. 2026-06-15 부터 구독 플랜
+// `claude -p` 가 별도 Agent SDK 크레딧을 소모하므로 호출별 관측이 중요. 봉투에 없으면 null.
+export type ClaudeUsage = {
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
 export type ClaudeRunResult =
-  | { ok: true; text: string; structured?: unknown }
+  | { ok: true; text: string; structured?: unknown; usage?: ClaudeUsage }
   | { ok: false; reason: string };
 
 type ClaudeRunner = (opts: ClaudeRunOptions) => Promise<ClaudeRunResult>;
@@ -84,11 +93,11 @@ async function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
 }
 
 type InternalResult =
-  | { ok: true; text: string; structured?: unknown; nonZeroExit?: false }
+  | { ok: true; text: string; structured?: unknown; usage?: ClaudeUsage; nonZeroExit?: false }
   | { ok: false; reason: string; nonZeroExit: boolean };
 
 function strip(r: InternalResult): ClaudeRunResult {
-  if (r.ok) return { ok: true, text: r.text, structured: r.structured };
+  if (r.ok) return { ok: true, text: r.text, structured: r.structured, usage: r.usage };
   return { ok: false, reason: r.reason };
 }
 
@@ -195,7 +204,19 @@ function runOnce(
         });
         return;
       }
-      done({ ok: true, text: extracted.text, structured: extracted.structured });
+      // R3 — 비용·토큰 관측. 봉투에 사용량이 있으면 호출별로 구조화 로깅 (06-15 크레딧 변경 대비).
+      if (extracted.usage) {
+        logger.info(
+          { source: 'claude-cli', model: opts.model ?? null, ...extracted.usage },
+          'headless 호출 사용량',
+        );
+      }
+      done({
+        ok: true,
+        text: extracted.text,
+        structured: extracted.structured,
+        usage: extracted.usage,
+      });
     });
 
     // 무거운 본문은 stdin 으로 — argv 길이 한계·쿼팅 회피.
@@ -207,23 +228,49 @@ function runOnce(
   });
 }
 
-// `--output-format json` 봉투에서 모델 텍스트(result) + 구조화 출력(structured_output)을 꺼낸다.
-// is_error 면 null. result·structured_output 둘 다 없으면 파싱 실패(null).
-function extractResult(stdout: string): { text: string; structured?: unknown } | null {
+// `--output-format json` 봉투에서 모델 텍스트(result) + 구조화 출력(structured_output) +
+// 비용·토큰 사용량을 꺼낸다. is_error 면 null. result·structured_output 둘 다 없으면 파싱 실패(null).
+// 테스트 위해 export (실 spawn 없이 봉투 파싱만 검증).
+export function extractResult(
+  stdout: string,
+): { text: string; structured?: unknown; usage?: ClaudeUsage } | null {
   try {
     const envelope = JSON.parse(stdout) as {
       result?: unknown;
       structured_output?: unknown;
       is_error?: unknown;
+      total_cost_usd?: unknown;
+      usage?: { input_tokens?: unknown; output_tokens?: unknown };
     };
     if (envelope.is_error === true) return null;
     const text = typeof envelope.result === 'string' ? envelope.result : '';
     const structured = envelope.structured_output;
     if (text === '' && structured === undefined) return null;
-    return structured === undefined ? { text } : { text, structured };
+    const usage = extractUsage(envelope);
+    return {
+      text,
+      ...(structured === undefined ? {} : { structured }),
+      ...(usage === null ? {} : { usage }),
+    };
   } catch {
     return null;
   }
+}
+
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+// 봉투에서 비용·토큰을 뽑는다. 셋 다 없으면 null (사용량 정보 없는 응답).
+function extractUsage(envelope: {
+  total_cost_usd?: unknown;
+  usage?: { input_tokens?: unknown; output_tokens?: unknown };
+}): ClaudeUsage | null {
+  const costUsd = num(envelope.total_cost_usd);
+  const inputTokens = num(envelope.usage?.input_tokens);
+  const outputTokens = num(envelope.usage?.output_tokens);
+  if (costUsd === null && inputTokens === null && outputTokens === null) return null;
+  return { costUsd, inputTokens, outputTokens };
 }
 
 // 모델 응답에서 JSON 을 꺼낸다. 코드펜스(```json ... ```)를 벗기고, 산문이 섞여 있어도
