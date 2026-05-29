@@ -1,59 +1,66 @@
 import { sql } from 'drizzle-orm';
-import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { FileBlock } from '@/lib/types';
 
 const now = sql`(unixepoch())`;
 
-export const projects = sqliteTable('projects', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  slug: text('slug').notNull().unique(),
-  name: text('name').notNull(),
-  defaultBranch: text('default_branch').notNull().default('main'),
-  autoMergeEnabled: integer('auto_merge_enabled', { mode: 'boolean' }).notNull().default(false),
-  // 자동 머지 후 head 브랜치 삭제 여부. 디폴트 OFF — 회사/조직 레포에서 남의 브랜치를 함부로
-  // 지우면 안 되므로 명시적으로 켤 때만 삭제. autoMergeEnabled 와 독립.
-  autoDeleteBranchEnabled: integer('auto_delete_branch_enabled', { mode: 'boolean' })
-    .notNull()
-    .default(false),
-  // AI 사전 리뷰를 이 프로젝트에 적용할지. 디폴트 ON. 전역 settings.aiEnabled 와 AND —
-  // 전역 OFF 면 어차피 안 함. 회사 레포 등 분석을 끄고 싶은 프로젝트만 개별 OFF.
-  aiReviewEnabled: integer('ai_review_enabled', { mode: 'boolean' }).notNull().default(true),
-  // Phase 13.2 — 자동 머지 중 충돌(dirty) 발생 시 claude CLI 로 자동 해결 시도 여부.
-  // 디폴트 OFF — 명시적으로 켜야 발화 (claude 가 워크스페이스에서 코드 수정 + push 하므로
-  // 신뢰가 선행돼야 함). autoMergeEnabled 와 독립.
-  autoResolveConflictsEnabled: integer('auto_resolve_conflicts_enabled', { mode: 'boolean' })
-    .notNull()
-    .default(false),
-  // Phase 13.x — CI 테스트 실패 시 claude CLI 로 자동 수정 시도 여부.
-  // 디폴트 OFF — autoResolveConflictsEnabled 와 동일하게 claude 가 워크스페이스에서 코드를
-  // 고쳐 push 하므로 신뢰가 선행돼야 함. autoMergeEnabled 와 독립.
-  autoFixTestsEnabled: integer('auto_fix_tests_enabled', { mode: 'boolean' })
-    .notNull()
-    .default(false),
-  // Phase 13.1 — PR 에 changes_requested 리뷰가 오면 claude CLI 로 자동 반영 시도 여부.
-  // 디폴트 OFF — 다른 자동 수정 토글과 동일하게 claude 가 워크스페이스에서 코드를 고쳐 push
-  // 하므로 신뢰가 선행돼야 함. autoMergeEnabled 와 독립.
-  autoResolveChangesEnabled: integer('auto_resolve_changes_enabled', { mode: 'boolean' })
-    .notNull()
-    .default(false),
-  // 뮤트 — 이 프로젝트의 PR/check webhook 을 무시(인박스 ingest·분석·트라이아지·자동머지 차단).
-  // 웹훅 자동 onboard 로 새로 감지된 레포는 muted=true 로 시작(조직의 남의 레포가 인박스를
-  // 어지럽히지 않게). /projects 에서 '관리 시작' 으로 해제. 수동 등록/import 는 muted=false.
-  muted: integer('muted', { mode: 'boolean' }).notNull().default(false),
-  // GitHub App installation id — App 가 이 레포에 설치될 때 GitHub 가 발급.
-  // null 이면 시드/데모 프로젝트 (실 webhook 흐름 비대상).
-  installationId: integer('installation_id'),
-  // Phase 8.x — 이 프로젝트가 속한 GitHub App 설정 (다중 App). null 이면 env 기반 단일 App.
-  // installation 은 App 별로 의미가 다르므로, 어느 App 자격증명으로 인증할지 결정한다.
-  appConfigId: integer('app_config_id').references(() => githubApps.id),
-  // Phase 10.1 — .cortex/project.yml 에서 가져온 메타. null 이면 sync 안 됨 (manual).
-  description: text('description'),
-  kind: text('kind'), // web-app | cli | library | mobile | docs | infra (자유 텍스트)
-  domain: text('domain'),
-  homepage: text('homepage'),
-  metaSyncedAt: integer('meta_synced_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
-});
+export const projects = sqliteTable(
+  'projects',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    slug: text('slug').notNull().unique(),
+    name: text('name').notNull(),
+    defaultBranch: text('default_branch').notNull().default('main'),
+    autoMergeEnabled: integer('auto_merge_enabled', { mode: 'boolean' }).notNull().default(false),
+    // 자동 머지 후 head 브랜치 삭제 여부. 디폴트 OFF — 회사/조직 레포에서 남의 브랜치를 함부로
+    // 지우면 안 되므로 명시적으로 켤 때만 삭제. autoMergeEnabled 와 독립.
+    autoDeleteBranchEnabled: integer('auto_delete_branch_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    // AI 사전 리뷰를 이 프로젝트에 적용할지. 디폴트 ON. 전역 settings.aiEnabled 와 AND —
+    // 전역 OFF 면 어차피 안 함. 회사 레포 등 분석을 끄고 싶은 프로젝트만 개별 OFF.
+    aiReviewEnabled: integer('ai_review_enabled', { mode: 'boolean' }).notNull().default(true),
+    // Phase 13.2 — 자동 머지 중 충돌(dirty) 발생 시 claude CLI 로 자동 해결 시도 여부.
+    // 디폴트 OFF — 명시적으로 켜야 발화 (claude 가 워크스페이스에서 코드 수정 + push 하므로
+    // 신뢰가 선행돼야 함). autoMergeEnabled 와 독립.
+    autoResolveConflictsEnabled: integer('auto_resolve_conflicts_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    // Phase 13.x — CI 테스트 실패 시 claude CLI 로 자동 수정 시도 여부.
+    // 디폴트 OFF — autoResolveConflictsEnabled 와 동일하게 claude 가 워크스페이스에서 코드를
+    // 고쳐 push 하므로 신뢰가 선행돼야 함. autoMergeEnabled 와 독립.
+    autoFixTestsEnabled: integer('auto_fix_tests_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    // Phase 13.1 — PR 에 changes_requested 리뷰가 오면 claude CLI 로 자동 반영 시도 여부.
+    // 디폴트 OFF — 다른 자동 수정 토글과 동일하게 claude 가 워크스페이스에서 코드를 고쳐 push
+    // 하므로 신뢰가 선행돼야 함. autoMergeEnabled 와 독립.
+    autoResolveChangesEnabled: integer('auto_resolve_changes_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    // 뮤트 — 이 프로젝트의 PR/check webhook 을 무시(인박스 ingest·분석·트라이아지·자동머지 차단).
+    // 웹훅 자동 onboard 로 새로 감지된 레포는 muted=true 로 시작(조직의 남의 레포가 인박스를
+    // 어지럽히지 않게). /projects 에서 '관리 시작' 으로 해제. 수동 등록/import 는 muted=false.
+    muted: integer('muted', { mode: 'boolean' }).notNull().default(false),
+    // GitHub App installation id — App 가 이 레포에 설치될 때 GitHub 가 발급.
+    // null 이면 시드/데모 프로젝트 (실 webhook 흐름 비대상).
+    installationId: integer('installation_id'),
+    // Phase 8.x — 이 프로젝트가 속한 GitHub App 설정 (다중 App). null 이면 env 기반 단일 App.
+    // installation 은 App 별로 의미가 다르므로, 어느 App 자격증명으로 인증할지 결정한다.
+    appConfigId: integer('app_config_id').references(() => githubApps.id),
+    // Phase 10.1 — .cortex/project.yml 에서 가져온 메타. null 이면 sync 안 됨 (manual).
+    description: text('description'),
+    kind: text('kind'), // web-app | cli | library | mobile | docs | infra (자유 텍스트)
+    domain: text('domain'),
+    homepage: text('homepage'),
+    metaSyncedAt: integer('meta_synced_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => ({
+    // App 설치 프로젝트만 필터링하는 쿼리(listAutoMergeProjects 등)에서 사용.
+    installationIdx: index('projects_installation_idx').on(table.installationId),
+  }),
+);
 
 export const issues = sqliteTable('issues', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -89,45 +96,52 @@ export const clusters = sqliteTable('clusters', {
   closedAt: integer('closed_at', { mode: 'timestamp' }),
 });
 
-export const prs = sqliteTable('prs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  repoId: integer('repo_id')
-    .notNull()
-    .references(() => projects.id),
-  number: integer('number').notNull(),
-  title: text('title').notNull(),
-  // GitHub PR body (description). 빈 PR 도 있어 nullable.
-  body: text('body'),
-  authorKind: text('author_kind', { enum: ['agent', 'human'] }).notNull(),
-  authorId: text('author_id').notNull(),
-  headSha: text('head_sha').notNull(),
-  linesAdded: integer('lines_added').notNull(),
-  linesRemoved: integer('lines_removed').notNull(),
-  filesChanged: integer('files_changed').notNull(),
-  status: text('status', {
-    enum: ['open', 'review-needed', 'auto-mergeable', 'merged', 'closed'],
-  })
-    .notNull()
-    .default('open'),
-  clusterId: integer('cluster_id').references(() => clusters.id),
-  // head 브랜치가 머지 후 삭제된 시점. null 이면 미삭제. PR 상세의 '브랜치 삭제'
-  // 버튼이 두 번째 진입 시에도 비활성화될 수 있도록 영속 기록.
-  branchDeletedAt: integer('branch_deleted_at', { mode: 'timestamp' }),
-  // 마지막으로 클러스터에서 해체된 시점. null 이면 한 번도 해체된 적 없음.
-  // tryClusterPR 가 cooldown 기간 안에 있는 PR 은 자동 클러스터링에서 제외 — 사용자가
-  // 의도적으로 해체한 PR 이 곧바로 다시 묶이지 않게.
-  clusterDissolvedAt: integer('cluster_dissolved_at', { mode: 'timestamp' }),
-  // GitHub CI 결과 (Check Runs API 집계). null 이면 미수신/CI 미설정 — AI 분석 여부와
-  // 무관 (preReview 없어도 채워질 수 있게 PR 에 직접 묶음). handleCheckWebhook 가
-  // check_run/check_suite completed 시점에 갱신.
-  testsPassed: integer('tests_passed', { mode: 'boolean' }),
-  // GitHub mergeable_state ('clean'/'dirty'/'blocked'/'unstable'/'behind'/'unknown').
-  // sync 가 getPRMergeStatus 로 갱신. 인박스 행 머지 게이팅(충돌/차단 사유) + 'CI 없는
-  // 레포(clean + testsPassed null)는 머지 가능' 판정(triage)에 사용. null 이면 미수신.
-  mergeableState: text('mergeable_state'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
-});
+export const prs = sqliteTable(
+  'prs',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    repoId: integer('repo_id')
+      .notNull()
+      .references(() => projects.id),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    // GitHub PR body (description). 빈 PR 도 있어 nullable.
+    body: text('body'),
+    authorKind: text('author_kind', { enum: ['agent', 'human'] }).notNull(),
+    authorId: text('author_id').notNull(),
+    headSha: text('head_sha').notNull(),
+    linesAdded: integer('lines_added').notNull(),
+    linesRemoved: integer('lines_removed').notNull(),
+    filesChanged: integer('files_changed').notNull(),
+    status: text('status', {
+      enum: ['open', 'review-needed', 'auto-mergeable', 'merged', 'closed'],
+    })
+      .notNull()
+      .default('open'),
+    clusterId: integer('cluster_id').references(() => clusters.id),
+    // head 브랜치가 머지 후 삭제된 시점. null 이면 미삭제. PR 상세의 '브랜치 삭제'
+    // 버튼이 두 번째 진입 시에도 비활성화될 수 있도록 영속 기록.
+    branchDeletedAt: integer('branch_deleted_at', { mode: 'timestamp' }),
+    // 마지막으로 클러스터에서 해체된 시점. null 이면 한 번도 해체된 적 없음.
+    // tryClusterPR 가 cooldown 기간 안에 있는 PR 은 자동 클러스터링에서 제외 — 사용자가
+    // 의도적으로 해체한 PR 이 곧바로 다시 묶이지 않게.
+    clusterDissolvedAt: integer('cluster_dissolved_at', { mode: 'timestamp' }),
+    // GitHub CI 결과 (Check Runs API 집계). null 이면 미수신/CI 미설정 — AI 분석 여부와
+    // 무관 (preReview 없어도 채워질 수 있게 PR 에 직접 묶음). handleCheckWebhook 가
+    // check_run/check_suite completed 시점에 갱신.
+    testsPassed: integer('tests_passed', { mode: 'boolean' }),
+    // GitHub mergeable_state ('clean'/'dirty'/'blocked'/'unstable'/'behind'/'unknown').
+    // sync 가 getPRMergeStatus 로 갱신. 인박스 행 머지 게이팅(충돌/차단 사유) + 'CI 없는
+    // 레포(clean + testsPassed null)는 머지 가능' 판정(triage)에 사용. null 이면 미수신.
+    mergeableState: text('mergeable_state'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => ({
+    // listProjectsWithStats 의 카운트 집계 + 인박스 쿼리(repoId/status 필터)에서 사용.
+    repoStatusIdx: index('prs_repo_status_idx').on(table.repoId, table.status),
+  }),
+);
 
 export const agentRuns = sqliteTable('agent_runs', {
   id: integer('id').primaryKey({ autoIncrement: true }),

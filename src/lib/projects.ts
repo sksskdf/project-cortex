@@ -1,7 +1,7 @@
 // 등록된 프로젝트 (레포) 의 자동 머지 정책 토글 + Phase 8 의 /projects 화면용 통계.
 // installation 있는 프로젝트만 노출 (seed 데이터 제외).
 
-import { and, asc, avg, count, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, asc, avg, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { preReviews, prs, projects } from '@/db/schema';
 import { attemptAutoMerge } from './auto-merge';
@@ -129,30 +129,39 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
     .orderBy(asc(projects.slug))
     .all();
 
+  // N+1 제거 — 프로젝트마다 3개씩 쿼리 (1 + 3N) 하던 걸 2개의 GROUP BY 배치 쿼리로.
+  // ① repoId 별 PR 카운트 (조건부 집계로 active/merged 동시에).
+  const countRows = db
+    .select({
+      repoId: prs.repoId,
+      active: sql<number>`COUNT(CASE WHEN ${prs.status} IN ('open', 'review-needed', 'auto-mergeable') THEN 1 END)`,
+      merged: sql<number>`COUNT(CASE WHEN ${prs.status} = 'merged' THEN 1 END)`,
+    })
+    .from(prs)
+    .groupBy(prs.repoId)
+    .all();
+
+  const countByRepo = new Map<number, { active: number; merged: number }>();
+  for (const c of countRows) {
+    countByRepo.set(c.repoId, { active: c.active, merged: c.merged });
+  }
+
+  // ② repoId 별 평균 confidence — preReviews 를 prs 로 조인해 GROUP BY.
+  // (PR 마다 여러 preReview 가 쌓일 수 있지만 평균이라 영향 적음.)
+  const avgRows = db
+    .select({ repoId: prs.repoId, a: avg(preReviews.confidence) })
+    .from(preReviews)
+    .innerJoin(prs, eq(preReviews.prId, prs.id))
+    .groupBy(prs.repoId)
+    .all();
+
+  const avgByRepo = new Map<number, number>();
+  for (const a of avgRows) {
+    avgByRepo.set(a.repoId, Math.round(Number(a.a ?? 0)));
+  }
+
   return rows.map((r) => {
-    const activeRow = db
-      .select({ n: count() })
-      .from(prs)
-      .where(
-        and(eq(prs.repoId, r.id), inArray(prs.status, ['open', 'review-needed', 'auto-mergeable'])),
-      )
-      .get();
-
-    const mergedRow = db
-      .select({ n: count() })
-      .from(prs)
-      .where(and(eq(prs.repoId, r.id), eq(prs.status, 'merged')))
-      .get();
-
-    // 평균 confidence — 해당 프로젝트의 모든 preReview.
-    // (PR 마다 여러 preReview 가 쌓일 수 있지만 평균이라 영향 적음.)
-    const avgRow = db
-      .select({ a: avg(preReviews.confidence) })
-      .from(preReviews)
-      .innerJoin(prs, eq(preReviews.prId, prs.id))
-      .where(eq(prs.repoId, r.id))
-      .get();
-
+    const counts = countByRepo.get(r.id);
     return {
       id: r.id,
       slug: r.slug,
@@ -165,9 +174,9 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       autoResolveConflictsEnabled: r.autoResolveConflictsEnabled,
       autoFixTestsEnabled: r.autoFixTestsEnabled,
       autoResolveChangesEnabled: r.autoResolveChangesEnabled,
-      activePRs: activeRow?.n ?? 0,
-      mergedPRs: mergedRow?.n ?? 0,
-      avgConfidence: Math.round(Number(avgRow?.a ?? 0)),
+      activePRs: counts?.active ?? 0,
+      mergedPRs: counts?.merged ?? 0,
+      avgConfidence: avgByRepo.get(r.id) ?? 0,
     };
   });
 }

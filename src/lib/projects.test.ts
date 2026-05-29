@@ -2,11 +2,13 @@ import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { projects } from '@/db/schema';
+import { preReviews, prs, projects } from '@/db/schema';
+import type { PRRecord } from '@/db/schema';
 import {
   addProjectFromInstallation,
   addProjectManually,
   listAutoMergeProjects,
+  listProjectsWithStats,
   setProjectAiReview,
   setProjectAutoDeleteBranch,
   setProjectAutoFixTests,
@@ -21,8 +23,43 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // FK 순서대로 정리 (preReviews → prs → projects).
+  db.delete(preReviews).run();
+  db.delete(prs).run();
   db.delete(projects).run();
 });
+
+let prSeq = 0;
+function insertPR(repoId: number, status: PRRecord['status'], confidence?: number): void {
+  prSeq += 1;
+  const prId = db
+    .insert(prs)
+    .values({
+      repoId,
+      number: prSeq,
+      title: `PR ${prSeq}`,
+      authorKind: 'agent',
+      authorId: 'claude',
+      headSha: `sha-${prSeq}`,
+      linesAdded: 1,
+      linesRemoved: 0,
+      filesChanged: 1,
+      status,
+    })
+    .returning({ id: prs.id })
+    .get().id;
+  if (confidence !== undefined) {
+    db.insert(preReviews)
+      .values({
+        prId,
+        headSha: `sha-${prSeq}`,
+        confidence,
+        confidenceTier: 'high',
+        flags: [],
+      })
+      .run();
+  }
+}
 
 describe('listAutoMergeProjects', () => {
   it('returns only projects with installationId set', () => {
@@ -293,5 +330,68 @@ describe('addProjectFromInstallation', () => {
     expect(addProjectFromInstallation({ slug: 'a/b', installationId: -1 }).kind).toBe(
       'invalid-slug',
     );
+  });
+});
+
+describe('listProjectsWithStats', () => {
+  it('PR 이 없는 프로젝트는 0/0/0 으로 그대로 노출', () => {
+    db.insert(projects).values({ slug: 'a/repo', name: 'A', installationId: 100 }).run();
+    const rows = listProjectsWithStats();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      slug: 'a/repo',
+      activePRs: 0,
+      mergedPRs: 0,
+      avgConfidence: 0,
+    });
+  });
+
+  it('상태가 섞인 PR 들의 active/merged 카운트와 평균 confidence 를 정확히 집계', () => {
+    const aId = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    const bId = db
+      .insert(projects)
+      .values({ slug: 'b/repo', name: 'B', installationId: 200 })
+      .returning({ id: projects.id })
+      .get().id;
+
+    // A: active=3 (open + review-needed + auto-mergeable), merged=2, closed=1 (카운트 제외).
+    //    confidence 80/90/70 → avg 80.
+    insertPR(aId, 'open', 80);
+    insertPR(aId, 'review-needed', 90);
+    insertPR(aId, 'auto-mergeable', 70);
+    insertPR(aId, 'merged');
+    insertPR(aId, 'merged');
+    insertPR(aId, 'closed');
+
+    // B: PR 없음 → 0/0/0.
+
+    const rows = listProjectsWithStats();
+    // orderBy(asc(slug)) 보존 — a/repo 가 먼저.
+    expect(rows.map((r) => r.slug)).toEqual(['a/repo', 'b/repo']);
+
+    const a = rows.find((r) => r.id === aId)!;
+    expect(a.activePRs).toBe(3);
+    expect(a.mergedPRs).toBe(2);
+    expect(a.avgConfidence).toBe(80);
+
+    const b = rows.find((r) => r.id === bId)!;
+    expect(b).toMatchObject({ activePRs: 0, mergedPRs: 0, avgConfidence: 0 });
+  });
+
+  it('avgConfidence 는 반올림 (Math.round)', () => {
+    const id = db
+      .insert(projects)
+      .values({ slug: 'a/repo', name: 'A', installationId: 100 })
+      .returning({ id: projects.id })
+      .get().id;
+    // 81 + 82 → avg 81.5 → round 82.
+    insertPR(id, 'open', 81);
+    insertPR(id, 'open', 82);
+    const a = listProjectsWithStats().find((r) => r.id === id)!;
+    expect(a.avgConfidence).toBe(82);
   });
 });
