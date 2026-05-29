@@ -151,6 +151,43 @@ describe('analyzePR (claude CLI)', () => {
     expect(arg.jsonSchema.required).toContain('confidence');
   });
 
+  it('Phase 20 — whatToCheck 를 저장 (사용자 확인 체크포인트)', async () => {
+    const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
+    setOctokit(makeOctokitWithDiff(diff));
+    setClaudeRunner(
+      makeRunner({
+        confidence: 72,
+        flags: [],
+        summary: '변경 요약.',
+        whatToCheck: ['마이그레이션 후 기존 데이터 정상 동작 확인', '엣지 케이스 X 동작'],
+        comments: [],
+        hunkAnnotations: [],
+      }),
+    );
+
+    const r = await analyzePR(setupPR({}));
+    expect(r.kind).toBe('analyzed');
+    if (r.kind !== 'analyzed') return;
+    expect(r.row.whatToCheck).toEqual([
+      '마이그레이션 후 기존 데이터 정상 동작 확인',
+      '엣지 케이스 X 동작',
+    ]);
+  });
+
+  it('Phase 20 — whatToCheck 누락 시 빈 배열로 기본값(legacy/단순)', async () => {
+    const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
+    setOctokit(makeOctokitWithDiff(diff));
+    // whatToCheck 없는 페이로드 — zod .default([]) 로 빈 배열.
+    setClaudeRunner(
+      makeRunner({ confidence: 95, flags: [], summary: 'ok', comments: [], hunkAnnotations: [] }),
+    );
+
+    const r = await analyzePR(setupPR({}));
+    expect(r.kind).toBe('analyzed');
+    if (r.kind !== 'analyzed') return;
+    expect(r.row.whatToCheck).toEqual([]);
+  });
+
   it('R1 — structured_output 가 있으면 텍스트 파싱 대신 그것을 사용', async () => {
     const diff = 'diff --git a/src/x.ts b/src/x.ts\n+ const x = 1;';
     setOctokit(makeOctokitWithDiff(diff));

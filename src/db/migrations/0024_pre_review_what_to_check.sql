@@ -1,0 +1,1 @@
+ALTER TABLE `pre_reviews` ADD `what_to_check` text;

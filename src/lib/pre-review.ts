@@ -34,6 +34,8 @@ const llmResultSchema = z.object({
   confidence: z.number().int().min(0).max(100),
   flags: z.array(z.enum(RISK_FLAGS as readonly [RiskFlag, ...RiskFlag[]])),
   summary: z.string(),
+  // Phase 20 — 사용자가 머지 전/후 확인하면 좋을 체크포인트(짧은 불릿 0~5개). 안전하면 빈 배열.
+  whatToCheck: z.array(z.string()).default([]),
   comments: z.array(
     z.object({
       path: z.string(),
@@ -68,6 +70,7 @@ const llmResultJsonSchema = {
     confidence: { type: 'integer', minimum: 0, maximum: 100 },
     flags: { type: 'array', items: { type: 'string', enum: RISK_FLAGS } },
     summary: { type: 'string' },
+    whatToCheck: { type: 'array', items: { type: 'string' } },
     comments: {
       type: 'array',
       items: {
@@ -95,7 +98,7 @@ const llmResultJsonSchema = {
       },
     },
   },
-  required: ['confidence', 'flags', 'summary', 'comments', 'hunkAnnotations'],
+  required: ['confidence', 'flags', 'summary', 'whatToCheck', 'comments', 'hunkAnnotations'],
 } as const;
 
 const triageResultJsonSchema = {
@@ -268,6 +271,8 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
           parsedFiles,
           hunkAnnotations,
           summary: triage.summary,
+          // 단순 PR(자동 승인) — 특별히 확인할 부분 없음. 상세는 기본 문구를 보여준다.
+          whatToCheck: [],
           comments: [],
           // testsPassed 는 prs 컬럼으로 이동 (마이그레이션 0007). preReview 의 컬럼은
           // legacy 호환 위해 schema 에 남았지만 새로 저장 안 함.
@@ -302,6 +307,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
       parsedFiles,
       hunkAnnotations: parsed.hunkAnnotations,
       summary: parsed.summary,
+      whatToCheck: parsed.whatToCheck,
       comments: parsed.comments,
       // testsPassed 는 prs 컬럼으로 이동 (위 분기와 동일). preReview 는 legacy 컬럼.
       testsPassed: null,

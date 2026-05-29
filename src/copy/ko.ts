@@ -433,6 +433,11 @@ export const ko = {
       subtitle: '자동 분석 완료 · 사람 검토를 권장합니다',
       ariaLabel: 'AI 사전 리뷰',
     },
+    whatToCheck: {
+      title: '내가 확인하면 될 부분',
+      ariaLabel: '사용자 확인 권장 체크포인트',
+      empty: '특별히 확인할 부분이 없습니다 — 안전한 변경으로 판단했어요.',
+    },
     fixtureBanner: '이 PR 은 아직 분석되지 않았습니다',
     fixtureBannerDesc:
       'GitHub 에서 가져온 diff 를 표시하고 있어요. AI 분석을 요청하면 신뢰 점수·위험 플래그가 채워집니다.',
