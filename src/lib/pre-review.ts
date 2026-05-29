@@ -26,6 +26,8 @@ import {
 // (구 anthropic.ts 에서 이전 — API SDK 경로 제거 Phase.)
 const PRE_REVIEW_MODEL = 'claude-opus-4-7';
 const PRE_REVIEW_TRIAGE_MODEL = 'claude-haiku-4-5-20251001';
+// R5 — 본 분석(Opus) 과부하·은퇴 시 폴백. analyzePR 은 print 모드라 --fallback-model 발효.
+const PRE_REVIEW_FALLBACK_MODEL = 'claude-sonnet-4-6';
 import { precomputeFlags } from './risk-flags';
 import type { RiskFlag } from './types';
 
@@ -159,6 +161,7 @@ async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llm
     instruction:
       '위 입력을 분석해 지정된 JSON 스키마에 맞는 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_MODEL,
+    fallbackModel: PRE_REVIEW_FALLBACK_MODEL,
     jsonSchema: llmResultJsonSchema,
   });
   if (!res.ok) throw new Error(`pre-review(CLI) 실패: ${res.reason}`);

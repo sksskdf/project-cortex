@@ -149,6 +149,8 @@ describe('analyzePR (claude CLI)', () => {
     // llmResultJsonSchema 의 핵심 필드가 들어있는지(triage 가 아니라 메인 스키마).
     expect(arg.jsonSchema.properties.hunkAnnotations).toBeDefined();
     expect(arg.jsonSchema.required).toContain('confidence');
+    // R5 — 본 분석에 폴백 모델 지정.
+    expect(arg.fallbackModel).toBe('claude-sonnet-4-6');
   });
 
   it('Phase 20 — whatToCheck 를 저장 (사용자 확인 체크포인트)', async () => {

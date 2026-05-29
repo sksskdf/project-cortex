@@ -46,6 +46,10 @@ export type ClaudeRunOptions = {
   // argv 쿼팅을 피하려 임시 파일에 쓰고 `--append-system-prompt-file` 로 전달. 슬래시 스킬은
   // `-p` 헤드리스에서 안 먹으므로, 코딩 자동화에 방법론을 일관 주입하는 경로.
   appendSystemPrompt?: string;
+  // R5 (Phase 13.6) — 기본 모델이 과부하/은퇴(retired)면 자동 폴백할 모델. `--fallback-model`
+  // 은 print 모드에서만 발효(문서) — Cortex 헤드리스에 적합. 미지원 CLI 대비: 분석(도구 미사용)
+  // 호출은 비정상 종료 시 이 플래그 없이 1회 자동 재시도해 degrade.
+  fallbackModel?: string;
 };
 
 // R3 (Phase 13.6) — `--output-format json` 봉투의 비용·토큰 사용량. 2026-06-15 부터 구독 플랜
@@ -84,7 +88,9 @@ async function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
   // 미지원 CLI 등으로 비정상 종료 + 도구 미사용(분석, 부작용 없음) 이면 향상 플래그 없이
   // 1회 재시도 → 기존 동작으로 안전하게 degrade. 도구 사용(코딩 자동화)은 부분 편집
   // 재실행 위험이 있어 재시도하지 않는다.
-  const usedEnhancements = Boolean(opts.jsonSchema || opts.appendSystemPrompt);
+  const usedEnhancements = Boolean(
+    opts.jsonSchema || opts.appendSystemPrompt || opts.fallbackModel,
+  );
   if (usedEnhancements && !opts.dangerouslyAllowAllTools) {
     const retry = await runOnce(claude.path, opts, false);
     if (retry.ok) return strip(retry);
@@ -112,6 +118,9 @@ function runOnce(
   // 정상 완료를 실패로 오인할 위험이 있어 사용 안 함 — 자기완결 프롬프트라 도구 루프 위험 낮음.)
   const cliArgs = ['-p', '--output-format', 'json'];
   if (opts.model) cliArgs.push('--model', opts.model);
+  if (useEnhancements && opts.fallbackModel) {
+    cliArgs.push('--fallback-model', opts.fallbackModel);
+  }
   // 충돌 해결 등 파일 수정이 필요한 작업만 도구 허용 + 권한 우회 (비대화형이라 프롬프트
   // 로 멈추면 안 됨). 분석 전용(사전 리뷰)은 이 플래그 없이 순수 텍스트 응답.
   if (opts.dangerouslyAllowAllTools) cliArgs.push('--dangerously-skip-permissions');
