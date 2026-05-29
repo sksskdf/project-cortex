@@ -26,6 +26,8 @@ import {
 // (구 anthropic.ts 에서 이전 — API SDK 경로 제거 Phase.)
 const PRE_REVIEW_MODEL = 'claude-opus-4-7';
 const PRE_REVIEW_TRIAGE_MODEL = 'claude-haiku-4-5-20251001';
+// R5 — 본 분석(Opus) 과부하·은퇴 시 폴백. analyzePR 은 print 모드라 --fallback-model 발효.
+const PRE_REVIEW_FALLBACK_MODEL = 'claude-sonnet-4-6';
 import { precomputeFlags } from './risk-flags';
 import type { RiskFlag } from './types';
 
@@ -34,6 +36,8 @@ const llmResultSchema = z.object({
   confidence: z.number().int().min(0).max(100),
   flags: z.array(z.enum(RISK_FLAGS as readonly [RiskFlag, ...RiskFlag[]])),
   summary: z.string(),
+  // Phase 20 — 사용자가 머지 전/후 확인하면 좋을 체크포인트(짧은 불릿 0~5개). 안전하면 빈 배열.
+  whatToCheck: z.array(z.string()).default([]),
   comments: z.array(
     z.object({
       path: z.string(),
@@ -57,6 +61,59 @@ const triageResultSchema = z.object({
   flagCandidates: z.array(z.enum(RISK_FLAGS as readonly [RiskFlag, ...RiskFlag[]])),
   summary: z.string(),
 });
+
+// R1 (Phase 13.6) — claude CLI `--json-schema` 로 넘길 JSON Schema. zod 와 1:1 미러.
+// CLI 가 스키마 검증된 structured_output 을 돌려줘 parseJsonFromText(산문-속-객체 추출)
+// 취약점을 제거한다. 추출 후에도 zod 로 재검증(enum/범위) — 미지원 CLI 폴백 시 동일 경로.
+const llmResultJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    confidence: { type: 'integer', minimum: 0, maximum: 100 },
+    flags: { type: 'array', items: { type: 'string', enum: RISK_FLAGS } },
+    summary: { type: 'string' },
+    whatToCheck: { type: 'array', items: { type: 'string' } },
+    comments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          path: { type: 'string' },
+          line: { type: 'integer', minimum: 1 },
+          body: { type: 'string' },
+        },
+        required: ['path', 'line', 'body'],
+      },
+    },
+    hunkAnnotations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          hunkId: { type: 'string' },
+          decision: { type: 'string', enum: ['auto', 'review'] },
+          reason: { type: 'string' },
+        },
+        required: ['hunkId', 'decision'],
+      },
+    },
+  },
+  required: ['confidence', 'flags', 'summary', 'whatToCheck', 'comments', 'hunkAnnotations'],
+} as const;
+
+const triageResultJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    needsDeepReview: { type: 'boolean' },
+    confidence: { type: 'integer', minimum: 0, maximum: 100 },
+    flagCandidates: { type: 'array', items: { type: 'string', enum: RISK_FLAGS } },
+    summary: { type: 'string' },
+  },
+  required: ['needsDeepReview', 'confidence', 'flagCandidates', 'summary'],
+} as const;
 
 // Haiku 결과로 Opus 호출 생략이 안전한지 판정. 셋 다 만족해야 단순 PR.
 function isSimpleByTriage(t: z.infer<typeof triageResultSchema>): boolean {
@@ -91,9 +148,11 @@ async function callTriageLLM(
     instruction:
       '위 입력의 규칙대로 PR 을 1차 분류하고, 지정 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_TRIAGE_MODEL,
+    jsonSchema: triageResultJsonSchema,
   });
   if (!res.ok) throw new Error(`triage(CLI) 실패: ${res.reason}`);
-  return triageResultSchema.parse(parseJsonFromText(res.text));
+  // structured_output(스키마 검증) 우선, 미지원 CLI 폴백 시 텍스트 파싱. zod 로 재검증.
+  return triageResultSchema.parse(res.structured ?? parseJsonFromText(res.text));
 }
 
 async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llmResultSchema>> {
@@ -102,9 +161,12 @@ async function callMainLLM(promptInput: PromptInput): Promise<z.infer<typeof llm
     instruction:
       '위 입력을 분석해 지정된 JSON 스키마에 맞는 JSON 객체만 출력하세요. 산문·코드펜스 금지.',
     model: PRE_REVIEW_MODEL,
+    fallbackModel: PRE_REVIEW_FALLBACK_MODEL,
+    jsonSchema: llmResultJsonSchema,
   });
   if (!res.ok) throw new Error(`pre-review(CLI) 실패: ${res.reason}`);
-  return llmResultSchema.parse(parseJsonFromText(res.text));
+  // structured_output(스키마 검증) 우선, 미지원 CLI 폴백 시 텍스트 파싱. zod 로 재검증.
+  return llmResultSchema.parse(res.structured ?? parseJsonFromText(res.text));
 }
 
 export async function analyzePR(prId: number): Promise<AnalyzeResult> {
@@ -212,6 +274,8 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
           parsedFiles,
           hunkAnnotations,
           summary: triage.summary,
+          // 단순 PR(자동 승인) — 특별히 확인할 부분 없음. 상세는 기본 문구를 보여준다.
+          whatToCheck: [],
           comments: [],
           // testsPassed 는 prs 컬럼으로 이동 (마이그레이션 0007). preReview 의 컬럼은
           // legacy 호환 위해 schema 에 남았지만 새로 저장 안 함.
@@ -246,6 +310,7 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
       parsedFiles,
       hunkAnnotations: parsed.hunkAnnotations,
       summary: parsed.summary,
+      whatToCheck: parsed.whatToCheck,
       comments: parsed.comments,
       // testsPassed 는 prs 컬럼으로 이동 (위 분기와 동일). preReview 는 legacy 컬럼.
       testsPassed: null,

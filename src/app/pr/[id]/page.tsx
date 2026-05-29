@@ -152,6 +152,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     autoMergeEnabled,
     reviews,
     automation,
+    whatToCheck,
     prDbId,
     projectId,
   } = view;
@@ -362,6 +363,23 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
             ))}
           </section>
         ))}
+
+        {whatToCheck !== null && (
+          <section className={styles.whatToCheck} aria-label={t.pr.whatToCheck.ariaLabel}>
+            <h2 className={styles.whatToCheckTitle}>{t.pr.whatToCheck.title}</h2>
+            {whatToCheck.length > 0 ? (
+              <ul className={styles.whatToCheckList}>
+                {whatToCheck.map((item, i) => (
+                  <li key={i} className={styles.whatToCheckItem}>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.whatToCheckEmpty}>{t.pr.whatToCheck.empty}</p>
+            )}
+          </section>
+        )}
 
         <div className={styles.actionBar}>
           <div className={styles.actionBarLeft}>

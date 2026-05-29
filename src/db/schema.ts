@@ -199,6 +199,9 @@ export const preReviews = sqliteTable(
       .default(sql`'[]'`),
     hunkAnnotations: text('hunk_annotations', { mode: 'json' }).$type<PreReviewHunkAnnotation[]>(),
     summary: text('summary'),
+    // Phase 20 — 사용자가 머지 전/후 직접 확인하면 좋을 체크포인트(짧은 불릿). PR 상세 마지막
+    // 단락에 항상 노출. legacy 행엔 없을 수 있어 nullable. 단순 PR(자동승인)은 빈 배열.
+    whatToCheck: text('what_to_check', { mode: 'json' }).$type<string[]>(),
     comments: text('comments', { mode: 'json' }).$type<PreReviewComment[]>(),
     testsPassed: integer('tests_passed', { mode: 'boolean' }),
     coverage: real('coverage'),

@@ -11,8 +11,12 @@
 // 테스트: setClaudeRunner 로 실제 spawn 을 대체 주입 (anthropic.ts/github.ts 와 동일 패턴).
 
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { claudeSpawnEnv, resolveClaude } from './agents';
+import { logger } from './logger';
 
 // 사전 리뷰(Opus thinking) 는 오래 걸릴 수 있어 넉넉히. 호출부가 override 가능.
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -33,9 +37,32 @@ export type ClaudeRunOptions = {
   // 위험: cwd 안에서 임의 파일 수정/명령 실행이 가능 — 호출부가 cwd 화이트리스트(등록된
   // 워크스페이스)로 제한해야 함.
   dangerouslyAllowAllTools?: boolean;
+  // R1 (Phase 13.6) — JSON Schema 강제. 주면 `--json-schema` 로 전달하고, 응답 봉투의
+  // `structured_output`(스키마 검증된 객체)을 result.structured 로 돌려준다. 모델이 산문/펜스를
+  // 섞어도 파싱 취약점(parseJsonFromText)을 우회. 미지원 CLI 대비: 도구 미사용(분석) 호출은
+  // 비정상 종료 시 이 플래그 없이 1회 자동 재시도해 기존 동작으로 degrade.
+  jsonSchema?: object;
+  // R2 (Phase 13.6) — 기본 시스템 프롬프트에 덧붙일 텍스트(예: Cortex 방법론). 멀티라인이라
+  // argv 쿼팅을 피하려 임시 파일에 쓰고 `--append-system-prompt-file` 로 전달. 슬래시 스킬은
+  // `-p` 헤드리스에서 안 먹으므로, 코딩 자동화에 방법론을 일관 주입하는 경로.
+  appendSystemPrompt?: string;
+  // R5 (Phase 13.6) — 기본 모델이 과부하/은퇴(retired)면 자동 폴백할 모델. `--fallback-model`
+  // 은 print 모드에서만 발효(문서) — Cortex 헤드리스에 적합. 미지원 CLI 대비: 분석(도구 미사용)
+  // 호출은 비정상 종료 시 이 플래그 없이 1회 자동 재시도해 degrade.
+  fallbackModel?: string;
 };
 
-export type ClaudeRunResult = { ok: true; text: string } | { ok: false; reason: string };
+// R3 (Phase 13.6) — `--output-format json` 봉투의 비용·토큰 사용량. 2026-06-15 부터 구독 플랜
+// `claude -p` 가 별도 Agent SDK 크레딧을 소모하므로 호출별 관측이 중요. 봉투에 없으면 null.
+export type ClaudeUsage = {
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
+export type ClaudeRunResult =
+  | { ok: true; text: string; structured?: unknown; usage?: ClaudeUsage }
+  | { ok: false; reason: string };
 
 type ClaudeRunner = (opts: ClaudeRunOptions) => Promise<ClaudeRunResult>;
 
@@ -50,27 +77,88 @@ export async function runClaudeHeadless(opts: ClaudeRunOptions): Promise<ClaudeR
   return spawnClaude(opts);
 }
 
-function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
+async function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
   const claude = resolveClaude();
-  if (!claude) return Promise.resolve({ ok: false, reason: 'claude CLI 를 찾을 수 없습니다.' });
+  if (!claude) return { ok: false, reason: 'claude CLI 를 찾을 수 없습니다.' };
 
+  // 향상 플래그(--json-schema / --append-system-prompt-file)를 켠 1차 시도.
+  const first = await runOnce(claude.path, opts, true);
+  if (first.ok || !first.nonZeroExit) return strip(first);
+
+  // 미지원 CLI 등으로 비정상 종료 + 도구 미사용(분석, 부작용 없음) 이면 향상 플래그 없이
+  // 1회 재시도 → 기존 동작으로 안전하게 degrade. 도구 사용(코딩 자동화)은 부분 편집
+  // 재실행 위험이 있어 재시도하지 않는다.
+  const usedEnhancements = Boolean(
+    opts.jsonSchema || opts.appendSystemPrompt || opts.fallbackModel,
+  );
+  if (usedEnhancements && !opts.dangerouslyAllowAllTools) {
+    const retry = await runOnce(claude.path, opts, false);
+    if (retry.ok) return strip(retry);
+  }
+  return strip(first);
+}
+
+type InternalResult =
+  | { ok: true; text: string; structured?: unknown; usage?: ClaudeUsage; nonZeroExit?: false }
+  | { ok: false; reason: string; nonZeroExit: boolean };
+
+function strip(r: InternalResult): ClaudeRunResult {
+  if (r.ok) return { ok: true, text: r.text, structured: r.structured, usage: r.usage };
+  return { ok: false, reason: r.reason };
+}
+
+// 1회 spawn. useEnhancements=false 면 --json-schema / --append-system-prompt-file 를 생략.
+function runOnce(
+  claudePath: string,
+  opts: ClaudeRunOptions,
+  useEnhancements: boolean,
+): Promise<InternalResult> {
   // -p: 비대화형 print 모드. --output-format json: result 봉투. stdin 으로 본문 전달 +
   // argv 에 짧은 지시문. (--max-turns 는 한계 도달 시 에러 종료라 단일 응답 분석에서
   // 정상 완료를 실패로 오인할 위험이 있어 사용 안 함 — 자기완결 프롬프트라 도구 루프 위험 낮음.)
   const cliArgs = ['-p', '--output-format', 'json'];
   if (opts.model) cliArgs.push('--model', opts.model);
+  if (useEnhancements && opts.fallbackModel) {
+    cliArgs.push('--fallback-model', opts.fallbackModel);
+  }
   // 충돌 해결 등 파일 수정이 필요한 작업만 도구 허용 + 권한 우회 (비대화형이라 프롬프트
   // 로 멈추면 안 됨). 분석 전용(사전 리뷰)은 이 플래그 없이 순수 텍스트 응답.
   if (opts.dangerouslyAllowAllTools) cliArgs.push('--dangerously-skip-permissions');
+
+  // 임시 파일(시스템 프롬프트) 경로 — finally 에서 정리.
+  let sysPromptFile: string | null = null;
+  if (useEnhancements && opts.jsonSchema) {
+    cliArgs.push('--json-schema', JSON.stringify(opts.jsonSchema));
+  }
+  if (useEnhancements && opts.appendSystemPrompt) {
+    sysPromptFile = join(tmpdir(), `cortex-sysprompt-${randomBytes(8).toString('hex')}.md`);
+    try {
+      writeFileSync(sysPromptFile, opts.appendSystemPrompt, 'utf8');
+      cliArgs.push('--append-system-prompt-file', sysPromptFile);
+    } catch {
+      // 임시 파일 쓰기 실패 — 방법론 주입은 best-effort, 플래그 없이 진행.
+      sysPromptFile = null;
+    }
+  }
   cliArgs.push(opts.instruction);
 
   // Windows 전역 npm bin 은 claude.cmd (배치) — Node 가 .cmd 를 직접 spawn 못 하므로
   // cmd.exe /c 로 감싼다 (pty.ts 와 동일 전략). POSIX 는 resolve 된 경로 직접 실행.
-  const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claude.path);
-  const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : claude.path;
-  const args = isWinScript ? ['/c', claude.path, ...cliArgs] : cliArgs;
+  const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claudePath);
+  const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : claudePath;
+  const args = isWinScript ? ['/c', claudePath, ...cliArgs] : cliArgs;
 
-  return new Promise((resolve) => {
+  const cleanup = () => {
+    if (sysPromptFile) {
+      try {
+        rmSync(sysPromptFile, { force: true });
+      } catch {
+        // 무시 — tmpdir 는 OS 가 정리.
+      }
+    }
+  };
+
+  return new Promise<InternalResult>((resolve) => {
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(file, args, {
@@ -81,42 +169,63 @@ function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
         env: claudeSpawnEnv(),
       });
     } catch (err) {
-      resolve({ ok: false, reason: `claude spawn 실패: ${errMsg(err)}` });
+      cleanup();
+      resolve({ ok: false, reason: `claude spawn 실패: ${errMsg(err)}`, nonZeroExit: false });
       return;
     }
 
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const done = (r: ClaudeRunResult) => {
+    const done = (r: InternalResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      cleanup();
       resolve(r);
     };
 
     const timer = setTimeout(() => {
       child.kill('SIGTERM');
-      done({ ok: false, reason: 'claude CLI 시간 초과' });
+      done({ ok: false, reason: 'claude CLI 시간 초과', nonZeroExit: false });
     }, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
     child.stdout?.on('data', (d) => (stdout += d.toString('utf8')));
     child.stderr?.on('data', (d) => (stderr += d.toString('utf8')));
-    child.on('error', (err) => done({ ok: false, reason: `claude CLI 오류: ${err.message}` }));
+    child.on('error', (err) =>
+      done({ ok: false, reason: `claude CLI 오류: ${err.message}`, nonZeroExit: false }),
+    );
     child.on('close', (code) => {
       if (code !== 0) {
         done({
           ok: false,
           reason: `claude CLI 비정상 종료 (code ${code}): ${stderr.slice(-300).trim()}`,
+          nonZeroExit: true,
         });
         return;
       }
-      const text = extractResult(stdout);
-      if (text === null) {
-        done({ ok: false, reason: `claude CLI 응답 파싱 실패: ${stdout.slice(0, 300)}` });
+      const extracted = extractResult(stdout);
+      if (extracted === null) {
+        done({
+          ok: false,
+          reason: `claude CLI 응답 파싱 실패: ${stdout.slice(0, 300)}`,
+          nonZeroExit: false,
+        });
         return;
       }
-      done({ ok: true, text });
+      // R3 — 비용·토큰 관측. 봉투에 사용량이 있으면 호출별로 구조화 로깅 (06-15 크레딧 변경 대비).
+      if (extracted.usage) {
+        logger.info(
+          { source: 'claude-cli', model: opts.model ?? null, ...extracted.usage },
+          'headless 호출 사용량',
+        );
+      }
+      done({
+        ok: true,
+        text: extracted.text,
+        structured: extracted.structured,
+        usage: extracted.usage,
+      });
     });
 
     // 무거운 본문은 stdin 으로 — argv 길이 한계·쿼팅 회피.
@@ -128,18 +237,49 @@ function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
   });
 }
 
-// `--output-format json` 봉투에서 모델 텍스트(result)를 꺼낸다. is_error 면 null.
-function extractResult(stdout: string): string | null {
+// `--output-format json` 봉투에서 모델 텍스트(result) + 구조화 출력(structured_output) +
+// 비용·토큰 사용량을 꺼낸다. is_error 면 null. result·structured_output 둘 다 없으면 파싱 실패(null).
+// 테스트 위해 export (실 spawn 없이 봉투 파싱만 검증).
+export function extractResult(
+  stdout: string,
+): { text: string; structured?: unknown; usage?: ClaudeUsage } | null {
   try {
     const envelope = JSON.parse(stdout) as {
       result?: unknown;
+      structured_output?: unknown;
       is_error?: unknown;
+      total_cost_usd?: unknown;
+      usage?: { input_tokens?: unknown; output_tokens?: unknown };
     };
     if (envelope.is_error === true) return null;
-    return typeof envelope.result === 'string' ? envelope.result : null;
+    const text = typeof envelope.result === 'string' ? envelope.result : '';
+    const structured = envelope.structured_output;
+    if (text === '' && structured === undefined) return null;
+    const usage = extractUsage(envelope);
+    return {
+      text,
+      ...(structured === undefined ? {} : { structured }),
+      ...(usage === null ? {} : { usage }),
+    };
   } catch {
     return null;
   }
+}
+
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+// 봉투에서 비용·토큰을 뽑는다. 셋 다 없으면 null (사용량 정보 없는 응답).
+function extractUsage(envelope: {
+  total_cost_usd?: unknown;
+  usage?: { input_tokens?: unknown; output_tokens?: unknown };
+}): ClaudeUsage | null {
+  const costUsd = num(envelope.total_cost_usd);
+  const inputTokens = num(envelope.usage?.input_tokens);
+  const outputTokens = num(envelope.usage?.output_tokens);
+  if (costUsd === null && inputTokens === null && outputTokens === null) return null;
+  return { costUsd, inputTokens, outputTokens };
 }
 
 // 모델 응답에서 JSON 을 꺼낸다. 코드펜스(```json ... ```)를 벗기고, 산문이 섞여 있어도

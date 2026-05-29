@@ -23,6 +23,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
+import { CORTEX_HEADLESS_GUIDANCE } from './cortex-skill';
 import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
 import { addPRComment, getPRMergeStatus } from './github';
 import { logger } from './logger';
@@ -180,6 +181,7 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
     model: REVIEW_FIX_MODEL,
     cwd,
     dangerouslyAllowAllTools: true,
+    appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
     timeoutMs: CLAUDE_TIMEOUT_MS,
   });
   if (!fixed.ok) {

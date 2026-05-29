@@ -359,6 +359,45 @@
   font-size: var(--ds-typography-font-size-13);
 }
 
+/* Phase 20 — "내가 확인하면 될 부분" 섹션. 사용자 행동 유도라 좌측 액센트로 강조. */
+.whatToCheck {
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-left: var(--ds-spacing-3) solid var(--ds-color-state-info-accent);
+  border-radius: var(--ds-border-radius-card);
+  padding: var(--ds-spacing-16) var(--ds-spacing-20);
+  margin-bottom: var(--ds-spacing-14);
+}
+
+.whatToCheckTitle {
+  font-size: var(--ds-typography-font-size-13);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-typography-letter-spacing-wide);
+  color: var(--ds-color-text-02);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  margin: 0 0 var(--ds-spacing-10);
+}
+
+.whatToCheckList {
+  margin: 0;
+  padding-left: var(--ds-spacing-18);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6);
+}
+
+.whatToCheckItem {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-01);
+  line-height: var(--ds-typography-line-height-140);
+}
+
+.whatToCheckEmpty {
+  margin: 0;
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+}
+
 /* PR 리뷰 이력 섹션 — 변경 요청·승인·코멘트 시간순. */
 .reviewsList {
   display: flex;

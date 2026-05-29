@@ -2,10 +2,14 @@ import type { Octokit } from '@octokit/rest';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { db } from '@/db/client';
-import { notifications, prs, projects, triageDecisions } from '@/db/schema';
+import { notifications, prs, projects, triageDecisions, workspaces } from '@/db/schema';
 import { attemptAutoMerge, attemptHumanMerge, deleteMergedBranch } from './auto-merge';
 import { setOctokit } from './github';
+import { setGitRunner } from './workspace';
 
 function mockOctokit(merge?: Mock): Octokit {
   return {
@@ -20,12 +24,14 @@ beforeAll(() => {
 beforeEach(() => {
   db.delete(notifications).run();
   db.delete(triageDecisions).run();
+  db.delete(workspaces).run();
   db.delete(prs).run();
   db.delete(projects).run();
 });
 
 afterEach(() => {
   setOctokit(null);
+  setGitRunner(null);
 });
 
 function setupPR(opts: {
@@ -343,5 +349,82 @@ describe('deleteMergedBranch', () => {
     const r = await deleteMergedBranch(prId);
     expect(r.kind).toBe('failed');
     if (r.kind === 'failed') expect(r.reason).toContain('Reference not found');
+  });
+});
+
+describe('머지 후 자동 git pull (safeAutoPull)', () => {
+  // 등록된 워크스페이스에 .git 을 만들어 needsClone=false 로. git 은 주입 runner 로 가로채
+  // 실제 spawn 없이 호출 인자만 기록.
+  function registerClonedWorkspace(prId: number): { calls: string[][]; dir: string } {
+    const repoId = db.select({ repoId: prs.repoId }).from(prs).where(eq(prs.id, prId)).get()!
+      .repoId;
+    const dir = mkdtempSync(join(tmpdir(), 'cortex-ws-'));
+    mkdirSync(join(dir, '.git'));
+    db.insert(workspaces).values({ projectId: repoId, localPath: dir }).run();
+    const calls: string[][] = [];
+    setGitRunner((_cwd, args) => {
+      calls.push([...args]);
+      return Promise.resolve({ code: 0, output: '' });
+    });
+    return { calls, dir };
+  }
+
+  it('자동 머지 성공 시 등록된 워크스페이스를 fetch + pull', async () => {
+    setOctokit(mockOctokit(vi.fn().mockResolvedValue({ data: { merged: true, sha: 's' } })));
+    const prId = setupPR({ decision: 'auto-merge' });
+    const { calls, dir } = registerClonedWorkspace(prId);
+    try {
+      await attemptAutoMerge(prId);
+      expect(calls.some((a) => a[0] === 'fetch')).toBe(true);
+      expect(calls.some((a) => a[0] === 'pull' && a.includes('--ff-only'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('사람 머지 성공 시에도 자동 pull', async () => {
+    setOctokit(mockOctokit(vi.fn().mockResolvedValue({ data: { merged: true, sha: 'h' } })));
+    const prId = setupPR({ status: 'review-needed', decision: null });
+    const { calls, dir } = registerClonedWorkspace(prId);
+    try {
+      await attemptHumanMerge(prId);
+      expect(calls.some((a) => a[0] === 'pull')).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('워크스페이스 미등록이면 pull 하지 않고 머지만 성공', async () => {
+    setOctokit(mockOctokit(vi.fn().mockResolvedValue({ data: { merged: true, sha: 's' } })));
+    const prId = setupPR({ decision: 'auto-merge' });
+    const calls: string[][] = [];
+    setGitRunner((_cwd, args) => {
+      calls.push([...args]);
+      return Promise.resolve({ code: 0, output: '' });
+    });
+    const r = await attemptAutoMerge(prId);
+    expect(r.kind).toBe('merged');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('아직 clone 안 된(빈 디렉토리) 워크스페이스는 머지 이벤트에서 clone 트리거 안 함', async () => {
+    setOctokit(mockOctokit(vi.fn().mockResolvedValue({ data: { merged: true, sha: 's' } })));
+    const prId = setupPR({ decision: 'auto-merge' });
+    const repoId = db.select({ repoId: prs.repoId }).from(prs).where(eq(prs.id, prId)).get()!
+      .repoId;
+    const dir = mkdtempSync(join(tmpdir(), 'cortex-ws-')); // .git 없음 → needsClone=true
+    db.insert(workspaces).values({ projectId: repoId, localPath: dir }).run();
+    const calls: string[][] = [];
+    setGitRunner((_cwd, args) => {
+      calls.push([...args]);
+      return Promise.resolve({ code: 0, output: '' });
+    });
+    try {
+      const r = await attemptAutoMerge(prId);
+      expect(r.kind).toBe('merged');
+      expect(calls).toHaveLength(0); // clone 도 pull 도 호출 안 됨
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
