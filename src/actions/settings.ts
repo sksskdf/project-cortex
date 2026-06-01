@@ -22,24 +22,7 @@ import {
 } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
-import { setAgentWorktreeEnabled, setAiEnabled } from '@/lib/settings';
-
-export type SettingsActionState =
-  | { kind: 'idle' }
-  | { kind: 'updated'; aiEnabled: boolean }
-  | { kind: 'error'; message: string };
-
-export async function toggleAiEnabledAction(enabled: boolean): Promise<SettingsActionState> {
-  try {
-    const row = setAiEnabled(enabled);
-    revalidatePath('/settings');
-    revalidatePath('/');
-    return { kind: 'updated', aiEnabled: row.aiEnabled };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { kind: 'error', message };
-  }
-}
+import { setAgentWorktreeEnabled } from '@/lib/settings';
 
 // Phase 16 — 위임 세션 worktree 격리 토글 (기본 OFF, opt-in).
 export type WorktreeActionState =

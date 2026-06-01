@@ -1,5 +1,4 @@
 import { ko as t } from '@/copy/ko';
-import { AiToggle } from '@/components/AiToggle';
 import { WorktreeToggle } from '@/components/WorktreeToggle';
 import { GithubAppsManager } from '@/components/GithubAppsManager';
 import { InstallCortexSkillButton } from '@/components/InstallCortexSkillButton';
@@ -26,25 +25,6 @@ export default async function SettingsPage() {
           </div>
         </div>
         <GithubAppsManager apps={githubApps} />
-      </section>
-
-      <section className={styles.card} aria-label={t.settings.ai.ariaLabel}>
-        <div className={styles.cardHead}>
-          <div>
-            <div className={styles.cardTitle}>{t.settings.ai.title}</div>
-            <div className={styles.cardDesc}>{t.settings.ai.desc}</div>
-          </div>
-        </div>
-        <AiToggle initial={settings.aiEnabled} />
-        <div className={styles.cardImpact}>
-          <strong>{t.settings.ai.impactTitle}</strong>
-          <ul>
-            <li>{t.settings.ai.impact.analyze}</li>
-            <li>{t.settings.ai.impact.cluster}</li>
-            <li>{t.settings.ai.impact.autoMerge}</li>
-            <li>{t.settings.ai.impact.humanFlow}</li>
-          </ul>
-        </div>
       </section>
 
       <section className={styles.card} aria-label={t.settings.worktree.title}>
