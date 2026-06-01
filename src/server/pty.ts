@@ -26,6 +26,7 @@ import {
   removeAgentWorktree,
   worktreePathFor,
 } from '@/lib/agent-worktree';
+import { installCortexSkill } from '@/lib/cortex-skill';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import {
@@ -143,6 +144,17 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
     }
   } catch (err) {
     console.error('고아 worktree 정리 실패:', err);
+  }
+}
+
+// Phase 13.6 — 시작 시 Cortex 스킬 자동 설치(`~/.claude/skills/cortex/SKILL.md`). 옵트인 설치
+// 버튼이 있었지만 사용자가 안 누른 채 위임 시작 시 컨텍스트 부재 → 자동 보장으로 전환. 멱등
+// (내용 같으면 재기록 안 함). 실패는 서버 기동을 막지 않음(best-effort).
+{
+  try {
+    installCortexSkill();
+  } catch (err) {
+    console.error('Cortex 스킬 자동 설치 실패:', err);
   }
 }
 
