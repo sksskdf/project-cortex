@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseProjectYml, parseRoadmapMd } from './project-meta';
+import {
+  isCortexSyncCommit,
+  parseProjectYml,
+  parseRoadmapMd,
+  serializeRoadmapToMd,
+} from './project-meta';
 
 describe('parseProjectYml — schema v1', () => {
   it('parses minimal valid file (schema + name + slug)', () => {
@@ -165,5 +170,44 @@ random tail text
     const phases = parseRoadmapMd(md);
     expect(phases.map((p) => p.key)).toEqual(['4', '4.5', '13.6']);
     expect(phases.map((p) => p.title)).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('serializeRoadmapToMd + isCortexSyncCommit — Phase 10.4', () => {
+  it('round-trip: parseRoadmapMd(serialize(x)) 가 key/title/item-done 보존', () => {
+    const input = [
+      {
+        key: '13.6',
+        title: 'claude CLI 최신 활용',
+        goal: '리서치 기반 고도화.',
+        items: [
+          { title: '리서치 보고서', done: true },
+          { title: '평가', done: false },
+        ],
+      },
+      { key: '14', title: '14', goal: null, items: [{ title: 'HelpOverlay', done: true }] },
+    ];
+    const md = serializeRoadmapToMd(input);
+    const parsed = parseRoadmapMd(md);
+    expect(parsed.map((p) => p.key)).toEqual(['13.6', '14']);
+    expect(parsed[0].title).toBe('claude CLI 최신 활용');
+    expect(parsed[0].goal).toBe('리서치 기반 고도화.');
+    expect(parsed[0].items).toEqual([
+      { title: '리서치 보고서', done: true },
+      { title: '평가', done: false },
+    ]);
+    // title===key 면 em-dash 생략 → parse 시 key 가 title 폴백.
+    expect(parsed[1].title).toBe('14');
+  });
+
+  it('빈 로드맵은 헤더만', () => {
+    expect(serializeRoadmapToMd([]).trim()).toBe('# Roadmap');
+  });
+
+  it('isCortexSyncCommit — 마커 trailer 인식 (대소문자·위치 무관)', () => {
+    expect(isCortexSyncCommit('docs: roadmap\n\nCortex-Sync: roadmap')).toBe(true);
+    expect(isCortexSyncCommit('cortex-sync: roadmap')).toBe(true);
+    expect(isCortexSyncCommit('feat: 일반 commit')).toBe(false);
+    expect(isCortexSyncCommit('Cortex: ready')).toBe(false); // 자동 머지 신호와 구분
   });
 });

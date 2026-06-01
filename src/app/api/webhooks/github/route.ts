@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { allWebhookSecrets } from '@/lib/github-apps';
 import { broadcast as broadcastEvent, events } from '@/lib/events';
-import { handlePushEvent } from '@/lib/project-meta';
+import { handlePushEvent, isCortexSyncCommit } from '@/lib/project-meta';
 import { logger } from '@/lib/logger';
 import { handleCheckWebhook, handlePullRequestWebhook } from '@/lib/sync';
 import { attemptAddressReview } from '@/lib/review-fix';
@@ -52,6 +52,7 @@ type GithubPushEventPartial = {
   repository?: { full_name?: string; default_branch?: string };
   installation?: { id?: number };
   commits?: ReadonlyArray<{
+    message?: string;
     modified?: ReadonlyArray<string>;
     added?: ReadonlyArray<string>;
     removed?: ReadonlyArray<string>;
@@ -88,6 +89,20 @@ async function handlePush(rawBody: string) {
   const touchesCortex = allPaths.some((p) => p.startsWith('.cortex/'));
   if (!touchesCortex) {
     return NextResponse.json({ ok: true, skipped: 'no-cortex-change' });
+  }
+
+  // Phase 10.4 — 무한 루프 방지. .cortex 를 건드린 commit 이 전부 Cortex 자신이 만든
+  // 것(Cortex-Sync 마커)이면 git→Cortex sync 를 skip — Cortex→git→Cortex 루프 차단.
+  const cortexTouchingCommits = (event.commits ?? []).filter((c) =>
+    [...(c.modified ?? []), ...(c.added ?? []), ...(c.removed ?? [])].some((p) =>
+      p.startsWith('.cortex/'),
+    ),
+  );
+  const allCortexAuthored =
+    cortexTouchingCommits.length > 0 &&
+    cortexTouchingCommits.every((c) => isCortexSyncCommit(c.message ?? ''));
+  if (allCortexAuthored) {
+    return NextResponse.json({ ok: true, skipped: 'cortex-authored-sync' });
   }
 
   try {

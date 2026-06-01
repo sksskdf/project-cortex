@@ -549,3 +549,52 @@ export async function backgroundSyncIfStale(projectId: number): Promise<void> {
     console.error(`background meta sync failed (project ${projectId}):`, err);
   }
 }
+
+// ============================================================================
+// Phase 10.4 — 로드맵 직렬화 (DB → markdown) + cortex sync 마커 (무한 루프 방지)
+// ============================================================================
+
+// Cortex 가 생성한 .cortex 변경 commit 에 박는 마커. push webhook sync 가 이 마커를 보면
+// 자신이 만든 변경(Cortex→git)을 다시 git→Cortex 로 되돌리는 무한 루프를 막기 위해 skip 한다.
+// `Cortex: ready` (자동 머지 신호)와 별개 trailer.
+export const CORTEX_SYNC_MARKER = 'Cortex-Sync: roadmap';
+
+export function isCortexSyncCommit(message: string): boolean {
+  return /^Cortex-Sync:\s*roadmap\s*$/im.test(message);
+}
+
+// DB 로드맵(phase + item)을 parseRoadmapMd 가 다시 읽을 수 있는 markdown 으로 직렬화.
+// round-trip 안전: parseRoadmapMd(serializeRoadmapToMd(x)) 가 key/title/goal/item-done 보존.
+// 형식은 parseRoadmapMd 가 기대하는 것과 정확히 일치 (## Phase <key> — <title> + goal + 체크박스).
+// 주의: markdown 체크박스는 done/not-done 2값만 표현 → planned·in-progress 둘 다 `- [ ]` 로 직렬화
+// (형식 자체의 한계, parseRoadmapMd 도 done boolean 만 읽으므로 무손실 round-trip).
+export type SerializableRoadmap = ReadonlyArray<{
+  key: string;
+  title: string;
+  goal: string | null;
+  items: ReadonlyArray<{ title: string; done: boolean }>;
+}>;
+
+export function serializeRoadmapToMd(phases: SerializableRoadmap): string {
+  const blocks: string[] = ['# Roadmap', ''];
+  for (const phase of phases) {
+    // title 이 key 와 같으면 em-dash 생략 (parseRoadmapMd 가 key 를 title 로 폴백).
+    const heading =
+      phase.title && phase.title !== phase.key
+        ? `## Phase ${phase.key} — ${phase.title}`
+        : `## Phase ${phase.key}`;
+    blocks.push(heading, '');
+    const goal = phase.goal?.trim();
+    if (goal) blocks.push(goal, '');
+    for (const item of phase.items) {
+      blocks.push(`- [${item.done ? 'x' : ' '}] ${item.title}`);
+    }
+    blocks.push('');
+  }
+  return (
+    blocks
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n'
+  );
+}
