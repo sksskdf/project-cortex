@@ -86,6 +86,8 @@ export type SessionMeta = {
   lastActivityAt: number;
   // 현재 구독 중인 ws 가 있으면 true (어떤 탭이 보고 있음). false 면 detached(백그라운드).
   connected: boolean;
+  // Phase 16 — 이 세션이 격리 worktree 에서 도는지 (워크스페이스 브랜치 보호 중). UI 가 배지로 표시.
+  isolated: boolean;
 };
 
 const wss = new WebSocketServer({ noServer: true });
@@ -526,15 +528,31 @@ export function handlePtyControl(req: IncomingMessage, res: ServerResponse): boo
 
 // 최근 활동 순 — 활성 세션이 위로.
 function listSessionMeta(): SessionMeta[] {
+  // 격리 여부는 설정 ON 일 때만 worktree 존재로 판별 (세션당 가벼운 FS 체크). OFF 면 전부 false.
+  const worktreeOn = (() => {
+    try {
+      return getSettings().agentWorktreeEnabled;
+    } catch {
+      return false;
+    }
+  })();
   return sortSessionMetaByActivity(
-    [...sessions.values()].map((s) => ({
-      id: s.id,
-      name: s.name,
-      workspaceId: s.workspaceId,
-      createdAt: s.createdAt,
-      lastActivityAt: s.lastActivityAt,
-      connected: s.ws !== null && s.ws.readyState === WebSocket.OPEN,
-    })),
+    [...sessions.values()].map((s) => {
+      let isolated = false;
+      if (worktreeOn) {
+        const ws = getWorkspaceById(s.workspaceId);
+        if (ws) isolated = existsSync(worktreePathFor(ws.localPath, s.id));
+      }
+      return {
+        id: s.id,
+        name: s.name,
+        workspaceId: s.workspaceId,
+        createdAt: s.createdAt,
+        lastActivityAt: s.lastActivityAt,
+        connected: s.ws !== null && s.ws.readyState === WebSocket.OPEN,
+        isolated,
+      };
+    }),
   );
 }
 
