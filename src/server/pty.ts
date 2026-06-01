@@ -352,6 +352,9 @@ function wireProc(session: Session) {
     if (session.ws && session.ws.readyState === WebSocket.OPEN) {
       session.ws.send(JSON.stringify({ type: 'output', data: d }));
     }
+    // 위임 세션 초기 prompt 가 대기 중이면 출력에서 REPL 준비 신호를 검사 → 발견 시 주입 예약.
+    const injector = promptInjectors.get(session.id);
+    if (injector) injector(session.buffer);
   });
   session.exitSub = proc.onExit(({ exitCode }) => {
     if (session.ws) send(session.ws, { type: 'exit', data: String(exitCode) });
@@ -409,13 +412,50 @@ function createSession(
 
 // 위임 세션 초기 작업 지시 — claude 대화형 REPL 에 bracketed paste(ESC[200~ … ESC[201~)로
 // prompt 를 한 번에 입력하고 CR 로 제출한다(여러 줄도 줄마다 제출되지 않음). positional 초기
-// prompt 가 v2.1.x 대화형에서 자동 실행되지 않는 동작을 우회. REPL 준비 신호가 없어 짧은 지연 후
-// 1회 주입한다 (claude 초기 렌더 완료 대기).
-const PROMPT_PASTE_DELAY_MS = 1500;
+// prompt 가 v2.1.x 대화형에서 자동 실행되지 않는 동작을 우회.
+//
+// 신뢰성 — 예전엔 1500ms 고정 지연 후 1회 주입이라 claude 초기 출력(광고 배너·hint)이 그 안에
+// 안 끝나면 paste 가 묻혀 사라졌다(간헐적 "복사 안 됨" 보고). 이제 출력 버퍼에서 REPL 준비
+// 신호(`? for shortcuts` 등)를 감지해 그 시점에 주입 + 신호 못 보면 8s fallback. idempotent
+// (한 번만 발화 — 신호 감지/타이머/destroy 어느 쪽에서도 안전).
+const PROMPT_READY_RE = /\? for shortcuts|for agents/i;
+const PROMPT_READY_STABILIZE_MS = 400;
+const PROMPT_FALLBACK_DELAY_MS = 8000;
+
+// 세션 id → 출력 검사 콜백. wireProc 의 onData 가 각 청크마다 호출 → 신호 감지 시 paste 예약.
+// destroy 가 정리 → 누수 0.
+const promptInjectors = new Map<string, (buffer: string) => void>();
+
 function sendInitialPrompt(session: Session, prompt: string) {
-  setTimeout(() => {
-    if (session.proc) session.proc.write(`\x1b[200~${prompt}\x1b[201~\r`);
-  }, PROMPT_PASTE_DELAY_MS);
+  let armed = true;
+  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let stabilizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const doPaste = () => {
+    if (!armed) return;
+    armed = false;
+    promptInjectors.delete(session.id);
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    if (stabilizeTimer) clearTimeout(stabilizeTimer);
+    // destroy 이후 fallback 타이머가 늦게 발화하면 sessions 에 없음 → no-op.
+    if (!sessions.has(session.id)) return;
+    try {
+      if (session.proc) session.proc.write(`\x1b[200~${prompt}\x1b[201~\r`);
+    } catch {
+      // proc 이 이미 종료됐을 수 있음 — best-effort.
+    }
+  };
+
+  // 신호 감지 — paste 직전 살짝 안정화(렌더 안정) 후 발화.
+  promptInjectors.set(session.id, (buf) => {
+    if (!armed || stabilizeTimer) return;
+    if (PROMPT_READY_RE.test(buf)) {
+      stabilizeTimer = setTimeout(doPaste, PROMPT_READY_STABILIZE_MS);
+    }
+  });
+
+  // 신호 못 봐도 fallback — 무한 대기 방지. 옛 1500ms 보다 넉넉.
+  fallbackTimer = setTimeout(doPaste, PROMPT_FALLBACK_DELAY_MS);
 }
 
 // 재시작 후 dormant(프로세스 없는) 세션에 재접속 — claude --resume 로 대화 재개. 실패 시
@@ -501,6 +541,8 @@ function destroy(session: Session, ok = true) {
   } catch (err) {
     console.error(`worktree 정리 실패 (세션 ${session.id}):`, err);
   }
+  // 위임 prompt 가 아직 못 들어간 채 세션이 끝나면 injector 도 정리(타이머가 dangling 안 되게).
+  promptInjectors.delete(session.id);
   if (session.ws && session.ws.readyState === WebSocket.OPEN) session.ws.close();
   sessions.delete(session.id);
   persistAll();
