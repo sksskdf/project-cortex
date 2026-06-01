@@ -246,6 +246,144 @@ describe('getDashboardStats — 실 delta 계산', () => {
     expect(s.autoMergedThisWeek.value).toBe(1);
   });
 
+  it('autoMergedThisWeek — 뮤트된 프로젝트의 자동 머지는 카운트·delta 에서 제외', async () => {
+    const now = Date.now();
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    // 활성: 이번 주 1건 자동 머지.
+    setupPR({
+      repoId: active,
+      number: 1,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    // 뮤트: 이번 주 2건 — 카운트에 잡히면 안 됨 (pendingReview 와 일관).
+    setupPR({
+      repoId: muted,
+      number: 2,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    setupPR({
+      repoId: muted,
+      number: 3,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+    });
+    // 뮤트: 지난 주 1건 — delta 에도 잡히면 안 됨.
+    setupPR({
+      repoId: muted,
+      number: 4,
+      status: 'merged',
+      createdAt: new Date(now - 10 * ONE_DAY_MS),
+      updatedAt: new Date(now - 10 * ONE_DAY_MS),
+    });
+
+    const s = await getDashboardStats();
+    // 뮤트 제외 후: 이번 주 1건(활성), 지난 주 0건(뮤트만 있었음). delta up 1.
+    expect(s.autoMergedThisWeek.value).toBe(1);
+    expect(s.autoMergedThisWeek.delta.direction).toBe('up');
+    expect(s.autoMergedThisWeek.delta.amount).toBe(1);
+  });
+
+  it('humanMergedThisWeek — 뮤트된 프로젝트의 사람 머지는 카운트에서 제외', async () => {
+    const now = Date.now();
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    // 활성 사람 머지 1건.
+    const activeHuman = setupPR({
+      repoId: active,
+      number: 1,
+      status: 'merged',
+      createdAt: new Date(now - 1 * ONE_DAY_MS),
+      updatedAt: new Date(now - 1 * ONE_DAY_MS),
+      autoMerged: false,
+    });
+    db.insert(triageDecisions)
+      .values({
+        prId: activeHuman,
+        decision: 'auto-merge',
+        reason: 'user clicked merge',
+        decidedBy: 'human',
+      })
+      .run();
+    // 뮤트 사람 머지 2건 — 카운트 제외.
+    [2, 3].forEach((n) => {
+      const id = setupPR({
+        repoId: muted,
+        number: n,
+        status: 'merged',
+        createdAt: new Date(now - 1 * ONE_DAY_MS),
+        updatedAt: new Date(now - 1 * ONE_DAY_MS),
+        autoMerged: false,
+      });
+      db.insert(triageDecisions)
+        .values({
+          prId: id,
+          decision: 'auto-merge',
+          reason: 'user clicked merge',
+          decidedBy: 'human',
+        })
+        .run();
+    });
+
+    const s = await getDashboardStats();
+    expect(s.humanMergedThisWeek.value).toBe(1);
+  });
+
+  it('avgConfidence — 같은 PR 의 과거 SHA 분석은 평균에서 제외 (현재 head 만)', async () => {
+    const now = Date.now();
+    const repoId = setupProject();
+    // PR 1 의 현재 head 는 sha-1, confidence=80. 과거 SHA(sha-old) 분석 confidence=20 행도 존재.
+    const pr1 = db
+      .insert(prs)
+      .values({
+        repoId,
+        number: 1,
+        title: 'PR 1',
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: 'sha-1',
+        linesAdded: 10,
+        linesRemoved: 1,
+        filesChanged: 1,
+        status: 'review-needed',
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+      })
+      .returning({ id: prs.id })
+      .get();
+    // 과거 SHA 의 stale preReview (재푸시 전).
+    db.insert(preReviews)
+      .values({
+        prId: pr1.id,
+        headSha: 'sha-old',
+        confidence: 20,
+        confidenceTier: 'critical',
+        flags: [],
+        analyzedAt: new Date(now - 2 * ONE_DAY_MS),
+      })
+      .run();
+    // 현재 head 의 preReview.
+    db.insert(preReviews)
+      .values({
+        prId: pr1.id,
+        headSha: 'sha-1',
+        confidence: 80,
+        confidenceTier: 'medium',
+        flags: [],
+        analyzedAt: new Date(now - 1 * ONE_DAY_MS),
+      })
+      .run();
+
+    const s = await getDashboardStats();
+    // 예전: avg(20, 80) = 50. 이제: 현재 head 인 80 만 → 80.
+    expect(s.avgConfidence.value).toBe(80);
+  });
+
   it('pendingReview — 뮤트된 프로젝트의 review-needed PR 은 stat·delta 에서 제외', async () => {
     const now = Date.now();
     const active = setupProject('acme/web', false);
