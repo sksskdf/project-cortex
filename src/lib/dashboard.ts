@@ -107,16 +107,20 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   // 룰: status='merged' + triage_decisions.decision='auto-merge' + decidedBy='system'.
   // 사람이 Cortex UI 에서 직접 누른 머지 (attemptHumanMerge) 는 decidedBy='human' 이라
   // 자동 카운트 제외. GitHub UI 에서 직접 머지한 PR 은 triage decision 자체가 없어 자동 제외.
+  // 뮤트된 프로젝트의 PR 도 제외 — pendingReview/getTodayRows 와 일관(인박스 표면에서 뮤트
+  // 프로젝트 활동을 일괄 숨기는 원칙). 활성 시 머지됐다가 후속 뮤트된 PR 의 활동도 함께 사라짐.
   const mergedThisWeek = db
     .select({ n: count() })
     .from(prs)
     .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
     .where(
       and(
         eq(prs.status, 'merged'),
         gte(prs.updatedAt, weekAgo),
         eq(triageDecisions.decision, 'auto-merge'),
         eq(triageDecisions.decidedBy, 'system'),
+        eq(projects.muted, false),
       ),
     )
     .get();
@@ -124,6 +128,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .select({ n: count() })
     .from(prs)
     .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
     .where(
       and(
         eq(prs.status, 'merged'),
@@ -131,20 +136,23 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         lt(prs.updatedAt, weekAgo),
         eq(triageDecisions.decision, 'auto-merge'),
         eq(triageDecisions.decidedBy, 'system'),
+        eq(projects.muted, false),
       ),
     )
     .get();
 
-  // humanMergedThisWeek — 사용자가 Cortex UI 에서 직접 머지 (decidedBy='human').
+  // humanMergedThisWeek — 사용자가 Cortex UI 에서 직접 머지 (decidedBy='human'). 뮤트 제외.
   const humanThisWeek = db
     .select({ n: count() })
     .from(prs)
     .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
     .where(
       and(
         eq(prs.status, 'merged'),
         gte(prs.updatedAt, weekAgo),
         eq(triageDecisions.decidedBy, 'human'),
+        eq(projects.muted, false),
       ),
     )
     .get();
@@ -152,20 +160,26 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .select({ n: count() })
     .from(prs)
     .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
     .where(
       and(
         eq(prs.status, 'merged'),
         gte(prs.updatedAt, twoWeeksAgo),
         lt(prs.updatedAt, weekAgo),
         eq(triageDecisions.decidedBy, 'human'),
+        eq(projects.muted, false),
       ),
     )
     .get();
 
-  // avgConfidence — 분석된 모든 PR 의 평균 (기존). delta 는 이번 7일 vs 지난 7일 분석분.
+  // avgConfidence — 분석된 모든 PR 의 평균. **각 PR 의 현재 head 분석 1건만** 평균 — push 가 잦은
+  // PR 의 과거 SHA preReview 가 평균을 왜곡하던 문제 수정(예: 3번 분석된 PR 이 3번 가중치). 결과는
+  // 한 PR = 한 confidence 값. delta(이번/지난 주)는 의도적으로 per-analysis 유지(같은 PR 의 재분석을
+  // "이번 주 새 평가"로 잡아 품질 추이가 보이도록).
   const avgConfAll = db
     .select({ a: avg(preReviews.confidence) })
     .from(preReviews)
+    .innerJoin(prs, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
     .get();
   const avgConfThisWeek = db
     .select({ a: avg(preReviews.confidence) })
