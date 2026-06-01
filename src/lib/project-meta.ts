@@ -561,10 +561,15 @@ export function isCortexSyncCommit(message: string): boolean {
 }
 
 // DB 로드맵(phase + item)을 parseRoadmapMd 가 다시 읽을 수 있는 markdown 으로 직렬화.
-// round-trip 안전: parseRoadmapMd(serializeRoadmapToMd(x)) 가 key/title/goal/item-done 보존.
 // 형식은 parseRoadmapMd 가 기대하는 것과 정확히 일치 (## Phase <key> — <title> + goal + 체크박스).
-// 주의: markdown 체크박스는 done/not-done 2값만 표현 → planned·in-progress 둘 다 `- [ ]` 로 직렬화
-// (형식 자체의 한계, parseRoadmapMd 도 done boolean 만 읽으므로 무손실 round-trip).
+//
+// round-trip 보존(key/title/goal/item-done)은 **정상적인 로드맵 콘텐츠**에 한해 성립한다. markdown
+// 형식의 본질적 제약상 다음 입력은 round-trip 으로 보존되지 않으므로 호출부가 정상 데이터를 보장해야:
+//   - 제목에 개행 포함 (헤딩은 한 줄) → 둘째 줄이 goal 로 오해석.
+//   - goal 이 체크박스/리스트 마커(`- [x]` 등)로 시작 → item 으로 오해석.
+// 빈 title item 은 `- [ ]`(본문 없음)가 parseRoadmapMd item regex 에 안 걸려 유실되므로, 직렬화에서
+// 스킵한다(빈 산출물은 의미 없음 — 방어적 제외). 체크박스는 done/not-done 2값뿐이라 planned·
+// in-progress 는 둘 다 `- [ ]` (parseRoadmapMd 도 done boolean 만 읽어 무손실).
 export type SerializableRoadmap = ReadonlyArray<{
   key: string;
   title: string;
@@ -584,6 +589,8 @@ export function serializeRoadmapToMd(phases: SerializableRoadmap): string {
     const goal = phase.goal?.trim();
     if (goal) blocks.push(goal, '');
     for (const item of phase.items) {
+      // 빈 title 은 `- [ ]` 가 되어 re-parse 시 유실 → 스킵 (round-trip 오염 방지).
+      if (item.title.trim().length === 0) continue;
       blocks.push(`- [${item.done ? 'x' : ' '}] ${item.title}`);
     }
     blocks.push('');

@@ -111,7 +111,7 @@ export type RunTriageResult =
   | { kind: 'decided'; decision: TriageDecision; reason: string }
   | {
       kind: 'skipped';
-      reason: 'no-pr' | 'no-pre-review' | 'pr-closed' | 'pr-merged' | 'in-cluster';
+      reason: 'no-pr' | 'no-pre-review' | 'pr-closed' | 'pr-merged' | 'in-cluster' | 'muted';
     };
 
 // PR 1건에 대해 triage_decisions 행을 생성/갱신하고 PR.status를 결정에 맞춰 업데이트.
@@ -136,15 +136,30 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
   const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
   if (!project) return { kind: 'skipped', reason: 'no-pr' };
 
+  // 뮤트 프로젝트는 "감지만, 관리 안 함" — 자동 머지 포함 어떤 트라이지 결정도 내리지 않는다.
+  // sync 는 ingest 단에서 이미 뮤트를 거르지만, setProjectAutoMerge 재트라이지 등 다른 호출 경로는
+  // 거르지 않으므로 여기서 중앙 가드(각 호출부 의존 대신 runTriage 가 불변식 보장). 뮤트 PR 은
+  // 인박스에서도 제외되므로 status 변경 없이 skip.
+  if (project.muted) return { kind: 'skipped', reason: 'muted' };
+
   // Readiness — draft 상태 + 마지막 commit trailer. GitHub 에서 fresh fetch (DB 안 저장 — 매번
   // 정확한 신호 보장). 기본값은 "ready" (= 차단 안 함) — installation 미설정/fetch 실패는 다른
   // 안전망(SHA 가드 등)이 있으니 readiness 만으로 영구 차단하지 않는다. 명확히 draft 인 PR 만 차단.
+  //
+  // readiness fetch 는 decideTriage 가 readiness 와 무관하게 human-review 로 떨어뜨리는 경우엔
+  // 생략해 GitHub API 2회를 아낀다. **단 조건은 decideTriage 의 early-return 과 정확히 일치해야
+  // 한다** — decideTriage 는 (1) 사람 작성, (2) autoMergeEnabled off 만 readiness 전에 early-return
+  // 하고 **muted 는 체크하지 않는다**(뮤트는 sync/ingest 단에서 막음). 따라서 muted 를 조건에 넣어
+  // skip 하면, setProjectAutoMerge 재트라이지처럼 muted+autoMerge-on 경로가 readiness 기본값(ready)
+  // 으로 새어 draft PR 이 자동 머지될 수 있다(회귀). muted 는 조건에서 제외.
   let isDraft = false;
   let lastCommitReady = true;
-  if (project.installationId !== null) {
+  const readinessRelevant =
+    project.installationId !== null && pr.authorKind === 'agent' && project.autoMergeEnabled;
+  if (readinessRelevant) {
     const [owner, repo] = project.slug.split('/');
     try {
-      const readiness = await getPRReadiness(project.installationId, { owner, repo }, pr.number);
+      const readiness = await getPRReadiness(project.installationId!, { owner, repo }, pr.number);
       isDraft = readiness.isDraft;
       lastCommitReady = isCortexReadyMarker(readiness.lastCommitMessage);
     } catch (err) {

@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
@@ -126,6 +127,42 @@ describe('attemptConflictResolution — guards', () => {
     const prId = setup({ authorKind: 'human' });
     const r = await attemptConflictResolution(prId);
     expect(r).toEqual({ kind: 'resolved' });
+  });
+
+  // 리뷰 발견: 긴 충돌 해결 동안 사람이 PR 을 머지/닫으면(webhook 으로 DB status 갱신), push 직전
+  // 가드가 죽은 브랜치 push·잘못된 'conflict-resolved' 알림을 막는다.
+  it('해결 중 PR 이 머지되면 push 생략 (skip pr-closed, git push 안 함)', async () => {
+    setOctokit(mockOctokit({ mergeableState: 'dirty', headRef: 'feature' }));
+    const prId = setup({ authorKind: 'human' });
+    // claude 해결이 끝나는 순간 사람이 머지한 것으로 시뮬레이션 — status 를 merged 로 갱신.
+    setClaudeRunner(
+      vi.fn().mockImplementation(async () => {
+        db.update(prs).set({ status: 'merged' }).where(eq(prs.id, prId)).run();
+        return { ok: true, text: 'done' };
+      }),
+    );
+    const pushArgs: string[][] = [];
+    const git = vi.fn((_cwd: string, args: ReadonlyArray<string>): Promise<GitResult> => {
+      if (args.includes('push')) {
+        pushArgs.push([...args]);
+        return Promise.resolve(ok());
+      }
+      if (args.includes('merge') && args.includes('--no-edit') && !args.includes('--abort')) {
+        return Promise.resolve(nonzero('CONFLICT'));
+      }
+      if (args.includes('--diff-filter=U')) return Promise.resolve(ok('src/x.ts\n'));
+      return Promise.resolve(ok());
+    });
+    setGitRunner(git);
+
+    const r = await attemptConflictResolution(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'pr-closed' });
+    // git push 가 호출되지 않았는지 (죽은 브랜치 부활 방지).
+    expect(pushArgs).toHaveLength(0);
+    // 잘못된 'conflict-resolved' 알림 없음.
+    expect(
+      db.select().from(notifications).where(eq(notifications.kind, 'conflict-resolved')).all(),
+    ).toHaveLength(0);
   });
 
   it('워크스페이스 미등록이면 skip no-workspace', async () => {

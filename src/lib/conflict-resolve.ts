@@ -48,7 +48,8 @@ export type ConflictResolveResult =
         | 'workspace-missing'
         | 'fork-or-cross-repo'
         | 'not-dirty'
-        | 'too-large';
+        | 'too-large'
+        | 'pr-closed';
     }
   | { kind: 'failed'; reason: string };
 
@@ -242,6 +243,18 @@ async function pushHead(
   cwd: string,
   headRef: string,
 ): Promise<ConflictResolveResult> {
+  // 긴 충돌 해결(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. 그 사이 webhook 으로
+  // DB status 가 갱신됐으면 이미 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
+  // 'conflict-resolved' 알림 방지(리뷰 발견). push 직전 최신 status 재확인(방어적 가드).
+  const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, prId)).get();
+  if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
+    clearAutomationInFlight(prId);
+    logger.info(
+      { source: 'conflict-resolve', prId, status: cur.status },
+      'PR 이 해결 중 머지/닫힘 — push 생략',
+    );
+    return { kind: 'skipped', reason: 'pr-closed' };
+  }
   const pushed = await git(cwd, ['push', 'origin', headRef]);
   if (pushed.code !== 0) {
     return fail(prId, installationId, ref, number, `git push 실패: ${tail(pushed.stderr)}`);

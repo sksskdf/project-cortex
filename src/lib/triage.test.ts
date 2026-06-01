@@ -152,6 +152,7 @@ describe('runTriage', () => {
     authorKind?: 'agent' | 'human';
     status?: 'open' | 'review-needed' | 'auto-mergeable' | 'merged' | 'closed';
     clusterId?: number | null;
+    muted?: boolean;
   }) {
     const project = db
       .insert(projects)
@@ -159,6 +160,7 @@ describe('runTriage', () => {
         slug: 'demo',
         name: 'Demo',
         autoMergeEnabled: opts.autoMergeEnabled ?? true,
+        muted: opts.muted ?? false,
       })
       .returning({ id: projects.id })
       .get();
@@ -205,6 +207,19 @@ describe('runTriage', () => {
     const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
     expect(td?.decision).toBe('auto-merge');
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('auto-mergeable');
+  });
+
+  // 뮤트 프로젝트는 어떤 자동 머지 결정도 내리지 않음 — setProjectAutoMerge 재트라이지 등
+  // ingest 외 경로로 들어와도 runTriage 가 중앙에서 skip(상태 변경 없음).
+  it('muted 프로젝트는 skipped(muted) — 자동 머지 결정 안 함', async () => {
+    const prId = setupPR({ confidence: 95, muted: true, status: 'open' });
+    const r = await runTriage(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'muted' });
+    // status 안 바뀜(auto-mergeable 로 안 올라감) + triage_decision 미생성.
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('open');
+    expect(
+      db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get(),
+    ).toBeUndefined();
   });
 
   it('sets PR.status=review-needed when blocking flag present', async () => {

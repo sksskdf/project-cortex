@@ -202,6 +202,22 @@ describe('serializeRoadmapToMd + isCortexSyncCommit — Phase 10.4', () => {
     expect(parsed[1].title).toBe('14');
   });
 
+  it('빈 title item 은 직렬화에서 스킵 (round-trip 오염 방지)', () => {
+    const md = serializeRoadmapToMd([
+      {
+        key: '1',
+        title: 'P',
+        goal: null,
+        items: [
+          { title: '실제', done: false },
+          { title: '   ', done: true }, // 빈/공백 → 스킵
+        ],
+      },
+    ]);
+    const parsed = parseRoadmapMd(md);
+    expect(parsed[0].items).toEqual([{ title: '실제', done: false }]);
+  });
+
   it('빈 로드맵은 헤더만', () => {
     expect(serializeRoadmapToMd([]).trim()).toBe('# Roadmap');
   });

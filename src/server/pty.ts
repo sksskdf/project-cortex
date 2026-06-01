@@ -27,7 +27,8 @@ import {
   worktreePathFor,
 } from '@/lib/agent-worktree';
 import { installCortexSkill } from '@/lib/cortex-skill';
-import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
+import { claudeSpawnEnv, getClaudeCliVersion, resolveClaude } from '@/lib/agents';
+import { logger } from '@/lib/logger';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import {
   defaultSessionStorePath,
@@ -157,6 +158,15 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
     console.error('Cortex 스킬 자동 설치 실패:', err);
   }
 }
+
+// Phase 13.6 — 시작 시 claude CLI 버전 로깅(회귀 가드 진단용). 미설치면 경고만, 기동은 막지 않음.
+// 지원 플래그·출력 스키마 변동(readiness 신호·json-schema 등) 추적에 활용.
+void getClaudeCliVersion()
+  .then((v) => {
+    if (v) logger.info({ source: 'pty', claudeCliVersion: v }, `claude CLI 버전: ${v}`);
+    else logger.warn({ source: 'pty' }, 'claude CLI 미설치 또는 버전 조회 실패 — 위임/분석 불가');
+  })
+  .catch(() => {});
 
 // Phase 13.4 — idle 타임아웃 주기 스윕. 서버가 계속 떠 있어도 오래 'running' 으로 방치된
 // agent_run 을 주기적으로 마감(기본 24h 임계, 1h 마다). unref 로 프로세스 종료를 막지 않음.
