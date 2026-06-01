@@ -152,15 +152,13 @@ links:
   homepage: https://...
   docs: https://...
   issue_tracker: https://...
-automation:
-  auto_merge: false                  # 자동 머지(위험 아니면)
-  ai_review: true                    # AI 사전 리뷰
-  auto_resolve_changes: false        # 리뷰 changes_requested 자동 반영
-  auto_resolve_conflicts: false      # 머지 충돌 claude 자동 해결
-  auto_fix_tests: false              # CI 테스트 실패 claude 자동 수정
 \`\`\`
 
-**모든 \`automation\` 키 디폴트 OFF** (사용자가 의식적으로 켜야 함 — 회사/조직 레포 보호).
+> **자동화 토글은 git sync 대상이 아니다.** auto_merge·ai_review·auto_resolve_changes·
+> auto_resolve_conflicts·auto_fix_tests·muted 등 운영 토글은 **로컬 DB 전용**(Cortex UI 의
+> /projects 카드에서만 설정·반영). 머신마다 다를 수 있고 git 에 박제할 정책이 아니라,
+> project.yml 에 automation 블록을 둬도 무시된다. 서술 메타(name·description·kind·domain·
+> links)만 git → Cortex 로 동기화된다.
 
 ## work-state 스키마 — \`.cortex/work-state.md\`
 

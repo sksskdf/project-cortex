@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseProjectYml, parseRoadmapMd } from './project-meta';
+import {
+  descriptiveMetaFields,
+  isCortexSyncCommit,
+  parseProjectYml,
+  parseRoadmapMd,
+  serializeRoadmapToMd,
+  type ProjectMetaV1,
+} from './project-meta';
 
 describe('parseProjectYml — schema v1', () => {
   it('parses minimal valid file (schema + name + slug)', () => {
@@ -165,5 +172,87 @@ random tail text
     const phases = parseRoadmapMd(md);
     expect(phases.map((p) => p.key)).toEqual(['4', '4.5', '13.6']);
     expect(phases.map((p) => p.title)).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('serializeRoadmapToMd + isCortexSyncCommit — Phase 10.4', () => {
+  it('round-trip: parseRoadmapMd(serialize(x)) 가 key/title/item-done 보존', () => {
+    const input = [
+      {
+        key: '13.6',
+        title: 'claude CLI 최신 활용',
+        goal: '리서치 기반 고도화.',
+        items: [
+          { title: '리서치 보고서', done: true },
+          { title: '평가', done: false },
+        ],
+      },
+      { key: '14', title: '14', goal: null, items: [{ title: 'HelpOverlay', done: true }] },
+    ];
+    const md = serializeRoadmapToMd(input);
+    const parsed = parseRoadmapMd(md);
+    expect(parsed.map((p) => p.key)).toEqual(['13.6', '14']);
+    expect(parsed[0].title).toBe('claude CLI 최신 활용');
+    expect(parsed[0].goal).toBe('리서치 기반 고도화.');
+    expect(parsed[0].items).toEqual([
+      { title: '리서치 보고서', done: true },
+      { title: '평가', done: false },
+    ]);
+    // title===key 면 em-dash 생략 → parse 시 key 가 title 폴백.
+    expect(parsed[1].title).toBe('14');
+  });
+
+  it('빈 로드맵은 헤더만', () => {
+    expect(serializeRoadmapToMd([]).trim()).toBe('# Roadmap');
+  });
+
+  it('isCortexSyncCommit — 마커 trailer 인식 (대소문자·위치 무관)', () => {
+    expect(isCortexSyncCommit('docs: roadmap\n\nCortex-Sync: roadmap')).toBe(true);
+    expect(isCortexSyncCommit('cortex-sync: roadmap')).toBe(true);
+    expect(isCortexSyncCommit('feat: 일반 commit')).toBe(false);
+    expect(isCortexSyncCommit('Cortex: ready')).toBe(false); // 자동 머지 신호와 구분
+  });
+});
+
+describe('descriptiveMetaFields — 자동화 토글은 git sync 제외 (로컬 DB 전용)', () => {
+  const meta: ProjectMetaV1 = {
+    schema: 1,
+    name: 'proj',
+    slug: 'o/proj',
+    description: 'desc',
+    kind: 'web-app',
+    domain: 'code-review',
+    links: { homepage: 'https://h' },
+    // project.yml 에 automation 이 있어도 sync 대상이 아니어야 함.
+    automation: {
+      auto_merge: true,
+      ai_review: true,
+      auto_resolve_conflicts: true,
+      auto_fix_tests: true,
+      auto_resolve_changes: true,
+    },
+  };
+
+  it('서술 메타만 포함 (name/description/kind/domain/homepage/metaSyncedAt)', () => {
+    const fields = descriptiveMetaFields(meta);
+    expect(Object.keys(fields).sort()).toEqual(
+      ['description', 'domain', 'homepage', 'kind', 'metaSyncedAt', 'name'].sort(),
+    );
+    expect(fields.name).toBe('proj');
+    expect(fields.homepage).toBe('https://h');
+  });
+
+  it('자동화 토글 키는 절대 포함 안 됨 (UI 설정 보존)', () => {
+    const fields = descriptiveMetaFields(meta);
+    for (const k of [
+      'autoMergeEnabled',
+      'aiReviewEnabled',
+      'autoResolveConflictsEnabled',
+      'autoFixTestsEnabled',
+      'autoResolveChangesEnabled',
+      'muted',
+    ]) {
+      expect(fields).not.toHaveProperty(k);
+    }
   });
 });
