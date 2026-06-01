@@ -299,6 +299,29 @@ describe('matchAndApplyDoneFromPR — Closes #PHASE-<key>', () => {
     const item1 = db.select().from(roadmapItems).where(eq(roadmapItems.id, i1.id)).get();
     expect(item1?.doneByPrId).toBe(prFirst); // 첫 PR 유지
   });
+
+  // 점 구분 키 매칭 — `13.6` 이 부모 `13` 으로 잘리지 않아야 데이터 오염 0.
+  it('점 구분 키(#PHASE-13.6) 가 자식만 매칭, 부모(13) 는 안 건드림', () => {
+    const projectId = seedProject();
+    const parent = createPhase({ projectId, key: '13', title: 'Parent' });
+    const child = createPhase({ projectId, key: '13.6', title: 'Child' });
+    if (parent.kind !== 'created' || child.kind !== 'created') throw new Error('setup');
+    const prId = seedPR(projectId, 'Closes #PHASE-13.6');
+    const r = matchAndApplyDoneFromPR(prId);
+    expect(r.phasesDone).toEqual([child.id]);
+    const parentRow = db.select().from(roadmapPhases).where(eq(roadmapPhases.id, parent.id)).get();
+    expect(parentRow?.status).toBe('planned');
+  });
+
+  // 끝 문장부호(`.`) 가 키에 포함 안 됨 (`#PHASE-13.6.` → 키는 `13.6`).
+  it('끝 문장부호 . 는 키 미포함', () => {
+    const projectId = seedProject();
+    const child = createPhase({ projectId, key: '13.6', title: 'Child' });
+    if (child.kind !== 'created') throw new Error('setup');
+    const prId = seedPR(projectId, 'Closes #PHASE-13.6.');
+    const r = matchAndApplyDoneFromPR(prId);
+    expect(r.phasesDone).toEqual([child.id]);
+  });
 });
 
 describe('reapplyRoadmapMatchesForProject — backfill', () => {

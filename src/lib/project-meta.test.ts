@@ -158,4 +158,12 @@ random tail text
     const phases = parseRoadmapMd(md);
     expect(phases[0].items[0].done).toBe(true);
   });
+
+  // 점 구분 키 — 4.7·13.6 같은 sub-Phase. cortex 자체 roadmap 이 쓰는 형식.
+  it('parses dotted phase keys (4.5 / 13.6) and treats them as distinct from parent', () => {
+    const md = `## Phase 4 — A\n- [x] a\n## Phase 4.5 — B\n- [ ] b\n## Phase 13.6 — C\n- [x] c`;
+    const phases = parseRoadmapMd(md);
+    expect(phases.map((p) => p.key)).toEqual(['4', '4.5', '13.6']);
+    expect(phases.map((p) => p.title)).toEqual(['A', 'B', 'C']);
+  });
 });
