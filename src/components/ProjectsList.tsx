@@ -70,6 +70,11 @@ function ProjectCard({
           <span className={styles.cardSlug}>
             {row.slug}
             {row.muted && <span className={styles.mutedBadge}>{t.projects.mutedBadge}</span>}
+            {!row.hasCortexMeta && (
+              <span className={styles.cortexMissingBadge} title={t.projects.cortexMissingHint}>
+                {t.projects.cortexMissingBadge}
+              </span>
+            )}
           </span>
           {row.name !== row.slug && <span className={styles.cardName}>{row.name}</span>}
         </div>

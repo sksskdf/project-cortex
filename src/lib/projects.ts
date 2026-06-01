@@ -108,6 +108,9 @@ export type ProjectStatsRow = {
   mergedPRs: number;
   // 분석된 PR 들의 평균 신뢰 점수 (0 이면 분석된 PR 없음).
   avgConfidence: number;
+  // .cortex/project.yml 이 동기화된 적 있는지 — false 면 레포에 .cortex 가 없음(또는 sync 미실행).
+  // UI 가 ".cortex 없음" 칩으로 표시해 사용자가 스킬·자동 done 컨벤션 활용 못함을 인지하도록.
+  hasCortexMeta: boolean;
 };
 
 export function listProjectsWithStats(): ProjectStatsRow[] {
@@ -124,6 +127,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       autoResolveConflictsEnabled: projects.autoResolveConflictsEnabled,
       autoFixTestsEnabled: projects.autoFixTestsEnabled,
       autoResolveChangesEnabled: projects.autoResolveChangesEnabled,
+      metaSyncedAt: projects.metaSyncedAt,
     })
     .from(projects)
     .orderBy(asc(projects.slug))
@@ -177,6 +181,7 @@ export function listProjectsWithStats(): ProjectStatsRow[] {
       activePRs: counts?.active ?? 0,
       mergedPRs: counts?.merged ?? 0,
       avgConfidence: avgByRepo.get(r.id) ?? 0,
+      hasCortexMeta: r.metaSyncedAt !== null,
     };
   });
 }
