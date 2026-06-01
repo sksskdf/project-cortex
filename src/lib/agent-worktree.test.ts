@@ -50,8 +50,10 @@ describe('agent-worktree', () => {
     expect(existsSync(wt!)).toBe(true);
     // 전용 브랜치가 생겼고 worktree 목록에 포함.
     expect(g(['branch', '--list', worktreeBranchFor('s1')])).toContain('cortex/session-s1');
-    const list = g(['worktree', 'list']);
-    expect(list).toContain(wt!);
+    // git 은 worktree 경로를 forward-slash 로 출력 — Windows 의 node path(backslash)와 어긋나
+    // 비교가 깨지지 않게 둘 다 정규화 (로컬 npm test 가 Windows 에서도 통과하도록).
+    const norm = (s: string) => s.replace(/\\/g, '/');
+    expect(norm(g(['worktree', 'list']))).toContain(norm(wt!));
     // 멱등 — 이미 있으면 같은 경로 반환(에러 없이).
     expect(createAgentWorktree(repo, 's1')).toBe(wt);
   });

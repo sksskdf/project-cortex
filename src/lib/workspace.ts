@@ -5,9 +5,10 @@
 // - timeout 30 초
 
 import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { projects, workspaces } from '@/db/schema';
 
@@ -33,6 +34,31 @@ function isGitRepo(path: string): boolean {
     return existsSync(join(path, '.git'));
   } catch {
     return false;
+  }
+}
+
+// GitHub remote URL → `owner/repo` slug. ssh(git@github.com:owner/repo) 와 https
+// (https://github.com/owner/repo) 둘 다 인식. 그 외 호스트/형식은 null 반환 →
+// 호출부가 검증을 skip 한다 (관대 폴백, 회귀 0).
+function githubSlugFromRemoteUrl(url: string): string | null {
+  const m = url
+    .trim()
+    .match(/^(?:git@github\.com:|https:\/\/github\.com\/)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/);
+  return m ? m[1] : null;
+}
+
+// .git 있는 디렉토리의 `git remote get-url origin` → GitHub slug. 실패/비-GitHub 는 null.
+// 워크스페이스 등록 시점 1회 검증용이라 sync 동기 실행 허용.
+function readGitOriginSlug(path: string): string | null {
+  try {
+    const url = execFileSync('git', ['-C', path, 'remote', 'get-url', 'origin'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+    return githubSlugFromRemoteUrl(url);
+  } catch {
+    return null;
   }
 }
 
@@ -139,6 +165,40 @@ export function registerWorkspace(input: {
     }
   }
   // 존재하지 않는 경로는 허용 — git clone 이 디렉토리를 생성한다 (부모가 없으면 clone 시 에러로 표면화).
+
+  // 가드 1 — 다른 프로젝트가 이미 같은 localPath 에 워크스페이스를 등록했으면 거부.
+  // 한 디렉토리에 두 프로젝트가 박히면 위임이 다른 repo 의 클론에서 돌고 그쪽 origin 으로 push 되는
+  // 교차 등록 사고가 난다(실사례 — hunt-the-ace 워크스페이스가 cortex 디렉토리에 박혀 cortex 에 PR 푸시).
+  const crossRegistered = db
+    .select({ id: workspaces.id, projectId: workspaces.projectId })
+    .from(workspaces)
+    .where(and(eq(workspaces.localPath, path), ne(workspaces.projectId, input.projectId)))
+    .get();
+  if (crossRegistered) {
+    return {
+      kind: 'invalid-path',
+      reason: '이미 다른 프로젝트의 워크스페이스로 등록된 경로입니다.',
+    };
+  }
+
+  // 가드 2 — .git 있는 기존 클론이면 remote origin URL 의 GitHub slug 가 프로젝트 slug 와 매칭되는지.
+  // GitHub URL 만 검증, 그 외(다른 호스트·미설정 origin)는 readGitOriginSlug 가 null → skip(관대 폴백).
+  if (existsSync(path) && isGitRepo(path)) {
+    const remoteSlug = readGitOriginSlug(path);
+    if (remoteSlug) {
+      const projectSlug = db
+        .select({ slug: projects.slug })
+        .from(projects)
+        .where(eq(projects.id, input.projectId))
+        .get()?.slug;
+      if (projectSlug && remoteSlug.toLowerCase() !== projectSlug.toLowerCase()) {
+        return {
+          kind: 'invalid-path',
+          reason: `이 디렉토리의 git remote(${remoteSlug})가 프로젝트(${projectSlug})와 다릅니다.`,
+        };
+      }
+    }
+  }
 
   const existing = db
     .select({ id: workspaces.id })
