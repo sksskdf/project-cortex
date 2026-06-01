@@ -192,9 +192,23 @@ export function parseProjectYml(content: string): ParseYmlResult {
 // roadmap.md 컨벤션 파서
 // ============================================================================
 
+// 로드맵 산출물 상태 — DB roadmap_items.status enum 과 동일.
+export type RoadmapItemStatus = 'planned' | 'in-progress' | 'done';
+
+// 체크박스 마커 → 상태. `[x]`/`[X]`=done, `[~]`=in-progress, `[ ]`=planned.
+export function checkboxToStatus(mark: string): RoadmapItemStatus {
+  const c = mark.toLowerCase();
+  return c === 'x' ? 'done' : c === '~' ? 'in-progress' : 'planned';
+}
+
+// 상태 → 체크박스 마커 (직렬화).
+export function statusToCheckbox(status: RoadmapItemStatus): string {
+  return status === 'done' ? 'x' : status === 'in-progress' ? '~' : ' ';
+}
+
 export type ParsedRoadmapItem = {
   title: string;
-  done: boolean;
+  status: RoadmapItemStatus;
 };
 
 export type ParsedRoadmapPhase = {
@@ -245,14 +259,16 @@ export function parseRoadmapMd(content: string): ParsedRoadmapPhase[] {
     }
     if (!current) continue;
 
-    // item: '- [x] text' / '- [ ] text'
-    const itemMatch = line.match(/^\s*-\s*\[([ xX])\]\s+(.+)$/);
+    // item: '- [x] text' / '- [ ] text' / '- [~] text'(in-progress). 예전엔 `[~]` 를 regex 가
+    // 못 잡아 통째로 유실 → sync 가 "마크다운에서 사라진 항목"으로 보고 DB 행을 삭제했다(리뷰 발견:
+    // .cortex/roadmap.md 가 `[~]` 를 광범위하게 써서 sync 마다 in-progress 산출물이 삭제·소실).
+    const itemMatch = line.match(/^\s*-\s*\[([ xX~])\]\s+(.+)$/);
     if (itemMatch) {
       // 첫 list 직전에 goal flush — 이후 list 라인이 들어와도 goal 은 한 번만.
       if (!sawList) flushGoal();
-      const done = itemMatch[1].toLowerCase() === 'x';
+      const status = checkboxToStatus(itemMatch[1]);
       const title = itemMatch[2].trim();
-      current.items.push({ title, done });
+      current.items.push({ title, status });
       sawList = true;
       continue;
     }
@@ -378,7 +394,7 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
             .values({
               phaseId: inserted.id,
               title: it.title,
-              status: it.done ? 'done' : 'planned',
+              status: it.status,
               source: 'git',
               sortOrder: j,
             })
@@ -414,19 +430,22 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
               .values({
                 phaseId: existing.id,
                 title: it.title,
-                status: it.done ? 'done' : 'planned',
+                status: it.status,
                 source: 'git',
                 sortOrder: j,
               })
               .run();
             itemsAdded++;
           } else if (exItem.source === 'git' && exItem.sourceOverrideAt === null) {
-            // git item 갱신 — done 상태는 마크다운 우선 (단, doneByPrId 가 있으면 보존).
-            const nextStatus = it.done
-              ? 'done'
-              : exItem.doneByPrId !== null
-                ? exItem.status
-                : 'planned';
+            // git item 갱신 — 상태는 마크다운 우선(done/in-progress/planned 모두 반영). 단 PR 로
+            // done 처리된 기록(doneByPrId)은 마크다운이 체크 해제돼도 보존(자동 done 이 권위). 예전엔
+            // done 아니면 무조건 'planned' 로 박아 `[~]` in-progress 가 매 sync 마다 강등됐다(리뷰 발견).
+            const nextStatus =
+              it.status === 'done'
+                ? 'done'
+                : exItem.doneByPrId !== null
+                  ? exItem.status
+                  : it.status;
             db.update(roadmapItems)
               .set({
                 status: nextStatus,
@@ -568,13 +587,13 @@ export function isCortexSyncCommit(message: string): boolean {
 //   - 제목에 개행 포함 (헤딩은 한 줄) → 둘째 줄이 goal 로 오해석.
 //   - goal 이 체크박스/리스트 마커(`- [x]` 등)로 시작 → item 으로 오해석.
 // 빈 title item 은 `- [ ]`(본문 없음)가 parseRoadmapMd item regex 에 안 걸려 유실되므로, 직렬화에서
-// 스킵한다(빈 산출물은 의미 없음 — 방어적 제외). 체크박스는 done/not-done 2값뿐이라 planned·
-// in-progress 는 둘 다 `- [ ]` (parseRoadmapMd 도 done boolean 만 읽어 무손실).
+// 스킵한다(빈 산출물은 의미 없음 — 방어적 제외). 체크박스는 3값(done `[x]`·in-progress `[~]`·
+// planned `[ ]`) 모두 직렬화·재파싱 round-trip 보존된다.
 export type SerializableRoadmap = ReadonlyArray<{
   key: string;
   title: string;
   goal: string | null;
-  items: ReadonlyArray<{ title: string; done: boolean }>;
+  items: ReadonlyArray<{ title: string; status: RoadmapItemStatus }>;
 }>;
 
 export function serializeRoadmapToMd(phases: SerializableRoadmap): string {
@@ -591,7 +610,7 @@ export function serializeRoadmapToMd(phases: SerializableRoadmap): string {
     for (const item of phase.items) {
       // 빈 title 은 `- [ ]` 가 되어 re-parse 시 유실 → 스킵 (round-trip 오염 방지).
       if (item.title.trim().length === 0) continue;
-      blocks.push(`- [${item.done ? 'x' : ' '}] ${item.title}`);
+      blocks.push(`- [${statusToCheckbox(item.status)}] ${item.title}`);
     }
     blocks.push('');
   }
