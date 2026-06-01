@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
@@ -8,6 +9,7 @@ import {
   deleteTodo,
   linkTodoToIssue,
   listTodos,
+  promoteTodoToIssue,
   toggleTodoStatus,
   updateTodo,
 } from './todos';
@@ -124,6 +126,66 @@ describe('linkTodoToIssue', () => {
 
   it('없는 todo 는 not-found', () => {
     expect(linkTodoToIssue(999, null).kind).toBe('not-found');
+  });
+});
+
+describe('promoteTodoToIssue — Phase 18 승격', () => {
+  function seedProject(): number {
+    return db.insert(projects).values({ slug: 'p', name: 'p' }).returning({ id: projects.id }).get()
+      .id;
+  }
+
+  it('프로젝트 연결된 TODO 를 이슈로 승격 + 연결 + in-progress', () => {
+    const repoId = seedProject();
+    const r = createTodo({ title: '버그 고치기', note: '수용 기준 X', projectId: repoId });
+    if (r.kind !== 'created') throw new Error('setup');
+
+    const promoted = promoteTodoToIssue(r.id, { delegateToClaude: true, humanAssigneeId: 'me' });
+    expect(promoted.kind).toBe('promoted');
+    if (promoted.kind === 'promoted') {
+      expect(promoted.repoId).toBe(repoId);
+      expect(promoted.spec).toBe('수용 기준 X'); // note 가 spec
+      // 생성된 이슈 확인.
+      const issue = db.select().from(issues).where(eq(issues.id, promoted.issueId)).get();
+      expect(issue?.title).toBe('버그 고치기');
+      expect(issue?.assigneeKind).toBe('agent'); // delegate=true
+    }
+    // TODO 가 이슈에 연결 + in-progress.
+    const todo = listTodos()[0];
+    expect(todo.issueId).toBe(promoted.kind === 'promoted' ? promoted.issueId : -1);
+    expect(todo.status).toBe('in-progress');
+  });
+
+  it('note 없으면 제목을 spec 으로', () => {
+    const repoId = seedProject();
+    const r = createTodo({ title: '제목만', projectId: repoId });
+    if (r.kind !== 'created') throw new Error('setup');
+    const promoted = promoteTodoToIssue(r.id, { delegateToClaude: true, humanAssigneeId: 'me' });
+    expect(promoted.kind === 'promoted' && promoted.spec).toBe('제목만');
+  });
+
+  it('프로젝트 미연결(개인) TODO 는 no-project', () => {
+    const r = createTodo({ title: 'personal' });
+    if (r.kind !== 'created') throw new Error('setup');
+    expect(promoteTodoToIssue(r.id, { delegateToClaude: true, humanAssigneeId: 'me' }).kind).toBe(
+      'no-project',
+    );
+  });
+
+  it('이미 이슈 연결된 TODO 는 already-linked', () => {
+    const repoId = seedProject();
+    const r = createTodo({ title: 'x', projectId: repoId });
+    if (r.kind !== 'created') throw new Error('setup');
+    const first = promoteTodoToIssue(r.id, { delegateToClaude: true, humanAssigneeId: 'me' });
+    expect(first.kind).toBe('promoted');
+    const second = promoteTodoToIssue(r.id, { delegateToClaude: true, humanAssigneeId: 'me' });
+    expect(second.kind).toBe('already-linked');
+  });
+
+  it('없는 todo 는 not-found', () => {
+    expect(promoteTodoToIssue(999, { delegateToClaude: true, humanAssigneeId: 'me' }).kind).toBe(
+      'not-found',
+    );
   });
 });
 

@@ -993,6 +993,11 @@ export const ko = {
       label: '연결할 이슈',
       noIssues: '연결할 이슈가 없습니다.',
     },
+    // Phase 18 — 승격 플로우. TODO → 이슈(Claude 위임).
+    promote: {
+      label: '이슈로 승격',
+      hint: '이 TODO 를 이슈로 승격하고 Claude 에게 위임합니다 (워크스페이스가 있으면 세션 자동 시작).',
+    },
     widget: {
       title: '오늘 할 일',
       empty: 'TODO 없음',
