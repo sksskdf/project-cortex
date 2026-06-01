@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createAgentWorktree,
   isGitRepo,
+  listAgentWorktrees,
+  pruneOrphanWorktrees,
   removeAgentWorktree,
   worktreeBranchFor,
   worktreePathFor,
@@ -71,5 +73,24 @@ describe('agent-worktree', () => {
     execFileSync('mkdir', ['-p', plain]);
     expect(isGitRepo(plain)).toBe(false);
     expect(createAgentWorktree(plain, 's')).toBeNull();
+  });
+
+  it('listAgentWorktrees 는 Cortex 세션 worktree 만 (브랜치 ref 기준) 나열', () => {
+    createAgentWorktree(repo, 'sess-1');
+    createAgentWorktree(repo, 'sess-2');
+    const list = listAgentWorktrees(repo);
+    expect(list.map((w) => w.sessionId).sort()).toEqual(['sess-1', 'sess-2']);
+    // 메인 워크트리(브랜치 main)는 cortex/session- 이 아니라 제외.
+    expect(list.every((w) => w.path.includes('.cortex-worktrees'))).toBe(true);
+  });
+
+  it('pruneOrphanWorktrees 는 라이브 세션 외 worktree 제거', () => {
+    createAgentWorktree(repo, 'live');
+    createAgentWorktree(repo, 'orphan');
+    const r = pruneOrphanWorktrees(repo, new Set(['live']));
+    expect(r.removed).toBe(1);
+    expect(existsSync(worktreePathFor(repo, 'orphan'))).toBe(false);
+    expect(existsSync(worktreePathFor(repo, 'live'))).toBe(true);
+    expect(listAgentWorktrees(repo).map((w) => w.sessionId)).toEqual(['live']);
   });
 });

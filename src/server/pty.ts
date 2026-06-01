@@ -17,11 +17,12 @@ import type { Duplex } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { spawn, type IPty } from 'node-pty';
-import { getWorkspaceById } from '@/lib/workspace';
+import { getWorkspaceById, listWorkspaces } from '@/lib/workspace';
 import { getSettings } from '@/lib/settings';
 import {
   createAgentWorktree,
   isGitRepo,
+  pruneOrphanWorktrees,
   removeAgentWorktree,
   worktreePathFor,
 } from '@/lib/agent-worktree';
@@ -126,6 +127,20 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
   } catch (err) {
     // DB 미초기화 등 — best-effort, 서버 기동을 막지 않음.
     console.error('orphan agent_run 정리 실패:', err);
+  }
+}
+
+// Phase 16 — 시작 시 고아 worktree 정리. 서버 크래시 등으로 종료 시 정리 못 한 세션 worktree 가
+// 잔존(디렉토리·브랜치 누적)할 수 있다. 복원된(라이브) 세션 worktree 는 보존하고 나머지는 제거.
+// worktree 가 없으면(설정 OFF·미사용) listAgentWorktrees 가 빈 배열 → no-op.
+{
+  const liveSessionIds = new Set(sessions.keys());
+  try {
+    for (const ws of listWorkspaces()) {
+      pruneOrphanWorktrees(ws.localPath, liveSessionIds);
+    }
+  } catch (err) {
+    console.error('고아 worktree 정리 실패:', err);
   }
 }
 

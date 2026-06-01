@@ -64,3 +64,44 @@ export function removeAgentWorktree(workspaceLocalPath: string, sessionId: strin
   git(workspaceLocalPath, ['worktree', 'remove', '--force', wt]);
   git(workspaceLocalPath, ['branch', '-D', worktreeBranchFor(sessionId)]);
 }
+
+// 현재 repo 의 Cortex 세션 worktree 목록 (전용 브랜치 cortex/session-<id> 기준). `git worktree list
+// --porcelain` 파싱. 세션 id 는 브랜치 ref 에서 추출(경로 파싱보다 안전 — id 가 하이픈 포함 가능).
+export function listAgentWorktrees(
+  workspaceLocalPath: string,
+): { path: string; sessionId: string }[] {
+  const out = git(workspaceLocalPath, ['worktree', 'list', '--porcelain']);
+  if (out === null) return [];
+  const result: { path: string; sessionId: string }[] = [];
+  let curPath: string | null = null;
+  for (const raw of out.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('worktree ')) {
+      curPath = line.slice('worktree '.length).trim();
+    } else if (line.startsWith('branch ')) {
+      const ref = line.slice('branch '.length).trim();
+      const m = ref.match(/^refs\/heads\/cortex\/session-(.+)$/);
+      if (m && curPath) result.push({ path: curPath, sessionId: m[1] });
+    } else if (line === '') {
+      curPath = null;
+    }
+  }
+  return result;
+}
+
+// 서버 재시작 시 고아 worktree 정리 — 라이브/복원 세션(liveSessionIds)에 안 묶인 Cortex 세션
+// worktree 를 제거(서버 크래시 등으로 종료 시 정리 못 한 잔존분). 잔존 디렉토리·브랜치 누적 방지.
+// 설정 OFF 라 worktree 가 없으면 listAgentWorktrees 가 빈 배열 → no-op.
+export function pruneOrphanWorktrees(
+  workspaceLocalPath: string,
+  liveSessionIds: ReadonlySet<string>,
+): { removed: number } {
+  let removed = 0;
+  for (const wt of listAgentWorktrees(workspaceLocalPath)) {
+    if (!liveSessionIds.has(wt.sessionId)) {
+      removeAgentWorktree(workspaceLocalPath, wt.sessionId);
+      removed += 1;
+    }
+  }
+  return { removed };
+}
