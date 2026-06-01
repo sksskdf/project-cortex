@@ -140,16 +140,16 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
   // 정확한 신호 보장). 기본값은 "ready" (= 차단 안 함) — installation 미설정/fetch 실패는 다른
   // 안전망(SHA 가드 등)이 있으니 readiness 만으로 영구 차단하지 않는다. 명확히 draft 인 PR 만 차단.
   //
-  // readiness 게이트는 "자동 머지 후보"에만 의미가 있다. decideTriage 가 사람 PR·뮤트·autoMerge
-  // off 는 readiness 와 무관하게 human-review 로 떨어뜨리므로, 그런 경우엔 GitHub API 2회(getPR
-  // Readiness)를 아예 호출하지 않는다 — 모든 triage 마다 호출하던 낭비 제거.
+  // readiness fetch 는 decideTriage 가 readiness 와 무관하게 human-review 로 떨어뜨리는 경우엔
+  // 생략해 GitHub API 2회를 아낀다. **단 조건은 decideTriage 의 early-return 과 정확히 일치해야
+  // 한다** — decideTriage 는 (1) 사람 작성, (2) autoMergeEnabled off 만 readiness 전에 early-return
+  // 하고 **muted 는 체크하지 않는다**(뮤트는 sync/ingest 단에서 막음). 따라서 muted 를 조건에 넣어
+  // skip 하면, setProjectAutoMerge 재트라이지처럼 muted+autoMerge-on 경로가 readiness 기본값(ready)
+  // 으로 새어 draft PR 이 자동 머지될 수 있다(회귀). muted 는 조건에서 제외.
   let isDraft = false;
   let lastCommitReady = true;
   const readinessRelevant =
-    project.installationId !== null &&
-    pr.authorKind === 'agent' &&
-    project.autoMergeEnabled &&
-    !project.muted;
+    project.installationId !== null && pr.authorKind === 'agent' && project.autoMergeEnabled;
   if (readinessRelevant) {
     const [owner, repo] = project.slug.split('/');
     try {
