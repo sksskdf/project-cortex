@@ -13,6 +13,7 @@ import { budgetDiff } from './diff-budget';
 import { attachCommentsToFiles, parseUnifiedDiff } from './diff-parser';
 import { env } from './env';
 import { getPRDiff, listCheckRunsForRef } from './github';
+import { getIssueContextForPR } from './issues';
 import { getSettings } from './settings';
 import {
   buildPreReviewTriagePrompt,
@@ -135,6 +136,8 @@ type PromptInput = {
   // PR 설명(본문) — 작성자 의도. 리뷰 정확도 향상을 위해 프롬프트에 포함. 빈 PR 은 null.
   prBody: string | null;
   diff: string;
+  // Phase 4.7 — 위임 이슈 spec (PR 이 만족해야 하는 수용 기준). 사람 PR / 미위임은 null.
+  issueContext: { title: string; spec: string } | null;
 };
 
 // 사전 리뷰 LLM 호출 — claude CLI 비대화형 spawn (사용자 Claude 플랜, API 크레딧 0).
@@ -240,6 +243,8 @@ export async function analyzePR(prId: number): Promise<AnalyzeResult> {
     filesChanged: pr.filesChanged,
     prBody: pr.body,
     diff: budget.text,
+    // Phase 4.7 — 위임 이슈가 있으면 spec 을 컨텍스트로(수용 기준 부합 평가). 없으면 null.
+    issueContext: getIssueContextForPR(prId),
   };
 
   // Phase 4.5b — Haiku 1차. 단순 PR 이면 그 응답으로 종료. throw 시 Opus 폴백.

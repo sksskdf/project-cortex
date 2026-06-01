@@ -85,6 +85,20 @@ describe('budgetDiff', () => {
     expect(DEFAULT_DIFF_CHAR_BUDGET).toBe(50_000);
   });
 
+  // Phase 4.7 — 잘린 파일 경로가 노트에 노출돼 LLM 이 분석 범위 인지 가능.
+  it('fully-skipped 파일 경로가 노트에 포함', () => {
+    // 많은 파일 + 작은 budget — 뒷쪽 파일들은 header 도 못 들어가 fullySkipped 로.
+    const bigBody = ('+ ' + 'x'.repeat(100) + '\n').repeat(20); // ~2KB 씩
+    const file = (path: string) =>
+      `diff --git a/${path} b/${path}\nindex 0..1 100644\n--- a/${path}\n+++ b/${path}\n@@ -0,0 +1 @@\n${bigBody}`;
+    const paths = Array.from({ length: 30 }, (_, i) => `file${i}.ts`);
+    const diff = paths.map(file).join('\n');
+    const r = budgetDiff(diff, 3_000);
+    expect(r.fullySkippedPaths.length).toBeGreaterThan(0);
+    // 노트에 첫 번째 잘린 파일 경로가 들어 있어야 함.
+    expect(r.text.includes(r.fullySkippedPaths[0])).toBe(true);
+  });
+
   it('파일 헤더가 없는 raw diff (단일 hunk) — splitFiles 가 0개 block 반환 → 빈 출력', () => {
     // 헤더 없이 hunk 만 — 비정상 입력. fully skip 카운트도 0 (block 자체가 없음).
     const r = budgetDiff('@@ -1,1 +1,1 @@\n+x');

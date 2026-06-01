@@ -186,7 +186,17 @@ export function budgetDiff(diff: string, charBudget = DEFAULT_DIFF_CHAR_BUDGET):
   }
 
   if (fullySkippedPaths.length > 0) {
-    out.push(bodyOmittedNote(`${fullySkippedPaths.length}개 파일 전체 생략 (토큰 예산 초과)`));
+    // Phase 4.7 — 잘린 파일 경로도 함께 노출 → LLM 이 "내 분석은 불완전, 잘린 파일이 어떤 영역인가"
+    // 인지하고 신뢰 점수에 반영할 수 있게. 너무 많으면 일부만(토큰 보호).
+    const MAX_SHOWN = 10;
+    const shown = fullySkippedPaths.slice(0, MAX_SHOWN);
+    const rest = fullySkippedPaths.length - shown.length;
+    const tail = rest > 0 ? ` … 외 ${rest}개` : '';
+    out.push(
+      bodyOmittedNote(
+        `${fullySkippedPaths.length}개 파일 전체 생략 (토큰 예산 초과): ${shown.join(', ')}${tail}`,
+      ),
+    );
   }
 
   const text = out.join('\n');

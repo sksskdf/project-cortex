@@ -121,7 +121,17 @@ function prDescriptionLines(prBody: string | null): string[] {
   return ['', `# PR 설명 (작성자 의도 — 검토 참고)`, text];
 }
 
-// user 프롬프트 빌더 — PR 메타 + 설명(본문) + diff 텍스트.
+// Phase 4.7 — 연결된 위임 이슈의 spec(수용 기준). PR 이 원래 무엇을 하기로 한 일이었는지
+// 리뷰가 판단할 수 있게. 사람 PR(매칭 없음)이면 빈 배열 — 컨텍스트 없이 진행.
+const MAX_ISSUE_SPEC = 1500;
+function issueSpecLines(issue: { title: string; spec: string } | null): string[] {
+  if (!issue) return [];
+  const spec = issue.spec.trim();
+  const text = spec.length > MAX_ISSUE_SPEC ? `${spec.slice(0, MAX_ISSUE_SPEC)}\n…(생략)` : spec;
+  return ['', `# 위임 이슈 수용 기준 (이 PR 이 만족해야 하는 spec)`, `## ${issue.title}`, text];
+}
+
+// user 프롬프트 빌더 — PR 메타 + 위임 이슈 spec + 설명(본문) + diff 텍스트.
 // 토큰 절약: diff가 매우 크면 호출부에서 자르기. 여기선 그대로.
 export function buildPreReviewUserPrompt(input: {
   prTitle: string;
@@ -132,6 +142,8 @@ export function buildPreReviewUserPrompt(input: {
   filesChanged: number;
   prBody: string | null;
   diff: string;
+  // Phase 4.7 — 위임 이슈가 있으면 그 수용 기준을 컨텍스트로. 없으면 null (사람 PR 등).
+  issueContext?: { title: string; spec: string } | null;
 }): string {
   return [
     `# PR 컨텍스트`,
@@ -139,6 +151,7 @@ export function buildPreReviewUserPrompt(input: {
     `- 제목: ${input.prTitle}`,
     `- 작성자 유형: ${input.authorKind}`,
     `- 변경 규모: +${input.linesAdded} / -${input.linesRemoved} (${input.filesChanged} files)`,
+    ...issueSpecLines(input.issueContext ?? null),
     ...prDescriptionLines(input.prBody),
     ``,
     `# Unified diff`,
@@ -213,6 +226,8 @@ export function buildPreReviewTriagePrompt(input: {
   filesChanged: number;
   prBody: string | null;
   diff: string;
+  // Phase 4.7 — 위임 이슈 컨텍스트(있으면). triage 가 본 분석 필요 여부를 더 정확히 판단.
+  issueContext?: { title: string; spec: string } | null;
 }): string {
   return [
     `# PR 컨텍스트`,
@@ -220,6 +235,7 @@ export function buildPreReviewTriagePrompt(input: {
     `- 제목: ${input.prTitle}`,
     `- 작성자: ${input.authorKind}`,
     `- 규모: +${input.linesAdded} / -${input.linesRemoved} (${input.filesChanged} files)`,
+    ...issueSpecLines(input.issueContext ?? null),
     ...prDescriptionLines(input.prBody),
     ``,
     `# diff`,

@@ -7,6 +7,7 @@ import {
   completeIssueDelegation,
   countOpenIssues,
   finishAgentRun,
+  getIssueContextForPR,
   getIssueDetail,
   linkIssueToRoadmapItem,
   listIssueOptions,
@@ -399,5 +400,85 @@ describe('listIssueOptions', () => {
 
   it('returns empty when no issues', () => {
     expect(listIssueOptions()).toEqual([]);
+  });
+});
+
+describe('getIssueContextForPR — Phase 4.7 사전 리뷰 컨텍스트', () => {
+  function seedPR(repoId: number, number: number): number {
+    return db
+      .insert(prs)
+      .values({
+        repoId,
+        number,
+        title: 'fix',
+        authorKind: 'agent',
+        authorId: 'claude-code',
+        headSha: 'sha',
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+      })
+      .returning({ id: prs.id })
+      .get().id;
+  }
+
+  it('agent_run.outputPrId 가 매칭되면 이슈 title + spec 반환', () => {
+    const repoId = seedProject('owner/repo');
+    const issueId = db
+      .insert(issues)
+      .values({
+        repoId,
+        title: '버그 수정',
+        spec: '수용 기준 A, B, C',
+        assigneeKind: 'agent',
+        assigneeId: 'claude',
+        status: 'in-progress',
+      })
+      .returning({ id: issues.id })
+      .get().id;
+    const prId = seedPR(repoId, 1);
+    db.insert(agentRuns).values({ issueId, agent: 'claude', outputPrId: prId }).run();
+    const ctx = getIssueContextForPR(prId);
+    expect(ctx).toEqual({ title: '버그 수정', spec: '수용 기준 A, B, C' });
+  });
+
+  it('매칭되는 agent_run 이 없으면 null (사람 PR 등)', () => {
+    const repoId = seedProject('owner/repo');
+    const prId = seedPR(repoId, 1);
+    expect(getIssueContextForPR(prId)).toBeNull();
+  });
+
+  it('한 PR 에 agent_run 이 여러 개면 최신(큰 id) 의 issue spec 반환', () => {
+    const repoId = seedProject('owner/repo');
+    const issueA = db
+      .insert(issues)
+      .values({
+        repoId,
+        title: 'A',
+        spec: 'spec A',
+        assigneeKind: 'agent',
+        assigneeId: 'claude',
+        status: 'done',
+      })
+      .returning({ id: issues.id })
+      .get().id;
+    const issueB = db
+      .insert(issues)
+      .values({
+        repoId,
+        title: 'B',
+        spec: 'spec B',
+        assigneeKind: 'agent',
+        assigneeId: 'claude',
+        status: 'in-progress',
+      })
+      .returning({ id: issues.id })
+      .get().id;
+    const prId = seedPR(repoId, 1);
+    db.insert(agentRuns).values({ issueId: issueA, agent: 'claude', outputPrId: prId }).run();
+    db.insert(agentRuns).values({ issueId: issueB, agent: 'claude', outputPrId: prId }).run();
+    const ctx = getIssueContextForPR(prId);
+    expect(ctx?.title).toBe('B');
   });
 });

@@ -60,7 +60,8 @@ export function NotificationDropdown({
   const [optimisticUnread, setOptimisticUnread] = useState(unreadCount);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  // 외부 클릭 시 닫힘.
+  // 외부 클릭 + Escape 키로 닫힘 (드롭다운 표준 a11y — 모달 트랩은 안 걸지만 키보드 사용자도
+  // 외부 클릭과 동등하게 닫을 수 있어야).
   useEffect(() => {
     if (!open) return;
     function onClickOutside(e: MouseEvent) {
@@ -68,8 +69,15 @@ export function NotificationDropdown({
         setOpen(false);
       }
     }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   // 드롭다운 열릴 때 unread 자동 읽음 처리.

@@ -221,7 +221,10 @@ export function parseRoadmapMd(content: string): ParsedRoadmapPhase[] {
   for (const rawLine of lines) {
     const line = rawLine;
     // Phase heading: '## Phase <key> — <title>' (em-dash or hyphen 둘 다 허용) 또는 '## Phase <key>'
-    const headingMatch = line.match(/^##\s+Phase\s+([A-Za-z0-9_-]+)(?:\s+[—\-]\s+(.+))?$/);
+    // 키는 점 구분 세그먼트 허용 — `4.7`·`13.6` 같은 sub-Phase. 끝 문장부호(`.`)는 키 미포함.
+    const headingMatch = line.match(
+      /^##\s+Phase\s+([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)(?:\s+[—\-]\s+(.+))?$/,
+    );
     if (headingMatch) {
       flushGoal();
       current = {

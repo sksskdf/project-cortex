@@ -337,3 +337,17 @@ export function countOpenIssues(): number {
     .get();
   return result?.n ?? 0;
 }
+
+// Phase 4.7 — 사전 리뷰 컨텍스트 보강. 이 PR 이 위임 이슈의 결과물이면(agent_runs.outputPrId
+// 매칭), 그 이슈의 title + spec(수용 기준)을 가져온다. 리뷰가 "PR 이 원래 의도한 일을 했는지"
+// 판단할 수 있게. 매칭 안 되면 null (사람 PR 등) — 호출부가 그냥 컨텍스트 없이 진행.
+export function getIssueContextForPR(prId: number): { title: string; spec: string } | null {
+  const row = db
+    .select({ title: issues.title, spec: issues.spec })
+    .from(agentRuns)
+    .innerJoin(issues, eq(issues.id, agentRuns.issueId))
+    .where(eq(agentRuns.outputPrId, prId))
+    .orderBy(desc(agentRuns.id))
+    .get();
+  return row ?? null;
+}
