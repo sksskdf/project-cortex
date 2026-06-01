@@ -2,6 +2,7 @@
 // 보안 (박제): spawn 대상은 화이트리스트(ALLOWED_COMMANDS)만. 임의 shell 명령 X.
 // 작업 디렉토리는 Phase 12 로 등록된 워크스페이스 경로로만 제한 (pty 서버에서 DB 조회).
 
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
@@ -48,4 +49,49 @@ export function claudeSpawnEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
   delete env.ANTHROPIC_API_KEY;
   return env;
+}
+
+// Phase 13.6 — CLI 버전 추적(회귀 가드). `claude --version` 의 첫 토큰을 버전으로 본다
+// (예: "1.2.3 (Claude Code)" → "1.2.3"). claude 미설치/실패 시 null — 읽기 전용이라 어떤
+// spawn 동작에도 영향 없음. 지원 플래그·출력 스키마 변동 진단(예: readiness 신호·json-schema)
+// 에 활용. 결과는 호출부가 로깅/표시.
+type VersionExec = (path: string, args: string[]) => Promise<string>;
+let _versionExec: VersionExec | null = null;
+// 테스트 주입 — null 이면 실제 execFile.
+export function setVersionExec(runner: VersionExec | null): void {
+  _versionExec = runner;
+}
+
+function defaultVersionExec(path: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Windows 전역 npm bin 은 claude.cmd (배치) — execFile 이 직접 못 띄우므로 shell 경유.
+    const useShell = /\.(cmd|bat)$/i.test(path);
+    execFile(
+      path,
+      args,
+      { env: claudeSpawnEnv(), shell: useShell, timeout: 10_000 },
+      (err, out) => {
+        if (err) reject(err);
+        else resolve(out);
+      },
+    );
+  });
+}
+
+// `claude --version` 출력에서 버전 추출 — 첫 공백 구분 토큰("1.2.3 (Claude Code)" → "1.2.3").
+// 빈 출력이면 null. 순수 함수 — claude 유무와 무관하게 테스트 가능.
+export function parseClaudeVersion(output: string): string | null {
+  const first = output.trim().split(/\s+/)[0];
+  return first && first.length > 0 ? first : null;
+}
+
+export async function getClaudeCliVersion(): Promise<string | null> {
+  const claude = resolveClaude();
+  if (!claude) return null;
+  try {
+    const out = await (_versionExec ?? defaultVersionExec)(claude.path, ['--version']);
+    return parseClaudeVersion(out);
+  } catch {
+    return null;
+  }
 }
