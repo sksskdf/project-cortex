@@ -293,9 +293,13 @@ function extractUsage(envelope: {
 // 첫 번째 균형 잡힌 {...} 객체를 추출해 파싱 (CLI 모델이 설명을 덧붙이는 경우 대비).
 export function parseJsonFromText(text: string): unknown {
   let t = text.trim();
-  // 코드펜스가 있으면 그 안쪽 우선 (앵커 없이 — 펜스 앞뒤 산문 허용).
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (fence) t = fence[1].trim();
+  // 펜스 처리: `json` 태그 펜스만 신뢰. 예전엔 `(?:json)?` 로 태그 없는/다른 태그(```bash, ```ts
+  // 예시 등) 펜스의 본문도 t 로 교체해, 그 안에 JSON 이 없으면 throw 했다(리뷰 발견 — 모델이
+  // shell 예시 펜스를 먼저, JSON 펜스를 나중에 출력하면 본문 응답을 통째로 버림). 이제는 json 태그
+  // 펜스를 찾으면 그 안쪽만 사용하고, 없으면 t 를 그대로 둬 extractFirstJsonObject 가 전체 텍스트
+  // (태그 없는 펜스 본문 포함)에서 첫 균형 객체를 찾도록 한다.
+  const jsonFence = t.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (jsonFence) t = jsonFence[1].trim();
   try {
     return JSON.parse(t);
   } catch {

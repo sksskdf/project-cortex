@@ -32,6 +32,25 @@ describe('parseJsonFromText', () => {
   it('JSON 객체가 전혀 없으면 throw', () => {
     expect(() => parseJsonFromText('JSON 없음')).toThrow();
   });
+
+  // 회귀(리뷰 발견): 예전엔 `(?:json)?` 펜스 매칭이 `bash`/`ts` 등 다른 태그·태그 없는 펜스의
+  // 본문까지 t 로 교체해, 모델이 예시 펜스를 먼저 출력하고 JSON 펜스를 나중에 출력하면
+  // 응답을 통째로 버리고 throw 했다. 이제는 `json` 태그 펜스만 신뢰.
+  it('비-JSON 펜스(```bash)가 먼저, ```json 이 나중에 와도 JSON 추출', () => {
+    const t =
+      '먼저 실행:\n```bash\nnpm test\n```\n결과 분석:\n```json\n{"confidence":85}\n```\n끝.';
+    expect(parseJsonFromText(t)).toEqual({ confidence: 85 });
+  });
+
+  it('태그 없는 펜스 안의 JSON 도 extractFirstJsonObject 가 회수', () => {
+    const t = '결과:\n```\n{"ok":true}\n```';
+    expect(parseJsonFromText(t)).toEqual({ ok: true });
+  });
+
+  it('JSON 펜스 없이 비-JSON 펜스만 있으면 산문의 첫 객체 추출', () => {
+    const t = '예시:\n```bash\nnpm test\n```\n실제 응답: {"x":1}';
+    expect(parseJsonFromText(t)).toEqual({ x: 1 });
+  });
 });
 
 describe('extractResult', () => {
