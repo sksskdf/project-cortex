@@ -90,13 +90,33 @@ describe('attemptAutoMerge', () => {
     if (result.kind === 'merged') expect(result.sha).toBe('merged-sha');
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('merged');
     // commit_title 미전송 — GitHub default ('<PR title> (#<number>)') 그대로.
+    // sha 전송 — race 가드(PR head 가 분석 후 이동하면 GitHub 가 거부).
     expect(mergeMock).toHaveBeenCalledWith({
       owner: 'acme',
       repo: 'web',
       pull_number: 42,
       commit_title: undefined,
       merge_method: 'squash',
+      sha: 'sha-x',
     });
+  });
+
+  // PR head 가 분석 후 새 commit 으로 이동했을 때 — GitHub 가 405 거부. status 를
+  // 'auto-mergeable' 그대로 두고(human-review 로 안 떨어뜨림) skipped 반환 → 새 commit 의
+  // sync webhook 이 새 분석/머지 트리거.
+  it('SHA 불일치(head 이동) 면 review-needed 로 안 떨어뜨리고 skipped', async () => {
+    const mergeMock = vi
+      .fn()
+      .mockRejectedValue(new Error('Head branch was modified. Review and try the merge again.'));
+    setOctokit(mockOctokit(mergeMock));
+    const prId = setupPR({ decision: 'auto-merge' });
+
+    const result = await attemptAutoMerge(prId);
+
+    expect(result.kind).toBe('skipped');
+    // status 가 'auto-mergeable' 유지 (review-needed 로 안 바뀜 — 새 commit 의 webhook 이 다시 트리거).
+    const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
+    expect(pr?.status).toBe('auto-mergeable');
   });
 
   it('skips when PR not found', async () => {

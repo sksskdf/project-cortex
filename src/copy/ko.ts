@@ -219,6 +219,10 @@ export const ko = {
         ? '뮤트됨 — 누르면 관리 시작 (webhook 수신·분석 재개)'
         : '관리 중 — 누르면 뮤트 (webhook 무시·인박스에서 숨김)',
     mutedBadge: '뮤트됨',
+    // Phase 10.1 후속 — `.cortex/project.yml` 이 sync 안 된 프로젝트. 스킬·자동 done 컨벤션·로드맵 활용 불가.
+    cortexMissingBadge: '.cortex 없음',
+    cortexMissingHint:
+      '레포에 `.cortex/` 디렉토리가 없거나 아직 sync 되지 않음 — 자동 done(Closes #PHASE-/#ITEM-) · 로드맵 추적 · cortex 스킬 자동 적용을 활용하려면 `.cortex/project.yml` + `.cortex/roadmap.md` 를 추가하세요. 형식은 cortex 스킬(`~/.claude/skills/cortex/SKILL.md`) 참조.',
     aiReviewAria: (enabled: boolean) =>
       enabled
         ? 'AI 사전 리뷰 켜짐 — 누르면 끔 (전역 AI 토글과 함께 적용)'
