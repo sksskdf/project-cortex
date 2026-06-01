@@ -280,12 +280,52 @@ describe('attemptConflictResolution — 해결 흐름', () => {
         return Promise.resolve(nonzero());
       }
       if (args.includes('--diff-filter=U')) return Promise.resolve(ok('src/x.ts\n'));
-      if (args.includes('--check')) return Promise.resolve(nonzero('leftover marker')); // 마커 잔존
+      // git 실제 출력: 마커 잔존 시 stdout 에 "leftover conflict marker" 줄.
+      if (args.includes('--check')) {
+        return Promise.resolve({
+          code: 2,
+          stdout: 'src/x.ts:1: leftover conflict marker\n',
+          stderr: '',
+        });
+      }
       return Promise.resolve(ok());
     });
     setGitRunner(git);
 
     const r = await attemptConflictResolution(setup({}));
     expect(r.kind).toBe('failed');
+  });
+
+  // 리뷰 발견: `git diff --check` 는 충돌 마커뿐 아니라 공백 오류(trailing whitespace 등)에도
+  // nonzero 를 반환한다. 예전엔 exit code 만 봐서, 정상 해결된 머지가 흔한 공백 오류 한 줄 때문에
+  // false-fail → abort → 영영 해결 불가 PR 이 됐다. 이제는 stdout 의 "leftover conflict marker"
+  // 문구로만 판단해, 공백 오류뿐인 경우는 통과시키고 정상 push 한다.
+  it('공백 오류만 있는 diff --check nonzero 는 통과 (정상 push) — false-fail 회귀', async () => {
+    setOctokit(mockOctokit({ mergeableState: 'dirty', headRef: 'feature' }));
+    setClaudeRunner(vi.fn().mockResolvedValue({ ok: true, text: 'done' }));
+    const git = vi.fn((_cwd: string, args: ReadonlyArray<string>): Promise<GitResult> => {
+      if (args.includes('merge') && args.includes('--no-edit') && !args.includes('--abort')) {
+        return Promise.resolve(nonzero('CONFLICT'));
+      }
+      if (args.includes('--diff-filter=U')) return Promise.resolve(ok('src/x.ts\n'));
+      // 공백 오류만 — git 실제 출력 형식. exit nonzero 지만 "leftover conflict marker" 없음.
+      if (args.includes('--check')) {
+        return Promise.resolve({
+          code: 2,
+          stdout: 'src/x.ts:2: trailing whitespace.\n+b \n',
+          stderr: '',
+        });
+      }
+      return Promise.resolve(ok());
+    });
+    setGitRunner(git);
+
+    const r = await attemptConflictResolution(setup({}));
+    expect(r).toEqual({ kind: 'resolved' });
+    const pushed = git.mock.calls.some((c) => c[1].includes('push') && c[1].includes('feature'));
+    expect(pushed).toBe(true);
+    // 잘못된 abort 없음.
+    const aborted = git.mock.calls.some((c) => c[1].includes('merge') && c[1].includes('--abort'));
+    expect(aborted).toBe(false);
   });
 });

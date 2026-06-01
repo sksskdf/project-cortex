@@ -216,9 +216,15 @@ export async function attemptConflictResolution(prId: number): Promise<ConflictR
   }
 
   // 5) 해소 검증 — 스테이징 후 잔존 충돌 마커 검사. 남아 있으면 실패 + 원복.
+  // `git diff --cached --check` 는 충돌 마커뿐 아니라 공백 오류(trailing whitespace,
+  // blank-line-at-EOF, space-before-tab)도 nonzero 로 같이 보고한다. 그래서 exit code 로만 판단하면
+  // 정상 해결됐는데 흔한 공백 오류가 한 줄만 있어도 false-fail → merge --abort 로 해결 작업이 날아가
+  // 자동 해결이 결코 성공할 수 없는 PR(공백 오류 있는 레포)이 생긴다(리뷰 발견). stdout 의 "leftover
+  // conflict marker" 문구(git 영문 고정 — i18n 안 됨)로 마커만 콕 찝어 검사한다. nonzero+마커문구
+  // 부재 = 공백 오류뿐 → 통과.
   await git(cwd, ['add', '-A']);
   const markerCheck = await git(cwd, ['diff', '--cached', '--check']);
-  if (markerCheck.code !== 0) {
+  if (markerCheck.code !== 0 && /leftover conflict marker/i.test(markerCheck.stdout)) {
     await git(cwd, ['merge', '--abort']);
     return fail(
       prId,
