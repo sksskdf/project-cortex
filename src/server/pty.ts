@@ -30,6 +30,7 @@ import { installCortexSkill } from '@/lib/cortex-skill';
 import { claudeSpawnEnv, getClaudeCliVersion, resolveClaude } from '@/lib/agents';
 import { logger } from '@/lib/logger';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
+import { reconcileStuckAutoMerges } from '@/lib/auto-merge';
 import {
   defaultSessionStorePath,
   loadPersistedSessions,
@@ -170,7 +171,9 @@ void getClaudeCliVersion()
 
 // Phase 13.4 — idle 타임아웃 주기 스윕. 서버가 계속 떠 있어도 오래 'running' 으로 방치된
 // agent_run 을 주기적으로 마감(기본 24h 임계, 1h 마다). unref 로 프로세스 종료를 막지 않음.
+// + 'auto-mergeable' 로 오래 머지 안 된(webhook 유실·크래시) PR 도 재시도(머지 가드 그대로 작동).
 const STALE_RUN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const STUCK_MERGE_MAX_AGE_MS = 60 * 60 * 1000; // 1h+ auto-mergeable = 누락된 머지로 간주.
 const STALE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 {
   const sweep = () => {
@@ -179,6 +182,10 @@ const STALE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
     } catch (err) {
       console.error('stale agent_run 스윕 실패:', err);
     }
+    // 비동기 — 응답 안 기다리고 best-effort. 머지 트리거지만 attemptAutoMerge 의 가드가 모두 작동.
+    reconcileStuckAutoMerges(STUCK_MERGE_MAX_AGE_MS).catch((err) =>
+      console.error('stuck auto-merge 스윕 실패:', err),
+    );
   };
   sweep(); // 부팅 시 1회.
   setInterval(sweep, STALE_SWEEP_INTERVAL_MS).unref();
@@ -270,6 +277,17 @@ function awaitPromptThenCreate(ws: WebSocket, sessionId: string, params: URLSear
     done = true;
     clearTimeout(timer);
     ws.off('message', onMsg);
+    // prompt 도착 전 ws 가 끊겨 세션이 spawn 되지 못함 — 위임 시 미리 만들어진 agent_run(runId)이
+    // 영영 'running' 으로 남아 이슈가 24h(스윕)까지 '진행 중' 으로 오표시되던 것 방지(리뷰 발견).
+    // 세션이 안 떴으니 failed 로 마감(사용자가 재위임 가능). best-effort.
+    const runIdRaw = Number(params.get('runId'));
+    if (Number.isInteger(runIdRaw) && runIdRaw > 0) {
+      try {
+        finishAgentRun(runIdRaw, false);
+      } catch (err) {
+        console.error('awaitPrompt 조기 종료 run 마감 실패:', err);
+      }
+    }
   };
   const timer = setTimeout(() => finish(undefined), 8000);
   ws.on('message', onMsg);
@@ -344,7 +362,9 @@ function startPty(
 }
 
 // 세션 spawn cwd 결정. 설정 OFF(기본) 또는 비-git 또는 실패면 워크스페이스 localPath(=기존 동작).
-// ON + git repo: 'new' 는 worktree 생성, 'resume' 는 기존 worktree 재사용(있을 때).
+// ON + git repo: 'new' 는 worktree 생성. 'resume' 는 기존 worktree 가 있으면 그대로, 없으면(prune·
+// 삭제됨) **재생성**해 격리를 유지한다 — 메인 체크아웃에서 resume 하면 claude 가 dev 서버의 작업
+// 트리를 건드려 worktree 격리가 깨지므로(리뷰 발견), 재생성 실패 시에만 워크스페이스 cwd 폴백.
 function resolveSpawnCwd(
   workspaceLocalPath: string,
   sessionId: string,
@@ -357,7 +377,9 @@ function resolveSpawnCwd(
       return createAgentWorktree(workspaceLocalPath, sessionId) ?? workspaceLocalPath;
     }
     const wt = worktreePathFor(workspaceLocalPath, sessionId);
-    return existsSync(wt) ? wt : workspaceLocalPath;
+    if (existsSync(wt)) return wt;
+    // resume 인데 worktree 가 사라짐 — 격리 유지를 위해 재생성(실패 시 워크스페이스 cwd 폴백).
+    return createAgentWorktree(workspaceLocalPath, sessionId) ?? workspaceLocalPath;
   } catch (err) {
     console.error('worktree cwd 해석 실패 — 워크스페이스 cwd 폴백:', err);
     return workspaceLocalPath;
@@ -537,6 +559,11 @@ function detach(session: Session, ws: WebSocket) {
 // 세션 완전 종료 — pty kill + 레지스트리 제거 + 구독 해제 + (위임 세션이면) agent_run 마감.
 // ok: 정상 종료(exit 0)·사용자/idle 종료면 true(completed), 비정상 exit 면 false(failed).
 function destroy(session: Session, ok = true) {
+  // 멱등 가드 — 중복 호출(프로세스 onExit + 사용자 terminate/× 가 거의 동시에) 시 두 번째는 즉시
+  // 반환. destroy 는 동기라 중복 호출은 back-to-back 이고, 첫 호출이 sessions.delete 하므로 두 번째는
+  // 여기서 걸린다. run 이중 마감·worktree 이중 정리(갓 죽은 proc 의 cwd 를 두 번 건드리는 Windows
+  // file-lock 위험)·알림 중복을 막는다(리뷰 발견).
+  if (!sessions.has(session.id)) return;
   if (session.reapTimer) {
     clearTimeout(session.reapTimer);
     session.reapTimer = null;

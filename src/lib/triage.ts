@@ -5,7 +5,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import type { TriageDecisionRow } from '@/db/schema';
-import { getPRReadiness, isCortexReadyMarker } from './github';
+import { getPRReadiness, isCortexReadyMarker, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
 
 export type TriageDecision = TriageDecisionRow['decision'];
@@ -28,6 +28,9 @@ export type TriageInput = {
   // draft 면 머지 보류. lastCommitReady=false 면 머지 보류. 둘 중 하나라도 만족하면 통과.
   isDraft: boolean;
   lastCommitReady: boolean;
+  // GitHub author_association (위조 불가). 외부 기여자(NONE/CONTRIBUTOR 등)는 자동 머지 차단.
+  // null 이면(legacy·PAT webhook) 게이트 미적용(무회귀). authorKind(본문 마커·위조 가능)와 독립.
+  authorAssociation: string | null;
 };
 
 // 자동 머지 차단 플래그 (DOMAIN.md §4 룰 3).
@@ -46,6 +49,16 @@ export function decideTriage(input: TriageInput): TriageResult {
     return {
       decision: 'human-review',
       reason: '사람 작성 PR — 자동 머지 정책에서 항상 제외됩니다.',
+    };
+  }
+
+  // 권한 게이트 — authorKind 는 PR 본문 마커 기반이라 위조 가능. GitHub 이 계산하는 author_association
+  // (위조 불가)으로 외부 기여자(레포 멤버/협업자 아님)는 자동 머지에서 제외한다. null(legacy·PAT)이면
+  // 미적용(무회귀). 이로써 외부 PR 이 본문에 마커를 넣어 자동 머지를 유발하는 권한 상승을 차단.
+  if (isUntrustedAuthorAssociation(input.authorAssociation)) {
+    return {
+      decision: 'human-review',
+      reason: '외부 기여자 PR (레포 멤버·협업자 아님) — 자동 머지 정책에서 제외됩니다.',
     };
   }
 
@@ -182,6 +195,7 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
     autoMergeEnabled: project.autoMergeEnabled,
     isDraft,
     lastCommitReady,
+    authorAssociation: pr.authorAssociation,
   });
 
   const existing = db

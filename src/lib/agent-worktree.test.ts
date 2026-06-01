@@ -66,6 +66,16 @@ describe('agent-worktree', () => {
     expect(g(['branch', '--list', worktreeBranchFor('s2')]).trim()).toBe('');
   });
 
+  it('removeAgentWorktree 가 worktree dir 만 사라진 경우에도 전용 브랜치 정리 (누수 방지)', () => {
+    createAgentWorktree(repo, 's3');
+    // worktree dir 만 먼저 제거(브랜치는 git 에 남김) — 부분 정리/크래시 시뮬레이션.
+    g(['worktree', 'remove', '--force', worktreePathFor(repo, 's3')]);
+    expect(g(['branch', '--list', worktreeBranchFor('s3')])).toContain('cortex/session-s3');
+    // 이제 removeAgentWorktree 가 dir 부재에도 브랜치를 지워야 한다.
+    removeAgentWorktree(repo, 's3');
+    expect(g(['branch', '--list', worktreeBranchFor('s3')]).trim()).toBe('');
+  });
+
   it('removeAgentWorktree 는 worktree 없으면 no-op (OFF 모드 안전)', () => {
     expect(() => removeAgentWorktree(repo, 'never')).not.toThrow();
   });

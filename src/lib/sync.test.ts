@@ -60,6 +60,7 @@ function basePayload(overrides: Partial<WebhookPRPayload['pr']> = {}): WebhookPR
       merged: false,
       authorLogin: 'devin',
       authorKind: 'agent',
+      authorAssociation: null,
       createdAt: NOW,
       updatedAt: NOW,
       ...overrides,

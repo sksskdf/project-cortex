@@ -24,6 +24,9 @@ export type GithubPullRequestEventPartial = {
     changed_files: number;
     merged: boolean;
     user: { login: string; type?: string } | null;
+    // GitHub 이 계산하는 작성자-레포 관계 (OWNER/MEMBER/COLLABORATOR/CONTRIBUTOR/NONE 등).
+    // 위조 불가 — 자동 머지 권한 게이트(외부 기여자 차단)에 사용.
+    author_association?: string;
     created_at: string;
     updated_at: string;
   };
@@ -63,6 +66,7 @@ export function mapPullRequestEvent(event: GithubPullRequestEventPartial): Webho
       merged: event.pull_request.merged,
       authorLogin: login,
       authorKind: classifyAuthor(login, event.pull_request.user?.type, event.pull_request.body),
+      authorAssociation: event.pull_request.author_association ?? null,
       createdAt: new Date(event.pull_request.created_at),
       updatedAt: new Date(event.pull_request.updated_at),
     },

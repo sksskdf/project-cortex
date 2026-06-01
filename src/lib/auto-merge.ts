@@ -2,7 +2,7 @@
 // 호출 시점: sync.ts 안 runTriage 결과가 'decided' + 'auto-merge' 일 때.
 // 실패 시 PR.status 를 'review-needed' 로 폴백, triage_decisions.reason 에도 사유 기록.
 
-import { eq } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions, type PRRecord } from '@/db/schema';
 import { attemptConflictResolution } from './conflict-resolve';
@@ -13,6 +13,7 @@ import {
   mergePR,
   requestChangesReview,
 } from './github';
+import { logger } from './logger';
 import { createNotification } from './notifications';
 import { matchAndApplyDoneFromPR } from './roadmap';
 import { getWorkspace, pullWorkspace } from './workspace';
@@ -92,6 +93,35 @@ export async function attemptAutoMerge(prId: number): Promise<AutoMergeResult> {
   } finally {
     inFlightMerges.delete(prId);
   }
+}
+
+// 주기 reconcile — 'auto-mergeable' 로 표시됐으나 오래(maxAgeMs) 머지 안 된 채 방치된 PR 을
+// attemptAutoMerge 로 재시도. 정상 흐름에선 triage 직후 즉시 머지되므로, 'auto-mergeable' 로 오래
+// 남았다는 건 머지가 누락된 것(synchronize/check_run webhook 유실, triage~merge 사이 크래시 등)이다.
+// attemptAutoMerge 의 가드(status 재확인·in-flight lock·SHA 가드·merged 실제조회·author 권한 게이트는
+// triage 시점 결정에 반영됨)가 그대로 작동하므로 안전 — 승인된 머지만 완료하고, head 가 그 사이
+// 이동했으면(재분석 필요) SHA 가드가 skip(무해). dropped-webhook-but-mergeable·이미-머지됨 케이스를
+// 복구한다. (head 이동 후 새 commit 재분석은 webhook 의존 — 별도.)
+export async function reconcileStuckAutoMerges(maxAgeMs: number): Promise<{ retried: number }> {
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  const stuck = db
+    .select({ id: prs.id })
+    .from(prs)
+    .where(and(eq(prs.status, 'auto-mergeable'), lt(prs.updatedAt, cutoff)))
+    .all();
+  let retried = 0;
+  for (const { id } of stuck) {
+    try {
+      await attemptAutoMerge(id);
+      retried += 1;
+    } catch (err) {
+      logger.error(
+        { source: 'auto-merge', op: 'reconcileStuck', prId: id, err },
+        'stuck auto-merge 재시도 실패',
+      );
+    }
+  }
+  return { retried };
 }
 
 async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {

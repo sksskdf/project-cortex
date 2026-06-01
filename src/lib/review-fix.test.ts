@@ -108,6 +108,30 @@ describe('attemptAddressReview — guards', () => {
     expect(octokit.pulls.get).not.toHaveBeenCalled();
   });
 
+  // 보안: 외부 기여자 PR 은 자동화 대상 아님 (리뷰 본문 주입 + skip-permissions claude). claude 호출 0.
+  it('외부 기여자 PR 은 skip untrusted-author', async () => {
+    setOctokit(mockOctokit({}));
+    const claude = vi.fn();
+    setClaudeRunner(claude);
+    setup({});
+    db.update(prs).set({ authorAssociation: 'NONE' }).where(eq(prs.number, 42)).run();
+    const r = await attemptAddressReview(input);
+    expect(r).toEqual({ kind: 'skipped', reason: 'untrusted-author' });
+    expect(claude).not.toHaveBeenCalled();
+  });
+
+  // 이미 머지/닫힌 PR 은 시작 시 skip — claude 호출 0 (낭비 방지).
+  it('이미 머지된 PR 은 시작 시 skip pr-closed (claude 호출 0)', async () => {
+    setOctokit(mockOctokit({}));
+    const claude = vi.fn();
+    setClaudeRunner(claude);
+    setup({});
+    db.update(prs).set({ status: 'merged' }).where(eq(prs.number, 42)).run();
+    const r = await attemptAddressReview(input);
+    expect(r).toEqual({ kind: 'skipped', reason: 'pr-closed' });
+    expect(claude).not.toHaveBeenCalled();
+  });
+
   it('프로젝트 미등록이면 skip no-project', async () => {
     setOctokit(mockOctokit({}));
     const r = await attemptAddressReview({ ...input, repoSlug: 'no/such' });

@@ -103,6 +103,28 @@ function setup(opts: {
 }
 
 describe('attemptConflictResolution — guards', () => {
+  // 이미 머지/닫힌 PR 은 시작 시 skip — GitHub 호출 0 (낭비 방지).
+  it('이미 머지된 PR 은 시작 시 skip pr-closed (GitHub 호출 0)', async () => {
+    const octokit = mockOctokit({ mergeableState: 'dirty' });
+    setOctokit(octokit);
+    const prId = setup({});
+    db.update(prs).set({ status: 'merged' }).where(eq(prs.id, prId)).run();
+    const r = await attemptConflictResolution(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'pr-closed' });
+    expect(octokit.pulls.get).not.toHaveBeenCalled();
+  });
+
+  // 보안: 외부 기여자(위조 불가 author_association) PR 은 자동화 대상 아님 — GitHub/claude 호출 0.
+  it('외부 기여자 PR 은 skip untrusted-author (claude/GitHub 호출 0)', async () => {
+    const octokit = mockOctokit({ mergeableState: 'dirty' });
+    setOctokit(octokit);
+    const prId = setup({});
+    db.update(prs).set({ authorAssociation: 'NONE' }).where(eq(prs.id, prId)).run();
+    const r = await attemptConflictResolution(prId);
+    expect(r).toEqual({ kind: 'skipped', reason: 'untrusted-author' });
+    expect(octokit.pulls.get).not.toHaveBeenCalled();
+  });
+
   it('토글 OFF 면 skip disabled (GitHub 호출 0)', async () => {
     const octokit = mockOctokit({ mergeableState: 'dirty' });
     setOctokit(octokit);

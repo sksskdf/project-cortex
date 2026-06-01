@@ -25,7 +25,7 @@ import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
 import { CORTEX_HEADLESS_GUIDANCE } from './cortex-skill';
 import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
-import { addPRComment, getPRMergeStatus } from './github';
+import { addPRComment, getPRMergeStatus, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
 import { getWorkspace } from './workspace';
@@ -57,7 +57,8 @@ export type ReviewFixResult =
         | 'workspace-missing'
         | 'fork-or-cross-repo'
         | 'max-attempts'
-        | 'pr-closed';
+        | 'pr-closed'
+        | 'untrusted-author';
     }
   | { kind: 'failed'; reason: string };
 
@@ -115,6 +116,16 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
     .where(and(eq(prs.repoId, project.id), eq(prs.number, input.prNumber)))
     .get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  // 이미 머지/닫힌 PR(late/중복 webhook)은 수 분짜리 claude 작업을 통째로 낭비하므로 시작 시 skip
+  // (push 직전 가드와 대칭).
+  if (pr.status === 'merged' || pr.status === 'closed') {
+    return { kind: 'skipped', reason: 'pr-closed' };
+  }
+  // 외부 기여자 PR 은 자동화 대상 아님 (코드 체크아웃 + skip-permissions claude + push 는 신뢰 작업).
+  // 리뷰 본문(untrusted)을 프롬프트에 주입하므로 더욱, 레포 멤버/협업자 PR 로 한정. null=무회귀.
+  if (isUntrustedAuthorAssociation(pr.authorAssociation)) {
+    return { kind: 'skipped', reason: 'untrusted-author' };
+  }
 
   // 작성자 무관 — 단일 사용자 가정상 사람 PR 도 내 PR. 외부 기여(fork)는 아래 가드로 차단.
   const feedback = input.feedback.trim();

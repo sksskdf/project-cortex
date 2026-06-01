@@ -17,6 +17,8 @@ function base(overrides: Partial<TriageInput> = {}): TriageInput {
     // readiness 기본은 통과 (draft 해제 = ready 신호). race 가드 테스트만 isDraft=true 로.
     isDraft: false,
     lastCommitReady: false,
+    // 권한 게이트 기본은 통과(null = 미적용). 보안 테스트만 외부 association 으로.
+    authorAssociation: null,
     ...overrides,
   };
 }
@@ -128,6 +130,28 @@ describe('decideTriage', () => {
   it('readiness: draft 해제 → auto-merge (trailer 없어도)', () => {
     const r = decideTriage(base({ isDraft: false, lastCommitReady: false }));
     expect(r.decision).toBe('auto-merge');
+  });
+
+  // 권한 게이트(보안) — 외부 기여자(위조 불가 author_association)는 자동 머지 차단.
+  // authorKind='agent' 가 본문 마커로 위조됐어도 못 넘는다.
+  it('보안: 외부 기여자(NONE) 는 authorKind=agent 여도 human-review', () => {
+    const r = decideTriage(base({ authorKind: 'agent', authorAssociation: 'NONE' }));
+    expect(r.decision).toBe('human-review');
+    expect(r.reason).toMatch(/외부 기여자/);
+  });
+
+  it('보안: CONTRIBUTOR(협업자 아님) 도 차단', () => {
+    expect(decideTriage(base({ authorAssociation: 'CONTRIBUTOR' })).decision).toBe('human-review');
+  });
+
+  it('보안: 신뢰 association(OWNER/MEMBER/COLLABORATOR) 는 통과', () => {
+    expect(decideTriage(base({ authorAssociation: 'OWNER' })).decision).toBe('auto-merge');
+    expect(decideTriage(base({ authorAssociation: 'MEMBER' })).decision).toBe('auto-merge');
+    expect(decideTriage(base({ authorAssociation: 'COLLABORATOR' })).decision).toBe('auto-merge');
+  });
+
+  it('보안: association null(legacy·PAT) 은 게이트 미적용 (무회귀)', () => {
+    expect(decideTriage(base({ authorAssociation: null })).decision).toBe('auto-merge');
   });
 });
 

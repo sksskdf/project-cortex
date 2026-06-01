@@ -7,7 +7,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { db } from '@/db/client';
 import { notifications, prs, projects, triageDecisions, workspaces } from '@/db/schema';
-import { attemptAutoMerge, attemptHumanMerge, deleteMergedBranch } from './auto-merge';
+import {
+  attemptAutoMerge,
+  attemptHumanMerge,
+  deleteMergedBranch,
+  reconcileStuckAutoMerges,
+} from './auto-merge';
 import { setOctokit } from './github';
 import { setGitRunner } from './workspace';
 
@@ -480,5 +485,37 @@ describe('머지 후 자동 git pull (safeAutoPull)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('reconcileStuckAutoMerges', () => {
+  it('오래된 auto-mergeable PR 만 재시도 (최근 것·다른 status 는 제외)', async () => {
+    const mergeMock = vi.fn().mockResolvedValue({ data: { merged: true, sha: 's' } });
+    setOctokit(mockOctokit(mergeMock));
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000); // 3h 전 — stuck
+    const fresh = new Date(); // 방금 — 정상 진행 중
+
+    // stuck: auto-mergeable + 오래됨.
+    const stuckId = setupPR({ decision: 'auto-merge' });
+    db.update(prs).set({ updatedAt: old }).where(eq(prs.id, stuckId)).run();
+    // 최근 auto-mergeable — 제외.
+    const freshId = setupPR({ decision: 'auto-merge', slug: 'acme/fresh' });
+    db.update(prs).set({ updatedAt: fresh }).where(eq(prs.id, freshId)).run();
+    // review-needed — 제외(auto-mergeable 아님).
+    const reviewId = setupPR({ status: 'review-needed', decision: 'auto-merge', slug: 'acme/rev' });
+    db.update(prs).set({ updatedAt: old }).where(eq(prs.id, reviewId)).run();
+
+    const r = await reconcileStuckAutoMerges(60 * 60 * 1000); // 1h 임계
+    expect(r.retried).toBe(1); // stuck 만
+    // stuck 은 머지됨.
+    expect(db.select().from(prs).where(eq(prs.id, stuckId)).get()?.status).toBe('merged');
+    // fresh·review 는 그대로.
+    expect(db.select().from(prs).where(eq(prs.id, freshId)).get()?.status).toBe('auto-mergeable');
+    expect(db.select().from(prs).where(eq(prs.id, reviewId)).get()?.status).toBe('review-needed');
+  });
+
+  it('stuck PR 없으면 retried 0', async () => {
+    setOctokit(mockOctokit());
+    expect(await reconcileStuckAutoMerges(60 * 60 * 1000)).toEqual({ retried: 0 });
   });
 });

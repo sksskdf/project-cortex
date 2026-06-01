@@ -109,6 +109,10 @@ export const prs = sqliteTable(
     body: text('body'),
     authorKind: text('author_kind', { enum: ['agent', 'human'] }).notNull(),
     authorId: text('author_id').notNull(),
+    // GitHub author_association (OWNER/MEMBER/COLLABORATOR/CONTRIBUTOR/NONE 등). GitHub 이 계산해
+    // 주는 위조 불가 신호 — 자동 머지 권한 게이트에 사용(외부 기여자 차단). webhook 에서만 채워지며
+    // 없으면(legacy·reconcile·PAT) 게이트 미적용(무회귀). authorKind(본문 마커 기반·위조 가능)와 별개.
+    authorAssociation: text('author_association'),
     headSha: text('head_sha').notNull(),
     linesAdded: integer('lines_added').notNull(),
     linesRemoved: integer('lines_removed').notNull(),
