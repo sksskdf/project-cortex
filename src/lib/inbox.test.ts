@@ -1,7 +1,7 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { clusters, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import { currentUser } from '@/lib/config';
 import {
   deriveRowActions,
@@ -56,6 +56,7 @@ beforeEach(() => {
   db.delete(triageDecisions).run();
   db.delete(preReviews).run();
   db.delete(prs).run();
+  db.delete(clusters).run();
   db.delete(projects).run();
 });
 
@@ -405,5 +406,88 @@ describe('뮤트 프로젝트 — 인박스 표면에서 완전 제외', () => {
     expect(byId.all).toBe(3);
     expect(byId.flagged).toBe(1);
     expect(byId.mentioned).toBe(1);
+  });
+});
+
+// 카운트(배지)는 항상 대응하는 목록과 같은 필터여야 한다 — 둘이 어긋나면 배지(N) 인데 목록 0,
+// 혹은 그 반대인 혼란이 생긴다. 아래는 리뷰에서 발견된 3건의 카운트↔목록 불일치 회귀 테스트.
+describe('카운트 ↔ 목록 일치 (리뷰 회귀)', () => {
+  // 임의 status·clusterId 로 PR 한 건 삽입 (setupPR 은 항상 review-needed·비클러스터라 부족).
+  function insertRawPR(opts: {
+    repoId: number;
+    number: number;
+    status: 'review-needed' | 'merged' | 'closed';
+    clusterId?: number;
+  }): number {
+    return db
+      .insert(prs)
+      .values({
+        repoId: opts.repoId,
+        number: opts.number,
+        title: `PR ${opts.number}`,
+        authorKind: 'agent',
+        authorId: 'devin',
+        headSha: `sha-${opts.number}`,
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: opts.status,
+        clusterId: opts.clusterId ?? null,
+      })
+      .returning({ id: prs.id })
+      .get().id;
+  }
+
+  function insertCluster(): number {
+    return db
+      .insert(clusters)
+      .values({ pattern: 'p', title: 'cluster', avgConfidence: 80, status: 'open' })
+      .returning({ id: clusters.id })
+      .get().id;
+  }
+
+  it('done 카운트 = done 목록 길이 (뮤트 프로젝트 제외)', async () => {
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    insertRawPR({ repoId: active, number: 1, status: 'merged' });
+    insertRawPR({ repoId: active, number: 2, status: 'closed' });
+    insertRawPR({ repoId: muted, number: 3, status: 'merged' }); // 뮤트 → 둘 다에서 제외돼야.
+
+    const cats = await getInboxCategories();
+    const doneCount = cats.find((c) => c.id === 'done')?.count ?? 0;
+    const doneList = await listInboxQueue('done');
+    // 예전: 카운트는 뮤트 미제외(3) → 목록(2)과 어긋남. 이제 둘 다 활성 2건.
+    expect(doneCount).toBe(2);
+    expect(doneList.length).toBe(doneCount);
+  });
+
+  it('프로젝트 레일 카운트 = 그 프로젝트의 인박스 큐 목록 길이 (review-needed·비클러스터만)', async () => {
+    const repoId = setupProject('acme/web', false);
+    const cid = insertCluster();
+    setupPR({ repoId, number: 1 }); // review-needed·비클러스터 → 큐 대상.
+    insertRawPR({ repoId, number: 2, status: 'merged' }); // 머지 → 큐 비대상.
+    insertRawPR({ repoId, number: 3, status: 'review-needed', clusterId: cid }); // 클러스터 → 큐 비대상.
+
+    const rail = await getInboxProjects();
+    const railCount = rail.find((p) => p.id === 'acme/web')?.count ?? 0;
+    const queue = await listInboxQueue('all', '', 'acme/web');
+    // 예전: count(prs.id) 가 머지·클러스터까지 세어 3 → 실제 큐 목록(1)과 어긋남.
+    expect(railCount).toBe(1);
+    expect(queue.length).toBe(railCount);
+  });
+
+  it('cluster 카운트 = 활성 클러스터 PR (clusterId·review-needed·뮤트 아님)', async () => {
+    const active = setupProject('acme/web', false);
+    const muted = setupProject('acme/muted', true);
+    const cid = insertCluster();
+    insertRawPR({ repoId: active, number: 1, status: 'review-needed', clusterId: cid }); // 대상.
+    insertRawPR({ repoId: active, number: 2, status: 'merged', clusterId: cid }); // 머지 → 제외.
+    insertRawPR({ repoId: muted, number: 3, status: 'review-needed', clusterId: cid }); // 뮤트 → 제외.
+    insertRawPR({ repoId: active, number: 4, status: 'review-needed' }); // 비클러스터 → 제외.
+
+    const cats = await getInboxCategories();
+    const clusterCount = cats.find((c) => c.id === 'cluster')?.count ?? 0;
+    // 예전: triageDecisions.decision='cluster' 를 status/muted/clusterId 무관하게 세어 과대 계상.
+    expect(clusterCount).toBe(1);
   });
 });
