@@ -44,6 +44,20 @@ function isRaceMergeError(message: string): boolean {
   return RACE_ERROR_PATTERNS.some((re) => re.test(message));
 }
 
+// SHA 불일치 — PR head 가 분석 후 새 commit 으로 이동한 경우. GitHub 가 405 "Head branch was
+// modified" 또는 "Base branch was modified" 류 응답. 새 commit 의 webhook 이 새 분석/머지를
+// 다시 트리거하므로 여기선 그냥 idle 로 복귀(human-review 로 안 떨어뜨림).
+const SHA_MISMATCH_PATTERNS = [
+  /Head branch was modified/i,
+  /head.*modified/i,
+  /sha.*does.*match/i,
+  /expected.*sha/i,
+];
+
+function isShaMismatchError(message: string): boolean {
+  return SHA_MISMATCH_PATTERNS.some((re) => re.test(message));
+}
+
 // 같은 PR 에 대한 동시 머지 시도를 막는 in-process lock.
 const inFlightMerges = new Set<number>();
 
@@ -105,8 +119,10 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
 
   try {
     // commitTitle 미전송 — GitHub default ('<PR title> (#<number>)') 를 그대로 사용.
+    // sha — 분석 시점 head 와 같을 때만 머지 (race 가드). GitHub 가 head 이동 감지 시 405 거부.
     const result = await mergePR(project.installationId, { owner, repo }, pr.number, {
       method: 'squash',
+      sha: pr.headSha,
     });
     if (!result.merged) {
       return revertToReviewNeeded(prId, 'GitHub 머지 거부 — merged=false 반환.');
@@ -132,6 +148,13 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
       await safeAutoPull(prId);
       // sha 정확히 모르면 빈 문자열 — UI 는 short sha 7자만 쓰므로 빈 문자열도 큰 문제 없음.
       return { kind: 'merged', sha: '' };
+    }
+    // SHA 불일치 (head 가 그 사이 이동) — 새 commit 의 sync webhook 이 새 분석/triage 를
+    // 돌리므로 여기선 그냥 idle 로 복귀(상태 'auto-mergeable' 유지). human-review 로 안 떨어뜨림.
+    if (isShaMismatchError(message)) {
+      // status 를 review-needed 로 안 바꾸고, triage 를 새로 돌게 두지도 않음 — 새 commit 의
+      // synchronize webhook 이 analyzePR → runTriage → attemptAutoMerge 를 다시 트리거.
+      return { kind: 'skipped', reason: 'wrong-status' };
     }
     return revertToReviewNeeded(prId, `GitHub 머지 실패: ${message}`);
   }

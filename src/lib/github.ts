@@ -259,7 +259,7 @@ export async function mergePR(
   installationId: number,
   ref: RepoRef,
   number: number,
-  options?: { commitTitle?: string; method?: 'squash' | 'merge' | 'rebase' },
+  options?: { commitTitle?: string; method?: 'squash' | 'merge' | 'rebase'; sha?: string },
 ): Promise<{ merged: boolean; sha: string }> {
   const octokit = await getOctokitForInstallation(installationId);
   const { data } = await octokit.pulls.merge({
@@ -268,6 +268,9 @@ export async function mergePR(
     pull_number: number,
     commit_title: options?.commitTitle,
     merge_method: options?.method ?? 'squash',
+    // SHA 지정 — PR head 가 그 사이 새 commit 으로 이동했으면 GitHub 가 405 로 거부.
+    // 분석 안 된 새 commit 이 squash 에 포함돼 누락되는 race 방지 (Cortex 자체 사고로 확인됨).
+    sha: options?.sha,
   });
   return { merged: data.merged, sha: data.sha };
 }
