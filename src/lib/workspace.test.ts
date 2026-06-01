@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -71,6 +72,81 @@ describe('registerWorkspace path validation', () => {
     writeFileSync(join(dir, 'README.md'), 'hi');
     const r = registerWorkspace({ projectId, localPath: dir });
     expect(r.kind).toBe('invalid-path');
+  });
+
+  // 가드 1 — 같은 디렉토리에 두 프로젝트 등록 방지 (교차 등록 사고 박제).
+  it('rejects when localPath is already a workspace of another project', () => {
+    const a = seedProject('owner/a');
+    const b = seedProject('owner/b');
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    expect(registerWorkspace({ projectId: a, localPath: dir }).kind).toBe('registered');
+    const r = registerWorkspace({ projectId: b, localPath: dir });
+    expect(r.kind).toBe('invalid-path');
+    if (r.kind === 'invalid-path') {
+      expect(r.reason).toMatch(/다른 프로젝트/);
+    }
+  });
+
+  // 가드 1 음성 — 같은 projectId 재등록(update)은 통과해야 한다 (회귀 가드).
+  it('allows re-registering the same path for the same project (update)', () => {
+    const projectId = seedProject('owner/a');
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    expect(registerWorkspace({ projectId, localPath: dir }).kind).toBe('registered');
+    expect(registerWorkspace({ projectId, localPath: dir }).kind).toBe('updated');
+  });
+
+  // 가드 2 — .git 클론의 GitHub remote slug 가 프로젝트 slug 와 다르면 거부.
+  it('rejects a .git clone whose GitHub origin slug differs from project slug', () => {
+    const projectId = seedProject('owner/web');
+    const dir = tmpDir();
+    // 실제 git init + GitHub URL remote 설정 (테스트도 실제 git 사용).
+    execFileSync('git', ['init', '-q', '-b', 'main', dir]);
+    execFileSync('git', [
+      '-C',
+      dir,
+      'remote',
+      'add',
+      'origin',
+      'https://github.com/other/repo.git',
+    ]);
+    const r = registerWorkspace({ projectId, localPath: dir });
+    expect(r.kind).toBe('invalid-path');
+    if (r.kind === 'invalid-path') {
+      expect(r.reason).toMatch(/other\/repo/);
+      expect(r.reason).toMatch(/owner\/web/);
+    }
+  });
+
+  // 가드 2 음성 — slug 매칭 OR 비-GitHub URL(skip) 이면 통과.
+  it('allows .git clone when origin slug matches, or when remote is not GitHub (skip)', () => {
+    // 매칭
+    const a = seedProject('owner/web');
+    const dirA = tmpDir();
+    execFileSync('git', ['init', '-q', '-b', 'main', dirA]);
+    execFileSync('git', [
+      '-C',
+      dirA,
+      'remote',
+      'add',
+      'origin',
+      'https://github.com/owner/web.git',
+    ]);
+    expect(registerWorkspace({ projectId: a, localPath: dirA }).kind).toBe('registered');
+
+    // 비-GitHub → skip → 허용 (GitLab 등 사용자 자유)
+    const b = seedProject('owner/internal');
+    const dirB = tmpDir();
+    execFileSync('git', ['init', '-q', '-b', 'main', dirB]);
+    execFileSync('git', ['-C', dirB, 'remote', 'add', 'origin', 'https://gitlab.com/x/y.git']);
+    expect(registerWorkspace({ projectId: b, localPath: dirB }).kind).toBe('registered');
+
+    // .git 만 있고 origin 미설정 → readGitOriginSlug 가 null → skip → 허용 (기존 테스트 호환).
+    const c = seedProject('owner/bare');
+    const dirC = tmpDir();
+    mkdirSync(join(dirC, '.git'));
+    expect(registerWorkspace({ projectId: c, localPath: dirC }).kind).toBe('registered');
   });
 });
 
