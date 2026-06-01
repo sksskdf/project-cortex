@@ -47,7 +47,8 @@ export type TestFixResult =
         | 'no-workspace'
         | 'workspace-missing'
         | 'fork-or-cross-repo'
-        | 'max-attempts';
+        | 'max-attempts'
+        | 'pr-closed';
     }
   | { kind: 'failed'; reason: string };
 
@@ -209,6 +210,19 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
       pr.number,
       `테스트 수정 커밋 실패: ${tail(committed.stderr)}`,
     );
+  }
+  // 긴 테스트 수정(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. webhook 으로 DB
+  // status 가 갱신됐으면 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
+  // 'tests-fixed' 알림 방지(conflict-resolve 와 동일 가드, push 직전 재확인).
+  const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, prId)).get();
+  if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
+    await restore(cwd, headRef);
+    clearAutomationInFlight(prId);
+    logger.info(
+      { source: 'test-fix', prId, status: cur.status },
+      'PR 이 수정 중 머지/닫힘 — push 생략',
+    );
+    return { kind: 'skipped', reason: 'pr-closed' };
   }
   const pushed = await git(cwd, ['push', 'origin', headRef]);
   if (pushed.code !== 0) {

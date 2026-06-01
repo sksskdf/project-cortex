@@ -56,7 +56,8 @@ export type ReviewFixResult =
         | 'no-workspace'
         | 'workspace-missing'
         | 'fork-or-cross-repo'
-        | 'max-attempts';
+        | 'max-attempts'
+        | 'pr-closed';
     }
   | { kind: 'failed'; reason: string };
 
@@ -225,6 +226,19 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
       pr.number,
       `변경 반영 커밋 실패: ${tail(committed.stderr)}`,
     );
+  }
+  // 긴 변경 반영(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. webhook 으로 DB
+  // status 가 갱신됐으면 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
+  // 'review-addressed' 알림 방지(conflict-resolve·test-fix 와 동일 가드).
+  const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, pr.id)).get();
+  if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
+    await restore(cwd, headRef);
+    clearAutomationInFlight(pr.id);
+    logger.info(
+      { source: 'review-fix', prId: pr.id, status: cur.status },
+      'PR 이 반영 중 머지/닫힘 — push 생략',
+    );
+    return { kind: 'skipped', reason: 'pr-closed' };
   }
   const pushed = await git(cwd, ['push', 'origin', headRef]);
   if (pushed.code !== 0) {
