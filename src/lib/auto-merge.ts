@@ -6,7 +6,13 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects, triageDecisions, type PRRecord } from '@/db/schema';
 import { attemptConflictResolution } from './conflict-resolve';
-import { closePR, deletePRHeadBranch, mergePR, requestChangesReview } from './github';
+import {
+  closePR,
+  deletePRHeadBranch,
+  isPullRequestMerged,
+  mergePR,
+  requestChangesReview,
+} from './github';
 import { createNotification } from './notifications';
 import { matchAndApplyDoneFromPR } from './roadmap';
 import { getWorkspace, pullWorkspace } from './workspace';
@@ -32,30 +38,35 @@ export type AutoMergeResult =
 // 성공: PR.status='merged' (+ 머지된 head 브랜치 자동 삭제). 실패/거부: PR.status='review-needed' + 사유 갱신.
 //
 // race-safe: GitHub 가 같은 PR 의 check_run/check_suite completed 두 webhook 을 거의 동시에
-// 보내면 handleCheckWebhook 가 병렬 두 번 실행 → 둘 다 attemptAutoMerge 호출 → 두 번째가
-// "Merge already in progress" 또는 "Pull Request is not mergeable" 응답하는 케이스.
-// 이런 경우 첫 호출이 성공한 상태라 실패 처리하지 않고 success 로 정정.
-const RACE_ERROR_PATTERNS = [
-  /Merge already in progress/i,
-  /Pull Request is not mergeable/i, // 이미 머지된 PR 은 not mergeable 로 응답되기도 함
-];
-
-function isRaceMergeError(message: string): boolean {
-  return RACE_ERROR_PATTERNS.some((re) => re.test(message));
-}
-
-// SHA 불일치 — PR head 가 분석 후 새 commit 으로 이동한 경우. GitHub 가 405 "Head branch was
-// modified" 또는 "Base branch was modified" 류 응답. 새 commit 의 webhook 이 새 분석/머지를
-// 다시 트리거하므로 여기선 그냥 idle 로 복귀(human-review 로 안 떨어뜨림).
+// SHA/base 불일치 — PR head(또는 base)가 분석 후 이동한 경우. GitHub 가 405 "Head branch was
+// modified" / "Base branch was modified" 류 응답. 새 commit 의 webhook 이 새 분석/머지를 다시
+// 트리거하므로 여기선 idle 로 복귀(human-review 로 안 떨어뜨림). base 이동도 재트라이지하면
+// 회복되므로 동일 처리(예전엔 base-modified 가 패턴에 없어 불필요하게 human-review 로 강등됐음).
 const SHA_MISMATCH_PATTERNS = [
   /Head branch was modified/i,
+  /Base branch was modified/i,
   /head.*modified/i,
+  /base.*modified/i,
   /sha.*does.*match/i,
   /expected.*sha/i,
 ];
 
 function isShaMismatchError(message: string): boolean {
   return SHA_MISMATCH_PATTERNS.some((re) => re.test(message));
+}
+
+// 머지 에러 catch 시 "정말 머지됐는지" GitHub 에 확정 조회. 조회 실패 시 false(보수적 — 확실치
+// 않으면 merged 로 마킹하지 않아, 머지 안 된 PR 을 merged 로 오인하는 사고를 막는다).
+async function safeIsMerged(
+  installationId: number,
+  ref: { owner: string; repo: string },
+  number: number,
+): Promise<boolean> {
+  try {
+    return await isPullRequestMerged(installationId, ref, number);
+  } catch {
+    return false;
+  }
 }
 
 // 같은 PR 에 대한 동시 머지 시도를 막는 in-process lock.
@@ -138,23 +149,22 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // race condition — 다른 병렬 호출이 이미 머지 성공한 경우. PR.status='merged' 로
-    // 정정 + 'merged' 로 응답. revertToReviewNeeded 호출 안 함 (triage decision 보존).
-    // race 케이스는 첫 호출이 이미 알림을 만들었을 가능성이 높으니 중복 알림 안 만듦.
-    if (isRaceMergeError(message)) {
+    // SHA/base 불일치 (head·base 가 그 사이 이동) — 새 commit 의 sync webhook 이 새 분석/triage 를
+    // 돌리므로 여기선 그냥 idle 로 복귀(상태 'auto-mergeable' 유지). human-review 로 안 떨어뜨림.
+    if (isShaMismatchError(message)) {
+      return { kind: 'skipped', reason: 'wrong-status' };
+    }
+    // 그 외 머지 에러 — "이미 머지됨(병렬/외부 race)" 인지 GitHub 에 **실제 머지 상태로 확정**한다.
+    // 예전엔 'Pull Request is not mergeable' 같은 메시지를 무조건 race(=성공)로 가정해, 충돌·CI
+    // 실패·브랜치보호로 **머지 안 된** PR 을 merged 로 마킹하고 브랜치 삭제·로드맵 done 처리하던
+    // 사고가 있었다(리뷰 발견). 진짜 머지된 경우만 merged 처리, 아니면 human-review 로.
+    if (await safeIsMerged(project.installationId, { owner, repo }, pr.number)) {
       db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
       await safeDeleteBranch(prId);
       safeApplyRoadmap(prId);
       await safeAutoPull(prId);
       // sha 정확히 모르면 빈 문자열 — UI 는 short sha 7자만 쓰므로 빈 문자열도 큰 문제 없음.
       return { kind: 'merged', sha: '' };
-    }
-    // SHA 불일치 (head 가 그 사이 이동) — 새 commit 의 sync webhook 이 새 분석/triage 를
-    // 돌리므로 여기선 그냥 idle 로 복귀(상태 'auto-mergeable' 유지). human-review 로 안 떨어뜨림.
-    if (isShaMismatchError(message)) {
-      // status 를 review-needed 로 안 바꾸고, triage 를 새로 돌게 두지도 않음 — 새 commit 의
-      // synchronize webhook 이 analyzePR → runTriage → attemptAutoMerge 를 다시 트리거.
-      return { kind: 'skipped', reason: 'wrong-status' };
     }
     return revertToReviewNeeded(prId, `GitHub 머지 실패: ${message}`);
   }

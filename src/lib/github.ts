@@ -329,6 +329,23 @@ export function isCortexReadyMarker(message: string): boolean {
   return /^Cortex:\s*ready\s*$/im.test(message);
 }
 
+// PR 이 실제로 머지됐는지 GitHub 에 직접 확인 (pulls.get 의 merged boolean). 자동 머지 catch 가
+// "에러 메시지가 race 처럼 보인다"는 추측 대신 진짜 머지 여부로 분기하는 데 사용 — 충돌·CI실패로
+// 머지 안 된 PR 을 merged 로 오인하는 사고 방지.
+export async function isPullRequestMerged(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<boolean> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { data } = await octokit.pulls.get({
+    owner: ref.owner,
+    repo: ref.repo,
+    pull_number: number,
+  });
+  return Boolean(data.merged);
+}
+
 export async function getPRMergeStatus(
   installationId: number,
   ref: RepoRef,

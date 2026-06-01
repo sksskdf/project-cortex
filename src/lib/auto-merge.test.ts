@@ -11,9 +11,12 @@ import { attemptAutoMerge, attemptHumanMerge, deleteMergedBranch } from './auto-
 import { setOctokit } from './github';
 import { setGitRunner } from './workspace';
 
-function mockOctokit(merge?: Mock): Octokit {
+function mockOctokit(merge?: Mock, get?: Mock): Octokit {
   return {
-    pulls: { get: vi.fn(), merge: merge ?? vi.fn() },
+    pulls: {
+      get: get ?? vi.fn().mockResolvedValue({ data: { merged: false } }),
+      merge: merge ?? vi.fn(),
+    },
   } as unknown as Octokit;
 }
 
@@ -171,6 +174,37 @@ describe('attemptAutoMerge', () => {
     expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
     const td = db.select().from(triageDecisions).where(eq(triageDecisions.prId, prId)).get();
     expect(td?.decision).toBe('human-review');
+  });
+
+  // 리뷰 발견 수정: "not mergeable" 에러를 무조건 race(=성공)로 가정하지 않는다. GitHub 에
+  // 실제 머지 여부를 물어, 머지 안 됐으면 review-needed (merged 로 오인 + 브랜치 삭제 방지).
+  it('"not mergeable" 에러 + GitHub 가 미머지 → review-needed (merged 오인 안 함)', async () => {
+    const mergeMock = vi.fn().mockRejectedValue(new Error('Pull Request is not mergeable'));
+    const getMock = vi.fn().mockResolvedValue({ data: { merged: false } });
+    setOctokit(mockOctokit(mergeMock, getMock));
+    const prId = setupPR({ decision: 'auto-merge' });
+
+    const r = await attemptAutoMerge(prId);
+
+    expect(r.kind).toBe('failed');
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('review-needed');
+    // merged 로 마킹 안 됨 + auto-merged 알림 0.
+    expect(
+      db.select().from(notifications).where(eq(notifications.kind, 'auto-merged')).all(),
+    ).toHaveLength(0);
+  });
+
+  // 진짜 race(다른 호출이 이미 머지) — GitHub 가 merged=true → merged 로 정정.
+  it('머지 에러 + GitHub 가 이미 머지됨 → merged 로 정정 (진짜 race)', async () => {
+    const mergeMock = vi.fn().mockRejectedValue(new Error('Pull Request is not mergeable'));
+    const getMock = vi.fn().mockResolvedValue({ data: { merged: true } });
+    setOctokit(mockOctokit(mergeMock, getMock));
+    const prId = setupPR({ decision: 'auto-merge' });
+
+    const r = await attemptAutoMerge(prId);
+
+    expect(r.kind).toBe('merged');
+    expect(db.select().from(prs).where(eq(prs.id, prId)).get()?.status).toBe('merged');
   });
 
   it('is idempotent — running twice on a merged PR no-ops', async () => {
