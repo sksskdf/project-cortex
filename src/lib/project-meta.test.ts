@@ -158,4 +158,29 @@ random tail text
     const phases = parseRoadmapMd(md);
     expect(phases[0].items[0].done).toBe(true);
   });
+
+  it('parses dotted version keys (4.5 · 10.1 · 13.6)', () => {
+    // roadmap.md 가 실제로 쓰는 점 구분 버전키 — 이전엔 '.' 에서 잘려 매칭 실패해 phase 가
+    // 통째로 누락됐다 (스키마 불일치).
+    const md = `## Phase 4.5 — LLM 비용 최적화
+- [x] diff 토큰 절감
+
+## Phase 13.6 — claude CLI 최신 활용
+- [ ] 리서치`;
+    const phases = parseRoadmapMd(md);
+    expect(phases.map((p) => p.key)).toEqual(['4.5', '13.6']);
+    expect(phases[0].title).toBe('LLM 비용 최적화');
+    expect(phases[0].items).toHaveLength(1);
+    expect(phases[1].key).toBe('13.6');
+  });
+
+  it('keeps dotted key distinct from its parent integer key', () => {
+    const md = `## Phase 13 — Claude CLI 통합
+- [x] 부모
+
+## Phase 13.1 — 변경 요청 자동 처리
+- [x] 자식`;
+    const phases = parseRoadmapMd(md);
+    expect(phases.map((p) => p.key)).toEqual(['13', '13.1']);
+  });
 });

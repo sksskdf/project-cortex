@@ -258,6 +258,31 @@ describe('matchAndApplyDoneFromPR — Closes #PHASE-<key>', () => {
     expect(phase?.status).toBe('done');
   });
 
+  it('점 구분 버전키(#PHASE-13.6) 는 부모(13) 가 아니라 자신만 매칭', () => {
+    const projectId = seedProject();
+    const parent = createPhase({ projectId, key: '13', title: 'Claude CLI 통합' });
+    const child = createPhase({ projectId, key: '13.6', title: 'claude CLI 최신 활용' });
+    if (parent.kind !== 'created' || child.kind !== 'created') throw new Error('setup');
+    const prId = seedPR(projectId, 'Closes #PHASE-13.6');
+    const r = matchAndApplyDoneFromPR(prId);
+    expect(r.phasesDone).toEqual([child.id]);
+    expect(
+      db.select().from(roadmapPhases).where(eq(roadmapPhases.id, parent.id)).get()?.status,
+    ).toBe('planned');
+    expect(
+      db.select().from(roadmapPhases).where(eq(roadmapPhases.id, child.id)).get()?.status,
+    ).toBe('done');
+  });
+
+  it('끝의 문장부호 점은 키에 포함 안 함 (#PHASE-13.6.)', () => {
+    const projectId = seedProject();
+    const child = createPhase({ projectId, key: '13.6', title: 'C' });
+    if (child.kind !== 'created') throw new Error('setup');
+    const prId = seedPR(projectId, 'Closes #PHASE-13.6.');
+    const r = matchAndApplyDoneFromPR(prId);
+    expect(r.phasesDone).toEqual([child.id]);
+  });
+
   it('PR body 빈 경우 매칭 0', () => {
     const projectId = seedProject();
     createPhase({ projectId, key: '1', title: 'A' });

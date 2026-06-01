@@ -552,8 +552,10 @@ export function deleteItem(itemId: number): { kind: 'deleted' } | { kind: 'not-f
 
 // PR 본문에서 'Closes #PHASE-<key>' 또는 'Closes #ITEM-<id>' 패턴을 추출.
 // GitHub PR description 컨벤션. case-insensitive, 'Fixes' / 'Resolves' 도 인식.
-// 같은 PR 에 여러 매칭 가능.
-const PHASE_KEY_PATTERN = /(?:Closes|Fixes|Resolves)\s+#PHASE-([A-Za-z0-9_-]+)/gi;
+// 같은 PR 에 여러 매칭 가능. key 는 점 구분 버전키 허용 (#PHASE-13.6 등) — 그렇지 않으면
+// '13.6' 이 '13' 으로 잘려 부모 Phase 13 을 오매칭함. 끝의 문장부호 '.' 는 포함 안 함.
+const PHASE_KEY_PATTERN =
+  /(?:Closes|Fixes|Resolves)\s+#PHASE-([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)/gi;
 const ITEM_ID_PATTERN = /(?:Closes|Fixes|Resolves)\s+#ITEM-(\d+)/gi;
 
 export type RoadmapMatchResult = {
