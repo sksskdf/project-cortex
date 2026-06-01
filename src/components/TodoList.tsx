@@ -9,9 +9,11 @@ import {
   createTodoAction,
   deleteTodoAction,
   linkTodoToIssueAction,
+  promoteTodoToIssueAction,
   toggleTodoStatusAction,
 } from '@/actions/todos';
 import { StatusChip } from '@/components/StatusChip';
+import { useAgentDrawer } from '@/components/AgentDrawer';
 import type { IssueOption } from '@/lib/issues';
 import type { TodoPriority, TodoView } from '@/lib/todos';
 import styles from './TodoList.module.css';
@@ -184,6 +186,7 @@ function TodoRow({
   issueById: Map<number, IssueOption>;
 }) {
   const [pending, startTransition] = useTransition();
+  const { openDrawer } = useAgentDrawer();
 
   function onToggle() {
     const next = todo.status === 'done' ? 'open' : 'done';
@@ -204,7 +207,20 @@ function TodoRow({
     });
   }
 
+  // Phase 18 — 승격: TODO → 이슈(Claude 위임). 워크스페이스가 있으면 NewIssueDialog 와 동일하게
+  // 이슈명 claude 세션을 드로어에서 자동 spawn. 없으면 이슈만 생성(드로어 안 엶).
+  function onPromote() {
+    startTransition(async () => {
+      const res = await promoteTodoToIssueAction(todo.id);
+      if (res.kind === 'promoted' && res.delegate?.autoStart) {
+        openDrawer(res.delegate.autoStart);
+      }
+    });
+  }
+
   const linkedIssue = todo.issueId !== null ? (issueById.get(todo.issueId) ?? null) : null;
+  // 승격 가능 — 프로젝트 연결됨 + 아직 이슈 미연결 + 미완료.
+  const canPromote = todo.projectId !== null && todo.issueId === null && todo.status !== 'done';
 
   return (
     <li className={`${styles.row} ${todo.status === 'done' ? styles.rowDone : ''}`}>
@@ -247,22 +263,35 @@ function TodoRow({
             </button>
           </span>
         ) : (
-          issues.length > 0 && (
-            <select
-              className={styles.issueSelect}
-              value=""
-              onChange={(e) => onLinkIssue(e.target.value === '' ? null : Number(e.target.value))}
-              disabled={pending}
-              aria-label={t.todos.issueLink.label}
-            >
-              <option value="">{t.todos.issueLink.none}</option>
-              {issues.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.title}
-                </option>
-              ))}
-            </select>
-          )
+          <>
+            {issues.length > 0 && (
+              <select
+                className={styles.issueSelect}
+                value=""
+                onChange={(e) => onLinkIssue(e.target.value === '' ? null : Number(e.target.value))}
+                disabled={pending}
+                aria-label={t.todos.issueLink.label}
+              >
+                <option value="">{t.todos.issueLink.none}</option>
+                {issues.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.title}
+                  </option>
+                ))}
+              </select>
+            )}
+            {canPromote && (
+              <button
+                type="button"
+                className={styles.promote}
+                onClick={onPromote}
+                disabled={pending}
+                title={t.todos.promote.hint}
+              >
+                {t.todos.promote.label}
+              </button>
+            )}
+          </>
         )}
       </div>
       <button

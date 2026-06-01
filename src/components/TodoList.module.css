@@ -197,6 +197,29 @@
   border-color: var(--ds-color-secondary-01);
 }
 
+/* Phase 18 — 승격 버튼. issueSelect 와 톤 맞추되 accent 로 행동 유도. */
+.promote {
+  font-family: inherit;
+  font-size: var(--ds-typography-font-size-11);
+  color: var(--ds-color-secondary-01);
+  background: var(--ds-color-bg-01);
+  border: var(--ds-border-width-1) solid var(--ds-color-secondary-01);
+  border-radius: var(--ds-border-radius-input);
+  padding: 1px var(--ds-spacing-6);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.promote:hover:not(:disabled) {
+  background: var(--ds-color-secondary-01);
+  color: var(--ds-color-bg-01);
+}
+
+.promote:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .issueChip {
   display: inline-flex;
   align-items: center;

@@ -5,6 +5,7 @@
 import { asc, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { projects, prs, todos, type TodoRow } from '@/db/schema';
+import { createIssue } from './issues';
 
 export type TodoStatus = 'open' | 'in-progress' | 'done';
 export type TodoPriority = 'low' | 'normal' | 'high';
@@ -172,6 +173,47 @@ export function deleteTodo(todoId: number): { kind: 'deleted' } | { kind: 'not-f
   if (!existing) return { kind: 'not-found' };
   db.delete(todos).where(eq(todos.id, todoId)).run();
   return { kind: 'deleted' };
+}
+
+// Phase 18 — 승격 플로우. TODO 를 이슈로 승격(= Claude 위임 후보)한다. 고도(altitude) 계층상
+// TODO → 이슈 → 로드맵 산출물. 이슈는 repo 에 묶이므로 projectId 가 있는 TODO 만 승격 가능
+// (어느 레포의 작업인지 명확해야 위임이 가능). 이미 이슈에 연결된 TODO 는 재승격 불가.
+// 승격 = 이슈 생성(delegate 옵션) + TODO↔이슈 연결 + TODO 를 in-progress 로. 위임 spawn(claude
+// 세션)은 action 레이어가 createIssueAction 과 동일하게 처리.
+export type PromoteTodoResult =
+  | { kind: 'promoted'; issueId: number; repoId: number; title: string; spec: string }
+  | { kind: 'not-found' }
+  | { kind: 'no-project' }
+  | { kind: 'already-linked'; issueId: number }
+  | { kind: 'error'; message: string };
+
+export function promoteTodoToIssue(
+  todoId: number,
+  opts: { delegateToClaude: boolean; humanAssigneeId: string },
+): PromoteTodoResult {
+  const todo = db.select().from(todos).where(eq(todos.id, todoId)).get();
+  if (!todo) return { kind: 'not-found' };
+  if (todo.projectId === null) return { kind: 'no-project' };
+  if (todo.issueId !== null) return { kind: 'already-linked', issueId: todo.issueId };
+
+  // spec — TODO note 가 있으면 그걸, 없으면 제목을 spec 으로(이슈 spec 은 필수).
+  const spec = todo.note?.trim() || todo.title.trim();
+  const created = createIssue({
+    repoId: todo.projectId,
+    title: todo.title,
+    spec,
+    delegateToClaude: opts.delegateToClaude,
+    humanAssigneeId: opts.humanAssigneeId,
+  });
+  if (created.kind === 'error') return { kind: 'error', message: created.message };
+
+  // TODO ↔ 이슈 연결 + TODO 를 in-progress 로(이슈가 작업을 이어받음).
+  db.update(todos)
+    .set({ issueId: created.id, status: 'in-progress', updatedAt: new Date() })
+    .where(eq(todos.id, todoId))
+    .run();
+
+  return { kind: 'promoted', issueId: created.id, repoId: todo.projectId, title: todo.title, spec };
 }
 
 // 사이드바 widget 용 — open todo 카운트.
