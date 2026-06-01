@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `agent_worktree_enabled` integer DEFAULT false NOT NULL;

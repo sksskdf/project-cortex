@@ -18,6 +18,13 @@ import { existsSync } from 'node:fs';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { spawn, type IPty } from 'node-pty';
 import { getWorkspaceById } from '@/lib/workspace';
+import { getSettings } from '@/lib/settings';
+import {
+  createAgentWorktree,
+  isGitRepo,
+  removeAgentWorktree,
+  worktreePathFor,
+} from '@/lib/agent-worktree';
 import { claudeSpawnEnv, resolveClaude } from '@/lib/agents';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import {
@@ -280,10 +287,13 @@ function startPty(
   const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claude.path);
   const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : claude.path;
   const args = isWinScript ? ['/c', claude.path, ...claudeArgs] : claudeArgs;
+  // Phase 16 — worktree 격리(설정 ON 일 때만). 세션을 별도 worktree 에서 spawn 해 메인 체크아웃의
+  // 브랜치를 보호. 어떤 실패든 워크스페이스 cwd 로 폴백 — OFF/비-git/실패 시 기존 동작 그대로(무회귀).
+  const cwd = resolveSpawnCwd(workspace.localPath, sessionId, mode);
   try {
     return spawn(file, args, {
       name: 'xterm-256color',
-      cwd: workspace.localPath,
+      cwd,
       cols,
       rows,
       env: claudeSpawnEnv(),
@@ -291,6 +301,27 @@ function startPty(
   } catch (err) {
     sysClose(ws, `세션을 시작하지 못했습니다: ${errMsg(err)}`);
     return null;
+  }
+}
+
+// 세션 spawn cwd 결정. 설정 OFF(기본) 또는 비-git 또는 실패면 워크스페이스 localPath(=기존 동작).
+// ON + git repo: 'new' 는 worktree 생성, 'resume' 는 기존 worktree 재사용(있을 때).
+function resolveSpawnCwd(
+  workspaceLocalPath: string,
+  sessionId: string,
+  mode: 'new' | 'resume',
+): string {
+  try {
+    if (!getSettings().agentWorktreeEnabled) return workspaceLocalPath;
+    if (!isGitRepo(workspaceLocalPath)) return workspaceLocalPath;
+    if (mode === 'new') {
+      return createAgentWorktree(workspaceLocalPath, sessionId) ?? workspaceLocalPath;
+    }
+    const wt = worktreePathFor(workspaceLocalPath, sessionId);
+    return existsSync(wt) ? wt : workspaceLocalPath;
+  } catch (err) {
+    console.error('worktree cwd 해석 실패 — 워크스페이스 cwd 폴백:', err);
+    return workspaceLocalPath;
   }
 }
 
@@ -444,6 +475,14 @@ function destroy(session: Session, ok = true) {
   if (session.runId != null) {
     finishAgentRun(session.runId, ok);
     session.runId = null;
+  }
+  // Phase 16 — 세션 worktree 정리(있을 때만 — 없으면 no-op 라 OFF 모드 무해). 잔존 브랜치/디렉토리
+  // 누적 방지. best-effort — 정리 실패가 세션 종료를 막지 않게.
+  try {
+    const ws = getWorkspaceById(session.workspaceId);
+    if (ws) removeAgentWorktree(ws.localPath, session.id);
+  } catch (err) {
+    console.error(`worktree 정리 실패 (세션 ${session.id}):`, err);
   }
   if (session.ws && session.ws.readyState === WebSocket.OPEN) session.ws.close();
   sessions.delete(session.id);

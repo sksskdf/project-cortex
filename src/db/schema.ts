@@ -235,6 +235,11 @@ export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey(),
   // false 면 analyzePR · tryClusterPR · 자동 머지가 모두 skip — Anthropic 호출 0.
   aiEnabled: integer('ai_enabled', { mode: 'boolean' }).notNull().default(true),
+  // Phase 16 — 위임 세션을 별도 git worktree 에서 spawn(메인 체크아웃 브랜치 보호). 기본 OFF
+  // (opt-in) — 런타임 검증 후 사용. OFF 면 기존처럼 워크스페이스 cwd 에서 spawn(무회귀).
+  agentWorktreeEnabled: integer('agent_worktree_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 

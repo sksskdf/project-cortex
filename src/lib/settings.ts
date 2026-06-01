@@ -25,3 +25,14 @@ export function setAiEnabled(enabled: boolean): AppSettingsRow {
     .returning()
     .get();
 }
+
+// Phase 16 — 위임 세션 worktree 격리 토글.
+export function setAgentWorktreeEnabled(enabled: boolean): AppSettingsRow {
+  getSettings();
+  return db
+    .update(appSettings)
+    .set({ agentWorktreeEnabled: enabled, updatedAt: new Date() })
+    .where(eq(appSettings.id, SETTINGS_ID))
+    .returning()
+    .get();
+}

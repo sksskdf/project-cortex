@@ -1,5 +1,6 @@
 import { ko as t } from '@/copy/ko';
 import { AiToggle } from '@/components/AiToggle';
+import { WorktreeToggle } from '@/components/WorktreeToggle';
 import { GithubAppsManager } from '@/components/GithubAppsManager';
 import { InstallCortexSkillButton } from '@/components/InstallCortexSkillButton';
 import { listGithubApps } from '@/lib/github-apps';
@@ -44,6 +45,16 @@ export default async function SettingsPage() {
             <li>{t.settings.ai.impact.humanFlow}</li>
           </ul>
         </div>
+      </section>
+
+      <section className={styles.card} aria-label={t.settings.worktree.title}>
+        <div className={styles.cardHead}>
+          <div>
+            <div className={styles.cardTitle}>{t.settings.worktree.title}</div>
+            <div className={styles.cardDesc}>{t.settings.worktree.desc}</div>
+          </div>
+        </div>
+        <WorktreeToggle initial={settings.agentWorktreeEnabled} />
       </section>
 
       <section className={styles.card} aria-label={t.settings.skill.title}>
