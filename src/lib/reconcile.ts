@@ -69,6 +69,7 @@ export async function reconcileProject(projectId: number): Promise<ReconcileResu
         merged: pr.merged,
         authorLogin: pr.authorLogin,
         authorKind: classifyAuthor(pr.authorLogin, pr.authorType, pr.authorBody),
+        authorAssociation: pr.authorAssociation,
         createdAt: pr.createdAt,
         updatedAt: pr.updatedAt,
       },

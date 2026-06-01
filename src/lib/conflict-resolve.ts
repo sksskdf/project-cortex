@@ -24,7 +24,7 @@ import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
 import { CORTEX_HEADLESS_GUIDANCE } from './cortex-skill';
 import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
-import { addPRComment, getPRMergeStatus } from './github';
+import { addPRComment, getPRMergeStatus, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
 import { getWorkspace } from './workspace';
@@ -49,7 +49,8 @@ export type ConflictResolveResult =
         | 'fork-or-cross-repo'
         | 'not-dirty'
         | 'too-large'
-        | 'pr-closed';
+        | 'pr-closed'
+        | 'untrusted-author';
     }
   | { kind: 'failed'; reason: string };
 
@@ -90,6 +91,17 @@ function realGit(cwd: string, args: ReadonlyArray<string>): Promise<GitResult> {
 export async function attemptConflictResolution(prId: number): Promise<ConflictResolveResult> {
   const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
   if (!pr) return { kind: 'skipped', reason: 'no-pr' };
+  // 이미 머지/닫힌 PR(late/중복 webhook)은 수 분짜리 claude 작업을 통째로 낭비하므로 시작 시 skip
+  // (push 직전 가드와 대칭 — 양 끝에서 끝난 PR 방어).
+  if (pr.status === 'merged' || pr.status === 'closed') {
+    return { kind: 'skipped', reason: 'pr-closed' };
+  }
+  // 외부 기여자 PR(위조 불가 author_association)은 자동화 대상 아님 — 그들의 코드를 체크아웃해
+  // skip-permissions 로 claude 를 돌리고 push 하는 건 신뢰 작업이라 레포 멤버/협업자 PR 로 한정.
+  // null(legacy·PAT)이면 미적용(무회귀). fork 가드(아래)와 별개의 권한 게이트.
+  if (isUntrustedAuthorAssociation(pr.authorAssociation)) {
+    return { kind: 'skipped', reason: 'untrusted-author' };
+  }
 
   const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
   if (!project) return { kind: 'skipped', reason: 'no-project' };

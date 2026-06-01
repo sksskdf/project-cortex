@@ -210,6 +210,23 @@ export function classifyAuthor(
   return 'human';
 }
 
+// GitHub 이 계산하는(위조 불가) author_association 중, 레포 멤버/협업자가 아닌 외부 기여자 값.
+// 자동 머지·claude 자동화(체크아웃 + skip-permissions 실행 + push) 등 권한 작업을 외부 PR 에
+// 대해 막는 데 공용으로 쓴다. authorKind(PR 본문 마커 기반·위조 가능)와 독립.
+const UNTRUSTED_AUTHOR_ASSOCIATIONS = new Set([
+  'NONE',
+  'CONTRIBUTOR',
+  'FIRST_TIMER',
+  'FIRST_TIME_CONTRIBUTOR',
+  'MANNEQUIN',
+]);
+
+// author_association 이 명시적으로 외부 기여자면 true. null/undefined(legacy·PAT·reconcile 미보유)나
+// 신뢰값(OWNER/MEMBER/COLLABORATOR)은 false → 게이트 미적용(무회귀). 보수적: 확실히 외부일 때만 차단.
+export function isUntrustedAuthorAssociation(association: string | null | undefined): boolean {
+  return !!association && UNTRUSTED_AUTHOR_ASSOCIATIONS.has(association.toUpperCase());
+}
+
 export async function getPRDetails(
   installationId: number,
   ref: RepoRef,
@@ -510,6 +527,7 @@ export type PRListItem = {
   authorLogin: string;
   authorType: string | undefined;
   authorBody: string | null;
+  authorAssociation: string | null;
   additions: number;
   deletions: number;
   changedFiles: number;
@@ -556,6 +574,7 @@ export async function listOpenPullRequests(
         authorLogin: pr.user?.login ?? 'unknown',
         authorType: pr.user?.type,
         authorBody: pr.body ?? null,
+        authorAssociation: pr.author_association ?? null,
         additions: 0, // list endpoint 는 stats 미포함 — 0 으로 두고 다음 sync 시 갱신.
         deletions: 0,
         changedFiles: 0,

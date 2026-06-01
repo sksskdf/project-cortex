@@ -107,10 +107,17 @@ describe('mapPullRequestEvent', () => {
         merged: false,
         authorLogin: 'alice',
         authorKind: 'human',
+        authorAssociation: null,
         createdAt: new Date('2026-05-01T00:00:00Z'),
         updatedAt: new Date('2026-05-02T00:00:00Z'),
       },
     });
+  });
+
+  it('author_association 을 payload 로 전달 (권한 게이트용)', () => {
+    const ev = baseEvent();
+    ev.pull_request.author_association = 'NONE';
+    expect(mapPullRequestEvent(ev)?.pr.authorAssociation).toBe('NONE');
   });
 
   it('classifies Bot user.type as agent', () => {

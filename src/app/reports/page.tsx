@@ -17,8 +17,15 @@ type RevertStatus = keyof typeof t.reports.revertStatus;
 
 export default function ReportsPage() {
   const data = getReportsData();
-  const { mergeRate, prevMergeRate, dailyIncoming, dailyMerges, dailyAvgConfidence, reverts } =
-    data;
+  const {
+    mergeRate,
+    prevMergeRate,
+    dailyIncoming,
+    dailyMerges,
+    dailyAvgConfidence,
+    reverts,
+    autoMergeAccuracy,
+  } = data;
   const llmCost = getLlmCostSummary();
 
   const delta = mergeRate.autoMergeRate - prevMergeRate.autoMergeRate;
@@ -53,6 +60,14 @@ export default function ReportsPage() {
             </div>
             <div className={styles.mergeRateCompare}>
               {t.reports.mergeRate.compareTo(prevMergeRate.autoMergeRate)}
+            </div>
+            <div className={styles.mergeRateCompare}>
+              {t.reports.mergeRate.accuracy(
+                autoMergeAccuracy.accuracyPct,
+                autoMergeAccuracy.reverted,
+                autoMergeAccuracy.autoMerged,
+                autoMergeAccuracy.windowDays,
+              )}
             </div>
           </div>
         </div>

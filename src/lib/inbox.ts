@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull, like, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, like, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import {
   clusters,
@@ -276,17 +276,26 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
   const large = queue.filter((p) => p.tags.some((tag) => tag.label === '큰 변경')).length;
   const migration = queue.filter((p) => p.tags.some((tag) => tag.label === '마이그레이션')).length;
 
+  // cluster 카운트는 "현재 클러스터에 묶인 활성 PR"(clusterId 세팅 + review-needed + 뮤트 아님)로
+  // 센다. 예전엔 triageDecisions.decision='cluster' 를 status/muted/clusterId 무관하게 세어,
+  // 머지·해체된 stale 클러스터 결정까지 포함해 배지가 과대 계상됐다(리뷰 발견 — 카운트↔실제 불일치).
   const clusterPrs = db
     .select({ n: count() })
     .from(prs)
-    .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
-    .where(eq(triageDecisions.decision, 'cluster'))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(
+      and(isNotNull(prs.clusterId), eq(prs.status, 'review-needed'), eq(projects.muted, false)),
+    )
     .get();
 
+  // done 카운트는 listInboxQueue('done') 와 동일 필터여야 한다 — 그 목록이 뮤트 프로젝트를 제외
+  // (innerJoin projects + muted=false)하므로 카운트도 동일하게 제외. 예전엔 muted 필터가 없어
+  // 배지(N) > 목록(0) 불일치였다(리뷰 발견 — 머지 후 뮤트된 레포에서 재현).
   const donePrs = db
     .select({ n: count() })
     .from(prs)
-    .where(inArray(prs.status, ['merged', 'closed']))
+    .innerJoin(projects, eq(prs.repoId, projects.id))
+    .where(and(inArray(prs.status, ['merged', 'closed']), eq(projects.muted, false)))
     .get();
 
   // mentioned 는 review-needed 기반 카운트 — 뮤트된 프로젝트 PR 제외 (listInboxQueue 와 동일).
@@ -317,6 +326,9 @@ export async function getInboxCategories(): Promise<InboxCategory[]> {
 
 export async function getInboxProjects(): Promise<InboxProject[]> {
   // 뮤트된 프로젝트는 인박스 프로젝트 레일에서 제외 — 인박스 표면에서 완전히 숨김.
+  // 레일 카운트는 인박스 큐 룰(status='review-needed' + 비-클러스터)과 동일해야 한다 — join 조건에
+  // 그 필터를 넣어 actionable PR 만 센다. 예전엔 count(prs.id) 가 머지·닫힘·클러스터 PR 까지 세어
+  // 배지(예: 10)가 실제 큐 목록(1)과 어긋났다(리뷰 발견). 0 인 프로젝트는 아래 filter 로 제외.
   const rows = db
     .select({
       slug: projects.slug,
@@ -324,7 +336,10 @@ export async function getInboxProjects(): Promise<InboxProject[]> {
       n: count(prs.id),
     })
     .from(projects)
-    .leftJoin(prs, eq(prs.repoId, projects.id))
+    .leftJoin(
+      prs,
+      and(eq(prs.repoId, projects.id), eq(prs.status, 'review-needed'), isNull(prs.clusterId)),
+    )
     .where(eq(projects.muted, false))
     .groupBy(projects.id, projects.slug, projects.name)
     .orderBy(desc(count(prs.id)))

@@ -33,6 +33,8 @@ export type WebhookPRPayload = {
     merged: boolean;
     authorLogin: string;
     authorKind: 'agent' | 'human';
+    // GitHub author_association (위조 불가). 없으면 null (legacy·PAT webhook).
+    authorAssociation: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -225,6 +227,7 @@ export async function handlePullRequestWebhook(
     body: payload.pr.body,
     authorKind: payload.pr.authorKind,
     authorId: payload.pr.authorLogin,
+    authorAssociation: payload.pr.authorAssociation,
     headSha: payload.pr.headSha,
     linesAdded: payload.pr.additions,
     linesRemoved: payload.pr.deletions,

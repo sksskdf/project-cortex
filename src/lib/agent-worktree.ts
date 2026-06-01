@@ -56,12 +56,15 @@ export function createAgentWorktree(workspaceLocalPath: string, sessionId: strin
   return r === null ? null : wt;
 }
 
-// 세션 종료 시 worktree + 전용 브랜치 정리 (best-effort). 없으면 no-op — OFF 모드(생성 안 함)에선
-// 항상 no-op 라 무해. 잔존 브랜치/디렉토리 누적 방지.
+// 세션 종료 시 worktree + 전용 브랜치 정리 (best-effort). 잔존 브랜치/디렉토리 누적 방지.
+// worktree 디렉토리와 전용 브랜치는 독립 생명주기다 — dir 이 이미 정리됐어도(앞선 부분 정리·크래시로
+// worktree remove 는 됐는데 branch -D 직전 중단 등) 브랜치가 남아 영구 누적될 수 있다. 그래서 둘을
+// 분리해 각각 정리: dir 이 있으면 worktree remove(브랜치 체크아웃 해제), 그 다음 **항상** branch -D
+// (없으면 git 이 에러 → git() 가 swallow → 무해 no-op). 이전엔 dir 부재 시 early-return 해 브랜치를
+// 못 지우는 누수가 있었음(리뷰 발견). OFF 모드(생성 안 함)에선 둘 다 대상 없어 실질 no-op.
 export function removeAgentWorktree(workspaceLocalPath: string, sessionId: string): void {
   const wt = worktreePathFor(workspaceLocalPath, sessionId);
-  if (!existsSync(wt)) return;
-  git(workspaceLocalPath, ['worktree', 'remove', '--force', wt]);
+  if (existsSync(wt)) git(workspaceLocalPath, ['worktree', 'remove', '--force', wt]);
   git(workspaceLocalPath, ['branch', '-D', worktreeBranchFor(sessionId)]);
 }
 
