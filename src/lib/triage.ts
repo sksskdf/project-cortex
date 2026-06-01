@@ -111,7 +111,7 @@ export type RunTriageResult =
   | { kind: 'decided'; decision: TriageDecision; reason: string }
   | {
       kind: 'skipped';
-      reason: 'no-pr' | 'no-pre-review' | 'pr-closed' | 'pr-merged' | 'in-cluster';
+      reason: 'no-pr' | 'no-pre-review' | 'pr-closed' | 'pr-merged' | 'in-cluster' | 'muted';
     };
 
 // PR 1건에 대해 triage_decisions 행을 생성/갱신하고 PR.status를 결정에 맞춰 업데이트.
@@ -135,6 +135,12 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
 
   const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
   if (!project) return { kind: 'skipped', reason: 'no-pr' };
+
+  // 뮤트 프로젝트는 "감지만, 관리 안 함" — 자동 머지 포함 어떤 트라이지 결정도 내리지 않는다.
+  // sync 는 ingest 단에서 이미 뮤트를 거르지만, setProjectAutoMerge 재트라이지 등 다른 호출 경로는
+  // 거르지 않으므로 여기서 중앙 가드(각 호출부 의존 대신 runTriage 가 불변식 보장). 뮤트 PR 은
+  // 인박스에서도 제외되므로 status 변경 없이 skip.
+  if (project.muted) return { kind: 'skipped', reason: 'muted' };
 
   // Readiness — draft 상태 + 마지막 commit trailer. GitHub 에서 fresh fetch (DB 안 저장 — 매번
   // 정확한 신호 보장). 기본값은 "ready" (= 차단 안 함) — installation 미설정/fetch 실패는 다른
