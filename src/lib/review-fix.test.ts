@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
@@ -126,6 +127,38 @@ describe('attemptAddressReview — guards', () => {
     setup({ authorKind: 'human' });
     const r = await attemptAddressReview(input);
     expect(r).toEqual({ kind: 'addressed' });
+  });
+
+  // 리뷰 발견 가드(conflict-resolve·test-fix 와 동일 클래스): 긴 반영 동안 사람이 PR 을
+  // 머지/닫으면 push 직전 재확인이 죽은 브랜치 push·잘못된 'review-addressed' 알림을 막는다.
+  it('반영 중 PR 이 머지되면 push 생략 (skip pr-closed)', async () => {
+    setOctokit(mockOctokit({ headRef: 'feature' }));
+    setup({});
+    setClaudeRunner(
+      vi.fn().mockImplementation(async () => {
+        db.update(prs).set({ status: 'merged' }).where(eq(prs.number, 42)).run();
+        return { ok: true, text: 'done' };
+      }),
+    );
+    const pushArgs: string[][] = [];
+    const git = vi.fn((_cwd: string, args: ReadonlyArray<string>): Promise<GitResult> => {
+      if (args.includes('push')) {
+        pushArgs.push([...args]);
+        return Promise.resolve(ok());
+      }
+      if (args.includes('status') && args.includes('--porcelain')) {
+        return Promise.resolve(ok(' M src/x.ts\n'));
+      }
+      return Promise.resolve(ok());
+    });
+    setGitRunner(git);
+
+    const r = await attemptAddressReview(input);
+    expect(r).toEqual({ kind: 'skipped', reason: 'pr-closed' });
+    expect(pushArgs).toHaveLength(0);
+    expect(
+      db.select().from(notifications).where(eq(notifications.kind, 'review-addressed')).all(),
+    ).toHaveLength(0);
   });
 
   it('리뷰 본문이 비면 skip no-feedback', async () => {
