@@ -14,6 +14,9 @@ function base(overrides: Partial<TriageInput> = {}): TriageInput {
     // 기본은 비-clean — testsPassed null 테스트가 기존대로 CI 대기로 남도록.
     mergeableState: 'unknown',
     autoMergeEnabled: true,
+    // readiness 기본은 통과 (draft 해제 = ready 신호). race 가드 테스트만 isDraft=true 로.
+    isDraft: false,
+    lastCommitReady: false,
     ...overrides,
   };
 }
@@ -106,6 +109,25 @@ describe('decideTriage', () => {
     const r = decideTriage(base({ confidence: 100, flags: ['migration'] }));
     expect(r.decision).toBe('human-review');
     expect(r.reason).toContain('마이그레이션');
+  });
+
+  // Readiness gate (race 박제) — draft + trailer 없음 → 차단.
+  it('readiness: draft + no Cortex:ready trailer → human-review', () => {
+    const r = decideTriage(base({ isDraft: true, lastCommitReady: false }));
+    expect(r.decision).toBe('human-review');
+    expect(r.reason).toMatch(/draft|ready/i);
+  });
+
+  // draft 라도 trailer 가 있으면 통과 (agent push-only ready 신호).
+  it('readiness: draft + Cortex:ready trailer → auto-merge', () => {
+    const r = decideTriage(base({ isDraft: true, lastCommitReady: true }));
+    expect(r.decision).toBe('auto-merge');
+  });
+
+  // draft 해제는 그 자체로 ready 신호 (trailer 없어도 통과 — 사람 PR 표준).
+  it('readiness: draft 해제 → auto-merge (trailer 없어도)', () => {
+    const r = decideTriage(base({ isDraft: false, lastCommitReady: false }));
+    expect(r.decision).toBe('auto-merge');
   });
 });
 

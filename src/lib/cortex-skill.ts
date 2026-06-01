@@ -44,8 +44,28 @@ Cortex 가 관리하는 레포에서 작업할 때 아래 컨벤션을 따른다
 
 - 의미 있는 단위로 커밋한다. 커밋 메시지는 "왜"에 초점.
 - PR 을 만들기 전에 typecheck · 포매터(prettier 등) · 전체 테스트를 돌려 실패를 모두 고친다.
-- 작업이 끝나면 커밋 + 푸시 + PR 생성까지 한다 (커밋만 하고 끝내지 않는다).
+- 작업이 **완전히 끝난 후** 커밋 + 푸시 + PR 생성. PR 생성 후 같은 branch 에 commit 추가하지
+  않는다 (자동 머지 race 로 commit 누락 위험). 추가 작업 필요하면 별도 branch + 별도 PR.
 - 지정된 개발 브랜치에서 작업하고, 별도 지시 없이 다른 브랜치로 푸시하지 않는다.
+
+## 자동 머지 활성 신호 (필수)
+
+Cortex 의 자동 머지는 "작업 완료" 가 명시된 PR 만 대상. 두 신호 중 하나라도 만족해야 자동 머지
+큐 진입:
+
+1. **PR draft 해제** — GitHub UI 에서 "Ready for review" 클릭. 사람 PR 의 표준.
+2. **마지막 commit message 의 trailer \`Cortex: ready\`** — agent 가 push 만으로 신호 가능:
+
+   \`\`\`
+   feat: 작업 마무리
+
+   변경 요약 …
+
+   Cortex: ready
+   \`\`\`
+
+둘 다 없으면 트라이지가 \`human-review\` 결정 → 사용자가 수동 머지 가능. agent 가 위임 작업을
+마무리할 때는 **마지막 commit 에 trailer 를 박는다**(또는 PR draft 해제).
 
 ## 로드맵 자동 done 컨벤션 (필수)
 

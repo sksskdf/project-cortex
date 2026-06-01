@@ -5,6 +5,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import type { TriageDecisionRow } from '@/db/schema';
+import { getPRReadiness, isCortexReadyMarker } from './github';
+import { logger } from './logger';
 
 export type TriageDecision = TriageDecisionRow['decision'];
 
@@ -22,6 +24,10 @@ export type TriageInput = {
   // 'clean' 이면 머지 가능으로 본다 (CI 결과를 영원히 기다리지 않게).
   mergeableState: string | null;
   autoMergeEnabled: boolean;
+  // Phase 5 readiness gate — "작업 완료" 가 명시되지 않은 PR 은 자동 머지 대상 아님(race 박제).
+  // draft 면 머지 보류. lastCommitReady=false 면 머지 보류. 둘 중 하나라도 만족하면 통과.
+  isDraft: boolean;
+  lastCommitReady: boolean;
 };
 
 // 자동 머지 차단 플래그 (DOMAIN.md §4 룰 3).
@@ -47,6 +53,19 @@ export function decideTriage(input: TriageInput): TriageResult {
     return {
       decision: 'human-review',
       reason: '레포의 자동 머지 정책이 꺼져 있습니다.',
+    };
+  }
+
+  // Readiness gate — "작업 완료" 명시가 있어야 자동 머지(분석 후 새 commit 푸시되는 race 박제).
+  // 두 신호 중 하나라도 만족하면 ready:
+  //   1. PR draft 해제 (GitHub native — 사람 PR 의 표준 흐름)
+  //   2. 마지막 commit message 에 `Cortex: ready` trailer (위임 PR — agent push 만으로 신호)
+  // 둘 다 아니면 → human-review (사용자가 수동 머지 가능, 또는 신호 추가 후 자동 재트라이지).
+  if (input.isDraft && !input.lastCommitReady) {
+    return {
+      decision: 'human-review',
+      reason:
+        'PR draft 상태 — 작업 완료 시 draft 해제 또는 마지막 commit 에 `Cortex: ready` trailer 추가.',
     };
   }
 
@@ -117,6 +136,25 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
   const project = db.select().from(projects).where(eq(projects.id, pr.repoId)).get();
   if (!project) return { kind: 'skipped', reason: 'no-pr' };
 
+  // Readiness — draft 상태 + 마지막 commit trailer. GitHub 에서 fresh fetch (DB 안 저장 — 매번
+  // 정확한 신호 보장). 기본값은 "ready" (= 차단 안 함) — installation 미설정/fetch 실패는 다른
+  // 안전망(SHA 가드 등)이 있으니 readiness 만으로 영구 차단하지 않는다. 명확히 draft 인 PR 만 차단.
+  let isDraft = false;
+  let lastCommitReady = true;
+  if (project.installationId !== null) {
+    const [owner, repo] = project.slug.split('/');
+    try {
+      const readiness = await getPRReadiness(project.installationId, { owner, repo }, pr.number);
+      isDraft = readiness.isDraft;
+      lastCommitReady = isCortexReadyMarker(readiness.lastCommitMessage);
+    } catch (err) {
+      logger.error(
+        { source: 'triage', op: 'getPRReadiness', prId, err },
+        'PR readiness fetch 실패 — fail-open (다른 가드 동작)',
+      );
+    }
+  }
+
   const result = decideTriage({
     authorKind: pr.authorKind,
     confidence: preReview.confidence,
@@ -127,6 +165,8 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
     // sync 가 webhook 처리 중 getPRMergeStatus 로 갱신해 둔 값. CI 없는 레포 식별에 사용.
     mergeableState: pr.mergeableState,
     autoMergeEnabled: project.autoMergeEnabled,
+    isDraft,
+    lastCommitReady,
   });
 
   const existing = db

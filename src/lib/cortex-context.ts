@@ -17,6 +17,8 @@ export function buildCortexContextPreamble(projectId: number): string {
       'Cortex 워크플로(의미 있는 커밋 + 트레일러, 완료 시 `Closes #PHASE-<키>`/`Closes #ITEM-<id>`, ' +
       '지정 개발 브랜치, 작업 종료 시 PR 생성, PR 전 typecheck·prettier·테스트)를 따르세요. ' +
       '자세한 규칙은 `cortex` 스킬을 참고하세요.',
+    '**작업 완료 시 마지막 commit message 에 `Cortex: ready` trailer 를 박으세요** — 이 신호가 ' +
+      '있어야 Cortex 가 자동 머지 큐에 올립니다(분석 후 추가 commit push 로 인한 race 박제).',
   ];
 
   const roadmap = getProjectRoadmap(projectId);

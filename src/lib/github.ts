@@ -288,6 +288,47 @@ export type PRMergeStatus = {
   headRepoFullName: string | undefined;
 };
 
+// Phase 5 — 자동 머지 정책 가드용 readiness. 작성자(claude/사람)가 "작업 완료" 를 명시한
+// PR 만 자동 머지 후보로 본다. 두 신호 중 하나라도 만족하면 ready:
+//   1. PR draft 해제 (GitHub native — 사람 PR 의 표준 흐름)
+//   2. 마지막 commit message 에 `Cortex: ready` trailer (위임 PR — agent 가 작업 종료 시 push)
+// 둘 다 아니면 decideTriage 가 human-review 로 떨어뜨려 사용자가 직접 머지 가능.
+export type PRReadiness = {
+  isDraft: boolean;
+  // 마지막 commit message 전체. trailer 매칭은 호출부에서.
+  lastCommitMessage: string;
+};
+
+export async function getPRReadiness(
+  installationId: number,
+  ref: RepoRef,
+  number: number,
+): Promise<PRReadiness> {
+  const octokit = await getOctokitForInstallation(installationId);
+  // 2 calls — pulls.get(draft) + listCommits(last commit message). per_page=1 + sort=desc 미지원이라
+  // 기본 max(250) 라 큰 PR 도 1 페이지 안에 들어옴. 가장 마지막 항목이 최신 commit.
+  const [{ data: prData }, { data: commits }] = await Promise.all([
+    octokit.pulls.get({ owner: ref.owner, repo: ref.repo, pull_number: number }),
+    octokit.pulls.listCommits({
+      owner: ref.owner,
+      repo: ref.repo,
+      pull_number: number,
+      per_page: 100,
+    }),
+  ]);
+  const lastCommit = commits[commits.length - 1];
+  return {
+    isDraft: Boolean(prData.draft),
+    lastCommitMessage: lastCommit?.commit.message ?? '',
+  };
+}
+
+// trailer 검사 — `Cortex: ready` 가 (대소문자 무관) message 어딘가 한 줄로 있으면 true.
+// 전형적 trailer 형식이지만 위치 강제 안 함 (사용자 친화적).
+export function isCortexReadyMarker(message: string): boolean {
+  return /^Cortex:\s*ready\s*$/im.test(message);
+}
+
 export async function getPRMergeStatus(
   installationId: number,
   ref: RepoRef,
