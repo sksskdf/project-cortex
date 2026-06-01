@@ -41,6 +41,7 @@ type SessionMeta = {
   createdAt: number;
   lastActivityAt: number;
   connected: boolean;
+  isolated?: boolean;
 };
 
 const SESSION_STORAGE_KEY = 'cortex:agentSession';
@@ -340,6 +341,11 @@ export function AgentConsole({
                     </span>
                     {isActive && (
                       <span className={styles.sessionBadge}>{t.agents.sessions.active}</span>
+                    )}
+                    {s.isolated && (
+                      <span className={styles.sessionBadge} title={t.agents.sessions.isolatedHint}>
+                        {t.agents.sessions.isolated}
+                      </span>
                     )}
                   </button>
                 )}

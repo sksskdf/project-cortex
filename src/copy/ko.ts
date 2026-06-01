@@ -1071,6 +1071,9 @@ export const ko = {
       terminate: '세션 종료',
       terminateAria: (name: string) => `${name} 세션 종료`,
       active: '보는 중',
+      // Phase 16 — 격리 worktree 에서 도는 세션 배지.
+      isolated: '격리',
+      isolatedHint: '별도 git worktree 에서 실행 중 — 메인 체크아웃 브랜치를 바꾸지 않습니다.',
       emptyList: '실행 중인 세션이 없습니다.',
       // 새 세션 기본 이름 — 워크스페이스 slug.
       defaultName: (slug: string) => slug,
