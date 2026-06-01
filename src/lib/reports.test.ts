@@ -4,6 +4,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { notifications, preReviews, prs, projects, triageDecisions } from '@/db/schema';
 import {
+  extractRevertedPrNumber,
+  getAutoMergeAccuracy,
   getDailyAvgConfidence,
   getDailyIncomingPRs,
   getDailyMergeBreakdown,
@@ -169,5 +171,51 @@ describe('listRevertSuspicions', () => {
     }
     const list = listRevertSuspicions(3);
     expect(list.length).toBe(3);
+  });
+});
+
+describe('extractRevertedPrNumber', () => {
+  it('Revert "제목 (#N)" 에서 N 추출', () => {
+    expect(extractRevertedPrNumber('Revert "feat: x (#42)"')).toBe(42);
+    expect(extractRevertedPrNumber('Revert "fix: 버그 (#1234)"')).toBe(1234);
+  });
+  it('번호 없거나 형식 안 맞으면 null', () => {
+    expect(extractRevertedPrNumber('Revert "no number"')).toBeNull();
+    expect(extractRevertedPrNumber('feat: 일반 PR')).toBeNull();
+    expect(extractRevertedPrNumber('Revert something (#5)')).toBeNull(); // 따옴표 없음
+  });
+});
+
+describe('getAutoMergeAccuracy', () => {
+  it('자동 머지 0건이면 accuracy 100', () => {
+    expect(getAutoMergeAccuracy(30)).toEqual({
+      windowDays: 30,
+      autoMerged: 0,
+      reverted: 0,
+      accuracyPct: 100,
+    });
+  });
+
+  it('자동 머지된 PR 중 revert 된 것을 false-positive 로 집계', () => {
+    // 자동 머지 2건(#42, #43) + 사람 머지 1건(#44, 제외).
+    seedMergedPR({ number: 42, decision: 'auto-merge', decidedBy: 'system' });
+    seedMergedPR({ number: 43, decision: 'auto-merge', decidedBy: 'system' });
+    seedMergedPR({ number: 44, decision: 'auto-merge', decidedBy: 'human' });
+    // #42 를 되돌리는 revert PR (같은 레포).
+    seedMergedPR({ number: 99, title: 'Revert "feat: x (#42)"' });
+
+    const r = getAutoMergeAccuracy(30);
+    expect(r.autoMerged).toBe(2); // system auto-merge 만
+    expect(r.reverted).toBe(1); // #42
+    expect(r.accuracyPct).toBe(50);
+  });
+
+  it('다른 레포의 같은 번호 revert 는 매칭 안 됨', () => {
+    seedMergedPR({ slug: 'a/x', number: 42, decision: 'auto-merge', decidedBy: 'system' });
+    seedMergedPR({ slug: 'b/y', number: 99, title: 'Revert "z (#42)"' }); // 다른 레포
+    const r = getAutoMergeAccuracy(30);
+    expect(r.autoMerged).toBe(1);
+    expect(r.reverted).toBe(0);
+    expect(r.accuracyPct).toBe(100);
   });
 });

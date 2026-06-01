@@ -220,6 +220,61 @@ export function listRevertSuspicions(limit: number = 20): RevertSuspicion[] {
   }));
 }
 
+// Phase 4.7 — 머지 결과 피드백(자동 머지 정확도). GitHub revert UI 가 만드는 PR 제목
+// `Revert "<원본 subject> (#N)"` 에서 원본 PR 번호 N 을 추출. squash 머지 subject 가 `제목 (#N)`
+// 이므로 끝의 `(#N)` 이 원본 번호. 매칭 안 되면 null. 순수 함수 — DB 무관, 테스트 가능.
+export function extractRevertedPrNumber(revertTitle: string): number | null {
+  const m = revertTitle.match(/^Revert\s+".*\(#(\d+)\)"\s*$/);
+  return m ? Number(m[1]) : null;
+}
+
+// 자동 머지 정확도 — 자동 머지된 PR(decidedBy=system·decision=auto-merge·merged) 중 나중에 revert
+// 된 비율로 false-positive(머지하지 말았어야 할 PR을 머지)를 가시화. "머지 결과 피드백 학습"의
+// 결정적 기반 — 임계·플래그 튜닝의 측정 지표. (실제 자동 조정은 데이터 축적 후 별도.)
+export type AutoMergeAccuracy = {
+  windowDays: number;
+  autoMerged: number;
+  reverted: number;
+  accuracyPct: number; // (autoMerged-reverted)/autoMerged*100, autoMerged=0 이면 100
+};
+
+export function getAutoMergeAccuracy(windowDays: number = 30): AutoMergeAccuracy {
+  const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const autoMerged = db
+    .select({ repoId: prs.repoId, number: prs.number })
+    .from(prs)
+    .innerJoin(triageDecisions, eq(triageDecisions.prId, prs.id))
+    .where(
+      and(
+        eq(prs.status, 'merged'),
+        eq(triageDecisions.decision, 'auto-merge'),
+        eq(triageDecisions.decidedBy, 'system'),
+        gte(prs.updatedAt, cutoff),
+      ),
+    )
+    .all();
+  if (autoMerged.length === 0) {
+    return { windowDays, autoMerged: 0, reverted: 0, accuracyPct: 100 };
+  }
+  // revert PR 들의 (repoId, 원본번호) 집합. 같은 레포에서 원본 번호가 일치하면 revert 로 간주.
+  const reverts = db
+    .select({ repoId: prs.repoId, title: prs.title })
+    .from(prs)
+    .where(like(prs.title, 'Revert %'))
+    .all();
+  const revertedKeys = new Set<string>();
+  for (const r of reverts) {
+    const n = extractRevertedPrNumber(r.title);
+    if (n !== null) revertedKeys.add(`${r.repoId}:${n}`);
+  }
+  let reverted = 0;
+  for (const pr of autoMerged) {
+    if (revertedKeys.has(`${pr.repoId}:${pr.number}`)) reverted += 1;
+  }
+  const accuracyPct = Math.round(((autoMerged.length - reverted) / autoMerged.length) * 100);
+  return { windowDays, autoMerged: autoMerged.length, reverted, accuracyPct };
+}
+
 // 단일 진입점 — page.tsx 가 한 번에 호출.
 export type ReportsData = {
   mergeRate: MergeRateSummary;
@@ -228,6 +283,7 @@ export type ReportsData = {
   dailyMerges: DailyMergeBreakdown[];
   dailyAvgConfidence: DailyAvgConfidence[];
   reverts: RevertSuspicion[];
+  autoMergeAccuracy: AutoMergeAccuracy;
 };
 
 export function getReportsData(): ReportsData {
@@ -292,5 +348,6 @@ export function getReportsData(): ReportsData {
     dailyMerges: getDailyMergeBreakdown(7),
     dailyAvgConfidence: getDailyAvgConfidence(7),
     reverts: listRevertSuspicions(20),
+    autoMergeAccuracy: getAutoMergeAccuracy(30),
   };
 }

@@ -613,6 +613,9 @@ export const ko = {
       total: (auto: number, total: number) => `자동 ${auto} / 전체 ${total}건 머지`,
       breakdown: (auto: number, human: number, github: number) =>
         `자동 ${auto} · 수동 ${human} · 외부 ${github}`,
+      // Phase 4.7 — 자동 머지 정확도: 자동 머지된 PR 중 나중에 revert 된 비율(false-positive).
+      accuracy: (pct: number, reverted: number, total: number, days: number) =>
+        `자동 머지 정확도 ${pct}% (최근 ${days}일 ${total}건 중 ${reverted}건 revert)`,
     },
     legend: {
       auto: '자동',
