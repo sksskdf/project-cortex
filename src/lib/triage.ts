@@ -139,12 +139,21 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
   // Readiness — draft 상태 + 마지막 commit trailer. GitHub 에서 fresh fetch (DB 안 저장 — 매번
   // 정확한 신호 보장). 기본값은 "ready" (= 차단 안 함) — installation 미설정/fetch 실패는 다른
   // 안전망(SHA 가드 등)이 있으니 readiness 만으로 영구 차단하지 않는다. 명확히 draft 인 PR 만 차단.
+  //
+  // readiness 게이트는 "자동 머지 후보"에만 의미가 있다. decideTriage 가 사람 PR·뮤트·autoMerge
+  // off 는 readiness 와 무관하게 human-review 로 떨어뜨리므로, 그런 경우엔 GitHub API 2회(getPR
+  // Readiness)를 아예 호출하지 않는다 — 모든 triage 마다 호출하던 낭비 제거.
   let isDraft = false;
   let lastCommitReady = true;
-  if (project.installationId !== null) {
+  const readinessRelevant =
+    project.installationId !== null &&
+    pr.authorKind === 'agent' &&
+    project.autoMergeEnabled &&
+    !project.muted;
+  if (readinessRelevant) {
     const [owner, repo] = project.slug.split('/');
     try {
-      const readiness = await getPRReadiness(project.installationId, { owner, repo }, pr.number);
+      const readiness = await getPRReadiness(project.installationId!, { owner, repo }, pr.number);
       isDraft = readiness.isDraft;
       lastCommitReady = isCortexReadyMarker(readiness.lastCommitMessage);
     } catch (err) {
