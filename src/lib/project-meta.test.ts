@@ -115,8 +115,22 @@ describe('parseRoadmapMd', () => {
     expect(phases[0].key).toBe('auth');
     expect(phases[0].title).toBe('인증 시스템');
     expect(phases[0].items).toHaveLength(2);
-    expect(phases[0].items[0]).toEqual({ title: 'OAuth 연동', done: true });
-    expect(phases[0].items[1]).toEqual({ title: '2FA 추가', done: false });
+    expect(phases[0].items[0]).toEqual({ title: 'OAuth 연동', status: 'done' });
+    expect(phases[0].items[1]).toEqual({ title: '2FA 추가', status: 'planned' });
+  });
+
+  it('parses [~] as in-progress (예전엔 통째로 유실 → sync 가 DB 행 삭제)', () => {
+    const md = `## Phase x — X
+
+- [x] 완료
+- [~] 진행 중
+- [ ] 예정`;
+    const phases = parseRoadmapMd(md);
+    expect(phases[0].items).toEqual([
+      { title: '완료', status: 'done' },
+      { title: '진행 중', status: 'in-progress' },
+      { title: '예정', status: 'planned' },
+    ]);
   });
 
   it('uses key as title when no em-dash', () => {
@@ -163,7 +177,7 @@ random tail text
   it('handles uppercase X in checkbox', () => {
     const md = `## Phase x — X\n- [X] done`;
     const phases = parseRoadmapMd(md);
-    expect(phases[0].items[0].done).toBe(true);
+    expect(phases[0].items[0].status).toBe('done');
   });
 
   // 점 구분 키 — 4.7·13.6 같은 sub-Phase. cortex 자체 roadmap 이 쓰는 형식.
@@ -176,27 +190,35 @@ random tail text
 });
 
 describe('serializeRoadmapToMd + isCortexSyncCommit — Phase 10.4', () => {
-  it('round-trip: parseRoadmapMd(serialize(x)) 가 key/title/item-done 보존', () => {
+  it('round-trip: parseRoadmapMd(serialize(x)) 가 key/title/item-status(in-progress 포함) 보존', () => {
     const input = [
       {
         key: '13.6',
         title: 'claude CLI 최신 활용',
         goal: '리서치 기반 고도화.',
         items: [
-          { title: '리서치 보고서', done: true },
-          { title: '평가', done: false },
+          { title: '리서치 보고서', status: 'done' as const },
+          { title: '1단계 적용', status: 'in-progress' as const },
+          { title: '평가', status: 'planned' as const },
         ],
       },
-      { key: '14', title: '14', goal: null, items: [{ title: 'HelpOverlay', done: true }] },
+      {
+        key: '14',
+        title: '14',
+        goal: null,
+        items: [{ title: 'HelpOverlay', status: 'done' as const }],
+      },
     ];
     const md = serializeRoadmapToMd(input);
     const parsed = parseRoadmapMd(md);
     expect(parsed.map((p) => p.key)).toEqual(['13.6', '14']);
     expect(parsed[0].title).toBe('claude CLI 최신 활용');
     expect(parsed[0].goal).toBe('리서치 기반 고도화.');
+    // in-progress 가 `[~]` 로 직렬화돼 다시 in-progress 로 파싱 (예전엔 `[ ]` 로 강등됐음).
     expect(parsed[0].items).toEqual([
-      { title: '리서치 보고서', done: true },
-      { title: '평가', done: false },
+      { title: '리서치 보고서', status: 'done' },
+      { title: '1단계 적용', status: 'in-progress' },
+      { title: '평가', status: 'planned' },
     ]);
     // title===key 면 em-dash 생략 → parse 시 key 가 title 폴백.
     expect(parsed[1].title).toBe('14');
@@ -209,13 +231,13 @@ describe('serializeRoadmapToMd + isCortexSyncCommit — Phase 10.4', () => {
         title: 'P',
         goal: null,
         items: [
-          { title: '실제', done: false },
-          { title: '   ', done: true }, // 빈/공백 → 스킵
+          { title: '실제', status: 'planned' as const },
+          { title: '   ', status: 'done' as const }, // 빈/공백 → 스킵
         ],
       },
     ]);
     const parsed = parseRoadmapMd(md);
-    expect(parsed[0].items).toEqual([{ title: '실제', done: false }]);
+    expect(parsed[0].items).toEqual([{ title: '실제', status: 'planned' }]);
   });
 
   it('빈 로드맵은 헤더만', () => {
