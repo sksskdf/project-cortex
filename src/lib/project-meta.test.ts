@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  descriptiveMetaFields,
   isCortexSyncCommit,
   parseProjectYml,
   parseRoadmapMd,
   serializeRoadmapToMd,
+  type ProjectMetaV1,
 } from './project-meta';
 
 describe('parseProjectYml — schema v1', () => {
@@ -209,5 +211,48 @@ describe('serializeRoadmapToMd + isCortexSyncCommit — Phase 10.4', () => {
     expect(isCortexSyncCommit('cortex-sync: roadmap')).toBe(true);
     expect(isCortexSyncCommit('feat: 일반 commit')).toBe(false);
     expect(isCortexSyncCommit('Cortex: ready')).toBe(false); // 자동 머지 신호와 구분
+  });
+});
+
+describe('descriptiveMetaFields — 자동화 토글은 git sync 제외 (로컬 DB 전용)', () => {
+  const meta: ProjectMetaV1 = {
+    schema: 1,
+    name: 'proj',
+    slug: 'o/proj',
+    description: 'desc',
+    kind: 'web-app',
+    domain: 'code-review',
+    links: { homepage: 'https://h' },
+    // project.yml 에 automation 이 있어도 sync 대상이 아니어야 함.
+    automation: {
+      auto_merge: true,
+      ai_review: true,
+      auto_resolve_conflicts: true,
+      auto_fix_tests: true,
+      auto_resolve_changes: true,
+    },
+  };
+
+  it('서술 메타만 포함 (name/description/kind/domain/homepage/metaSyncedAt)', () => {
+    const fields = descriptiveMetaFields(meta);
+    expect(Object.keys(fields).sort()).toEqual(
+      ['description', 'domain', 'homepage', 'kind', 'metaSyncedAt', 'name'].sort(),
+    );
+    expect(fields.name).toBe('proj');
+    expect(fields.homepage).toBe('https://h');
+  });
+
+  it('자동화 토글 키는 절대 포함 안 됨 (UI 설정 보존)', () => {
+    const fields = descriptiveMetaFields(meta);
+    for (const k of [
+      'autoMergeEnabled',
+      'aiReviewEnabled',
+      'autoResolveConflictsEnabled',
+      'autoFixTestsEnabled',
+      'autoResolveChangesEnabled',
+      'muted',
+    ]) {
+      expect(fields).not.toHaveProperty(k);
+    }
   });
 });

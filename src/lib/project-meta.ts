@@ -285,6 +285,23 @@ export type SyncResult =
   | { kind: 'meta-parse-error'; message: string }
   | { kind: 'no-meta-file' };
 
+// git sync 가 DB 에 쓰는 **서술 메타만** — name·description·kind·domain·homepage·metaSyncedAt.
+// 자동화 토글(autoMergeEnabled·autoResolveConflictsEnabled·autoFixTestsEnabled·
+// autoResolveChangesEnabled·aiReviewEnabled·muted)은 **로컬 DB 전용**이라 절대 포함하지 않는다.
+// 예전엔 project.yml 의 automation 을 sync 마다 덮어써, 사용자가 UI 에서 켠 설정이 git pull·push
+// webhook·페이지 방문 stale sync 마다 풀리는 버그가 있었다(사용자 보고 2026-06-01). 운영 토글은
+// 머신마다 다를 수 있고 git 에 박제할 정책이 아니므로 project.yml 의 automation 블록은 무시한다.
+export function descriptiveMetaFields(meta: ProjectMetaV1): Record<string, unknown> {
+  return {
+    name: meta.name,
+    description: meta.description ?? null,
+    kind: meta.kind ?? null,
+    domain: meta.domain ?? null,
+    homepage: meta.links?.homepage ?? null,
+    metaSyncedAt: new Date(),
+  };
+}
+
 // .cortex/project.yml + .cortex/roadmap.md fetch + DB upsert.
 // project.yml 이 없으면 sync skip (사용자가 아직 .cortex 추가 안 함).
 // roadmap.md 가 없으면 메타만 sync + roadmap 항목 변경 안 함.
@@ -315,28 +332,8 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
   }
   const meta = parsed.meta;
 
-  // 메타 upsert. automation 정책은 명시 있을 때만 덮어씀 (기존 DB 토글 보존).
-  const updateFields: Record<string, unknown> = {
-    name: meta.name,
-    description: meta.description ?? null,
-    kind: meta.kind ?? null,
-    domain: meta.domain ?? null,
-    homepage: meta.links?.homepage ?? null,
-    metaSyncedAt: new Date(),
-  };
-  if (meta.automation?.auto_merge !== undefined) {
-    updateFields.autoMergeEnabled = meta.automation.auto_merge;
-  }
-  if (meta.automation?.auto_resolve_conflicts !== undefined) {
-    updateFields.autoResolveConflictsEnabled = meta.automation.auto_resolve_conflicts;
-  }
-  if (meta.automation?.auto_fix_tests !== undefined) {
-    updateFields.autoFixTestsEnabled = meta.automation.auto_fix_tests;
-  }
-  if (meta.automation?.auto_resolve_changes !== undefined) {
-    updateFields.autoResolveChangesEnabled = meta.automation.auto_resolve_changes;
-  }
-  db.update(projects).set(updateFields).where(eq(projects.id, projectId)).run();
+  // 메타 upsert — 서술 메타만 git 에서 sync (자동화 토글은 로컬 DB 전용, 아래 함수 참조).
+  db.update(projects).set(descriptiveMetaFields(meta)).where(eq(projects.id, projectId)).run();
 
   const metaUpdated = true;
   let phasesAdded = 0;
