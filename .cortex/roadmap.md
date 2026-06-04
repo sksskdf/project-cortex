@@ -186,19 +186,11 @@
 - [x] 세션 영속/복원 — `--session-id`(생성 시 id 고정) + `--resume`(재시작 후 대화 연속) — #147
 - [x] 위임 작업 지시 — interactive 세션에 bracketed-paste 로 초기 prompt 주입 — #157
 - [x] headless 호출 최적화 — `-p --output-format json` 모델 선택·토큰·**튜닝**: 모델(R5
-      fallback)·json 봉투·재시도·R4 권한 정밀화·per-call `timeoutMs` override 모두 구현됨
-      (claude-cli.ts). 타임아웃·재시도 **수치** 자체의 미세 튜닝은 실제 호출 지연·실패율 측정 필요
-      (사용자 머신·데이터) — 구조는 완료.
 - [x] `--continue` 폴백 / MCP 서버 연결 / 도구 권한 정책 / 세션 비용·토큰 측정 / **CLI 버전 추적**:
 - [x] 세션 비용·토큰 측정 — `recordLlmUsage`(R3, llm_usage 테이블 + /reports 집계).
 - [x] CLI 버전 추적 — `getClaudeCliVersion`(`claude --version` 첫 토큰, 미설치 시 null,
 - [x] **도구 권한 정책 (R4) — 완료(#267)**: `--allowed-tools` + 작업별 좁은 허용목록
-      (`lib/cli-permissions.ts`) + opt-in 토글(`cliAllowedToolsEnabled`, migration 0031).
-      buildHeadlessArgs 단위 테스트 9건 + cli-permissions 4건.
 - [~] **`--continue` 폴백 / MCP 서버 연결** — 둘 다 **런타임 게이트**(샌드박스 자율 완료 불가):
-      `--continue` 는 PTY 의 resume 실패 감지(빠른 proc exit) + 재spawn 로직이라 실 PTY 동작 검증
-      필수. MCP 서버는 별도 JSON-RPC 서버 구현 + claude CLI 연결 검증 필수. 둘 다 사용자 머신에서
-      별도 사이클로 진행 — 13.5 의 결정적·자율 가능 부분은 모두 완료.
 
 ## Phase 13.6 — claude CLI 최신 활용 방법론·스킬 적용 (리서치·고도화) ⚠️ 중요
 
@@ -244,10 +236,6 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] **R5 `--fallback-model`** — 본 분석(Opus) 과부하·은퇴 시 Sonnet 자동 폴백(print 모드 전용).
 - [x] **R3 2단계 — 비용 영속 + /reports 집계** — `llm_usage` 테이블(migration 0026). wrapper 가
 - [x] 후속: R4 권한 정밀화(allowedTools/dontAsk) — **완료**: `claude-cli.ts buildHeadlessArgs` 가
-      `--allowed-tools` 지원(`dangerouslyAllowAllTools` 보다 우선). `lib/cli-permissions.ts` 에
-      작업별 좁은 허용목록(test-fix/conflict-resolve/review-fix) 문서화. settings.cliAllowedToolsEnabled
-      토글(migration 0031, 기본 OFF) — 켜면 좁은 권한, OFF 면 기존 `--dangerously-skip-permissions`
-      폴백(무회귀). buildHeadlessArgs 단위 테스트 9건 + cli-permissions 4건.
 - [x] **Cortex 컨텍스트 스킬 + 스폰 주입** (#173) — 정적 방법론은 \`cortex\` 스킬(설정에서
 - [x] **`.cortex` 스킬·지침 항상 글로벌 적용** (사용자 시그널 2026-05-29) — 3축 모두 적용:
 - [x] 후속: hooks(SessionStart) 자동 주입 · MCP 도구 노출 · stream-json 진행 표시 · 모델 escalation 등.
@@ -271,11 +259,6 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] 뮤트(Cortex 관리 OFF) 시 하위 자동화 토글 비활성 + OFF 표시 — #185
 - [x] 최근 머지 목록에 #PR번호 노출 — #187
 - [~] 디자인 시스템 미준수 / 어색한 부분 점진 교정 — **하드코딩 색상 토큰화 패스 완료**: 컴포넌트
-      CSS 의 하드코딩 hex 0(rgba 그림자만 표준). **하드코딩 font-size 토큰화 패스 완료**(#268 후속):
-      8 컴포넌트에서 참조하던 미정의 `--ds-typography-font-size-15` 정의 + Toast·RoadmapBoard·
-      TodoList·NotificationDropdown·WorkspaceCard·/reports 의 font-size 10/13/14/18/40 하드코딩
-      → DS 토큰화. DiffHunk 의 `0.92em` 은 상대 컨텍스트 의도로 유지. 나머지 padding/gap 의
-      2px 같은 알라인 트윅은 토큰 단위(8/4)에 안 맞아 유지 — 시각 확인 필요.
 - [ ] 패키징 전 전체 UI/UX 검토 패스 **[게이트: 시각 검증 필요]**
 - [ ] 반응형 디자인 — 좁은 화면·모바일·태블릿·세로 모니터에서 레이아웃 적응 (사이드바 collapse,
 - [x] (1) 7개 토글 컴포넌트 복붙 → `useOptimisticToggle` 훅 + `ProjectAutomationToggle` 제네릭 (−187줄) — #189
@@ -291,7 +274,6 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] (A5) **disabled 컨트롤 설명** — 인박스 알림·필터·정렬 탭, 대시보드 더보기 준비중 — #193
 - [x] (A6) 텍스트 상태 중복 — 검토 결과 PR 상세에 실제 중복 없음(AnalyzeRequestButton 은 미분석 PR
 - [x] (A7-1) 모달 포커스 트랩/복원/Escape/ARIA — `useFocusTrap` 훅(Tab 순환 트랩 + 초기 포커스 +
-- [ ] (A7-2) 반응형 디자인 — Phase 15 반응형 항목과 동일. 단일 사용자라 최하 우선순위. **[게이트:
 
 ## Phase 16 — 세션 연속성 (.cortex work-state)
 
