@@ -80,6 +80,15 @@ export function NotificationDropdown({
     };
   }, [open]);
 
+  // 새 알림이 도착하면(SSE → WebhookListener → router.refresh → unreadCount prop 갱신) 닫힌
+  // 상태의 배지가 이를 반영해야 한다. optimisticUnread 는 useState(unreadCount) 로 1회만
+  // 초기화돼 prop 변경 시 갱신되지 않아, 한 번 열었다 닫으면(0 으로 셋) 이후 새 알림이 와도
+  // 배지가 0 에 고정됐다(리뷰 발견 — 하드 리로드 전까지 새 알림 누락). 닫힌 동안 prop 이
+  // 바뀌면 동기화. (열린 동안은 아래 자동 읽음 effect 가 0 으로 관리.)
+  useEffect(() => {
+    if (!open) setOptimisticUnread(unreadCount);
+  }, [unreadCount, open]);
+
   // 드롭다운 열릴 때 unread 자동 읽음 처리.
   useEffect(() => {
     if (!open) return;
