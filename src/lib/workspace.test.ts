@@ -37,6 +37,41 @@ describe('registerWorkspace path validation', () => {
     expect(registerWorkspace({ projectId, localPath: '/some/../etc' }).kind).toBe('invalid-path');
   });
 
+  // 회귀(리뷰 발견): `..` 를 부분문자열로 검사해 정상 경로(`foo..bar`)를 오거부했다.
+  // 세그먼트 단위 검사로 — 디렉토리 이름에 `..` 가 들어가도 등록 가능.
+  it('allows a path whose segment name contains ".." (not a .. segment)', () => {
+    const projectId = seedProject();
+    const parent = tmpDir();
+    const dir = join(parent, 'foo..bar');
+    mkdirSync(dir);
+    mkdirSync(join(dir, '.git'));
+    const r = registerWorkspace({ projectId, localPath: dir });
+    expect(r.kind).toBe('registered');
+  });
+
+  // 회귀(리뷰 발견): trailing slash 등 표기 차이로 같은 디렉토리가 교차등록 가드를 우회.
+  it('normalizes trailing slash — same dir blocked across projects regardless of slash', () => {
+    const a = seedProject('owner/a');
+    const b = seedProject('owner/b');
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    expect(registerWorkspace({ projectId: a, localPath: dir }).kind).toBe('registered');
+    // 프로젝트 B 가 끝에 슬래시만 붙여 같은 디렉토리 등록 시도 → 정규화 후 동일 → 거부.
+    const r = registerWorkspace({ projectId: b, localPath: dir + '/' });
+    expect(r.kind).toBe('invalid-path');
+    if (r.kind === 'invalid-path') expect(r.reason).toMatch(/다른 프로젝트/);
+  });
+
+  it('normalizes trailing slash — same project re-register with slash is update not duplicate', () => {
+    const projectId = seedProject();
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    expect(registerWorkspace({ projectId, localPath: dir }).kind).toBe('registered');
+    // 같은 프로젝트가 슬래시 표기로 재등록 → 정규화 동일 → update (중복 행 아님).
+    expect(registerWorkspace({ projectId, localPath: dir + '/' }).kind).toBe('updated');
+    expect(db.select().from(workspaces).all()).toHaveLength(1);
+  });
+
   it('returns no-project when project missing', () => {
     expect(registerWorkspace({ projectId: 9999, localPath: '/tmp/x' }).kind).toBe('no-project');
   });
@@ -199,5 +234,40 @@ describe('pullWorkspace clone vs pull branching', () => {
   it('returns no-workspace when none registered', async () => {
     const projectId = seedProject();
     expect((await pullWorkspace(projectId)).kind).toBe('no-workspace');
+  });
+
+  // 회귀(리뷰 발견): 같은 localPath 에 동시 pull 이 돌면 git index.lock 충돌. 두 번째 동시
+  // 호출은 skipped-in-flight 로 빠져 같은 clone 에서 git 이 겹쳐 돌지 않게.
+  it('serializes concurrent pulls on the same workspace (second skips in-flight)', async () => {
+    const projectId = seedProject();
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    registerWorkspace({ projectId, localPath: dir });
+
+    let active = 0;
+    let maxConcurrent = 0;
+    // 첫 git 호출을 붙잡아 둘 게이트 — executor 가 동기 실행이라 release 가 즉시 세팅됨.
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    setGitRunner(async () => {
+      active += 1;
+      maxConcurrent = Math.max(maxConcurrent, active);
+      await gate; // 첫 호출을 붙잡아 두 번째 호출과 겹치게 한다.
+      active -= 1;
+      return { code: 0, output: 'Already up to date.' };
+    });
+
+    const first = pullWorkspace(projectId);
+    // 첫 git 호출이 시작될 때까지 대기.
+    await new Promise((r) => setTimeout(r, 10));
+    const second = await pullWorkspace(projectId); // in-flight → 즉시 skip.
+    expect(second.kind).toBe('skipped-in-flight');
+
+    release();
+    expect((await first).kind).toBe('pulled');
+    // 같은 경로에서 git 이 동시에 두 번 돈 적 없음.
+    expect(maxConcurrent).toBe(1);
   });
 });
