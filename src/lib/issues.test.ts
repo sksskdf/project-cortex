@@ -282,6 +282,50 @@ describe('completeIssueDelegation', () => {
   it('없는 이슈 → not-found', () => {
     expect(completeIssueDelegation(9999).kind).toBe('not-found');
   });
+
+  // 회귀(리뷰 발견): 예전엔 status 무관 무조건 'done' 으로 덮어써, 사용자가 닫은(closed) 이슈에
+  // 이 액션이 다시 닿으면 'closed' → 'done' 으로 회귀했다. 이제 closed/done 은 안 건드림.
+  it('closed 이슈는 done 으로 회귀시키지 않음 (status 가드)', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'closed one', 'in-progress');
+    db.update(issues).set({ status: 'closed' }).where(eq(issues.id, issueId)).run();
+    const runId = startAgentRun(issueId); // 잔류 running run
+
+    const r = completeIssueDelegation(issueId);
+    expect(r.kind).toBe('completed');
+    if (r.kind === 'completed') expect(r.completedRuns).toBe(1); // run 은 정리
+    // 이슈 status 는 closed 유지 (done 으로 안 바뀜).
+    expect(db.select().from(issues).where(eq(issues.id, issueId)).get()?.status).toBe('closed');
+    // run 은 마감됨.
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe(
+      'completed',
+    );
+  });
+});
+
+describe('finishAgentRun — terminal status 가드', () => {
+  // 회귀(리뷰 발견): reconcileStaleRuns 가 24h 후 'failed' 로 마감한 run 을, 실은 아직 살아있던
+  // 세션의 늦은 정상 exit 이 'completed' 로 되돌려 sweep 감사 신호를 지웠다. 이제 terminal 이면 no-op.
+  it('이미 failed 인 run 은 finishAgentRun(ok=true) 가 덮어쓰지 않음', () => {
+    const repoId = seedProject('repo');
+    const runId = startAgentRun(seedIssue(repoId, 'x', 'in-progress'));
+    finishAgentRun(runId, false); // failed
+    const failedAt = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.completedAt;
+
+    finishAgentRun(runId, true); // 늦은 정상 exit — 무시돼야
+    const after = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+    expect(after?.status).toBe('failed'); // 여전히 failed
+    expect(after?.completedAt).toEqual(failedAt); // completedAt 도 안 바뀜
+  });
+
+  it('running run 은 정상 마감 (가드가 정상 흐름 막지 않음)', () => {
+    const repoId = seedProject('repo');
+    const runId = startAgentRun(seedIssue(repoId, 'y', 'in-progress'));
+    finishAgentRun(runId, true);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.status).toBe(
+      'completed',
+    );
+  });
 });
 
 describe('getIssueDetail', () => {
