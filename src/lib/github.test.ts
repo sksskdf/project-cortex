@@ -2,18 +2,20 @@ import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   getPRDetails,
+  getPRReadiness,
+  isCortexReadyMarker,
   listCheckRunsForRef,
   listOpenPullRequests,
   mergePR,
   setOctokit,
 } from './github';
 
-type PullsMock = { get?: Mock; merge?: Mock };
+type PullsMock = { get?: Mock; merge?: Mock; listCommits?: Mock };
 type ChecksMock = { listForRef?: Mock };
 
 function makeMockOctokit(pulls: PullsMock = {}, checks: ChecksMock = {}): Octokit {
   return {
-    pulls: { get: vi.fn(), merge: vi.fn(), ...pulls },
+    pulls: { get: vi.fn(), merge: vi.fn(), listCommits: vi.fn(), ...pulls },
     checks: { listForRef: vi.fn(), ...checks },
   } as unknown as Octokit;
 }
@@ -220,6 +222,72 @@ describe('listCheckRunsForRef', () => {
     const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
     expect(result.status).toBe('passed');
     expect(result.successCount).toBe(1);
+  });
+
+  // 회귀(리뷰 발견): 1페이지(100)만 읽어 101번째의 실패 check 가 누락됐다. 페이지네이션으로
+  // 모든 페이지를 모아야 실패를 잡는다.
+  it('paginates — a failing check on page 2 (>100 runs) is not missed', async () => {
+    const fullPage = Array.from({ length: 100 }, () => ({
+      status: 'completed',
+      conclusion: 'success',
+    }));
+    const listForRef = vi.fn().mockImplementation(({ page }: { page: number }) => {
+      if (page === 1) return Promise.resolve({ data: { check_runs: fullPage } });
+      if (page === 2)
+        return Promise.resolve({
+          data: { check_runs: [{ status: 'completed', conclusion: 'failure' }] },
+        });
+      return Promise.resolve({ data: { check_runs: [] } });
+    });
+    setOctokit(makeMockOctokit({}, { listForRef }));
+
+    const result = await listCheckRunsForRef(1, { owner: 'a', repo: 'b' }, 'sha');
+    expect(result.status).toBe('failed'); // 예전엔 page1 만 봐서 'passed' 였음
+    expect(result.failureCount).toBe(1);
+    expect(result.total).toBe(101);
+    expect(listForRef).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('getPRReadiness — listCommits 페이지네이션', () => {
+  function commit(message: string) {
+    return { commit: { message } };
+  }
+
+  it('마지막 페이지의 마지막 commit(HEAD) message 를 읽는다 (>100 commit)', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => commit(`old commit ${i}`));
+    const listCommits = vi.fn().mockImplementation(({ page }: { page: number }) => {
+      if (page === 1) return Promise.resolve({ data: page1 });
+      if (page === 2) return Promise.resolve({ data: [commit('feat: done\n\nCortex: ready')] });
+      return Promise.resolve({ data: [] });
+    });
+    setOctokit(
+      makeMockOctokit({
+        get: vi.fn().mockResolvedValue({ data: { draft: false } }),
+        listCommits,
+      }),
+    );
+
+    const r = await getPRReadiness(1, { owner: 'a', repo: 'b' }, 7);
+    // 예전엔 page1 의 마지막(old commit 99)을 읽어 마커를 놓쳤음. 이제 page2 의 HEAD.
+    expect(isCortexReadyMarker(r.lastCommitMessage)).toBe(true);
+    expect(listCommits).toHaveBeenCalledTimes(2);
+  });
+
+  it('흔한 경우(≤100 commit)는 1페이지로 끝 + 마지막이 HEAD', async () => {
+    const listCommits = vi
+      .fn()
+      .mockResolvedValue({ data: [commit('first'), commit('feat: x\n\nCortex: ready')] });
+    setOctokit(
+      makeMockOctokit({
+        get: vi.fn().mockResolvedValue({ data: { draft: true } }),
+        listCommits,
+      }),
+    );
+    const r = await getPRReadiness(1, { owner: 'a', repo: 'b' }, 7);
+    expect(r.isDraft).toBe(true);
+    expect(isCortexReadyMarker(r.lastCommitMessage)).toBe(true);
+    expect(listCommits).toHaveBeenCalledTimes(1); // 2건 < 100 → 추가 페이지 안 읽음
   });
 });
 

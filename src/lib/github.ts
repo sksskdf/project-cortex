@@ -331,21 +331,42 @@ export async function getPRReadiness(
   number: number,
 ): Promise<PRReadiness> {
   const octokit = await getOctokitForInstallation(installationId);
-  // 2 calls — pulls.get(draft) + listCommits(last commit message). per_page=1 + sort=desc 미지원이라
-  // 기본 max(250) 라 큰 PR 도 1 페이지 안에 들어옴. 가장 마지막 항목이 최신 commit.
-  const [{ data: prData }, { data: commits }] = await Promise.all([
+  // pulls.get(draft) + listCommits(마지막=최신 commit message). listCommits 는 oldest-first 라
+  // 마지막 페이지의 마지막 항목이 HEAD. 예전엔 1페이지(100)만 읽고 commits[length-1] 을 취해,
+  // commit 이 100개를 넘는 PR 에서 HEAD 가 아닌 100번째 오래된 commit 의 message 를 읽었다 →
+  // 실제 HEAD 의 `Cortex: ready` 를 놓치거나(자동 머지 안 됨) 옛 commit 의 stale ready 를 읽어
+  // 미완성 작업을 조기 자동 머지하는 사고(리뷰 발견). 흔한 경우(≤100)는 1페이지로 끝.
+  const PER_PAGE = 100;
+  const MAX_PAGES = 20;
+  const [{ data: prData }, firstPage] = await Promise.all([
     octokit.pulls.get({ owner: ref.owner, repo: ref.repo, pull_number: number }),
     octokit.pulls.listCommits({
       owner: ref.owner,
       repo: ref.repo,
       pull_number: number,
-      per_page: 100,
+      per_page: PER_PAGE,
+      page: 1,
     }),
   ]);
-  const lastCommit = commits[commits.length - 1];
+  let lastCommitMessage =
+    firstPage.data.length > 0 ? firstPage.data[firstPage.data.length - 1].commit.message : '';
+  // 1페이지가 가득 찼으면 더 있을 수 있음 — 마지막 페이지의 마지막이 진짜 HEAD.
+  if (firstPage.data.length === PER_PAGE) {
+    for (let page = 2; page <= MAX_PAGES; page += 1) {
+      const { data: commits } = await octokit.pulls.listCommits({
+        owner: ref.owner,
+        repo: ref.repo,
+        pull_number: number,
+        per_page: PER_PAGE,
+        page,
+      });
+      if (commits.length > 0) lastCommitMessage = commits[commits.length - 1].commit.message;
+      if (commits.length < PER_PAGE) break;
+    }
+  }
   return {
     isDraft: Boolean(prData.draft),
-    lastCommitMessage: lastCommit?.commit.message ?? '',
+    lastCommitMessage,
   };
 }
 
@@ -458,14 +479,25 @@ export async function listCheckRunsForRef(
   sha: string,
 ): Promise<CheckRunsSummary> {
   const octokit = await getOctokitForInstallation(installationId);
-  const { data } = await octokit.checks.listForRef({
-    owner: ref.owner,
-    repo: ref.repo,
-    ref: sha,
-    per_page: 100,
-  });
-
-  const runs = data.check_runs ?? [];
+  // 페이지네이션 — 한 commit 의 check run 이 100개를 넘으면(매트릭스 빌드·다중 CI) 예전엔 1페이지
+  // 만 읽어 101번째 이후의 **실패** check 가 누락됐다. 그러면 status='passed' 로 잘못 판정 → sync 가
+  // testsPassed=true 로 박고 CI 실패 PR 이 자동 머지되는 무결성 사고(리뷰 발견). 끝까지 모아 집계.
+  const PER_PAGE = 100;
+  const MAX_PAGES = 20;
+  type CheckRun = { status: string; conclusion: string | null };
+  const runs: CheckRun[] = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const { data } = await octokit.checks.listForRef({
+      owner: ref.owner,
+      repo: ref.repo,
+      ref: sha,
+      per_page: PER_PAGE,
+      page,
+    });
+    const pageRuns = data.check_runs ?? [];
+    runs.push(...pageRuns);
+    if (pageRuns.length < PER_PAGE) break;
+  }
   if (runs.length === 0) {
     return { status: 'pending', total: 0, successCount: 0, failureCount: 0 };
   }
@@ -613,19 +645,31 @@ export async function listPullReviews(
   number: number,
 ): Promise<PRReviewSummary[]> {
   const octokit = await getOctokitForInstallation(installationId);
-  const { data } = await octokit.pulls.listReviews({
-    owner: ref.owner,
-    repo: ref.repo,
-    pull_number: number,
-    per_page: 100,
-  });
-  return data.map((r) => ({
-    id: r.id,
-    state: (r.state as PRReviewSummary['state']) ?? 'COMMENTED',
-    body: r.body ?? '',
-    authorLogin: r.user?.login ?? 'unknown',
-    submittedAt: r.submitted_at ?? null,
-  }));
+  // 페이지네이션 — 리뷰 이벤트가 100개를 넘는 장수 PR 에서 예전엔 1페이지만 읽어 최신 리뷰
+  // (최근 CHANGES_REQUESTED·dismiss 등)가 누락돼 현재 리뷰 상태를 오인했다(리뷰 발견).
+  const PER_PAGE = 100;
+  const MAX_PAGES = 20;
+  const out: PRReviewSummary[] = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const { data } = await octokit.pulls.listReviews({
+      owner: ref.owner,
+      repo: ref.repo,
+      pull_number: number,
+      per_page: PER_PAGE,
+      page,
+    });
+    for (const r of data) {
+      out.push({
+        id: r.id,
+        state: (r.state as PRReviewSummary['state']) ?? 'COMMENTED',
+        body: r.body ?? '',
+        authorLogin: r.user?.login ?? 'unknown',
+        submittedAt: r.submitted_at ?? null,
+      });
+    }
+    if (data.length < PER_PAGE) break;
+  }
+  return out;
 }
 
 // PR 을 머지 없이 닫음 — '폐기' 의미. 사용자가 머지할 가치 없다고 판단한 PR 에 사용.
