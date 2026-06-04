@@ -16,8 +16,10 @@ import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { claudeSpawnEnv, resolveClaude } from './agents';
+import { resolveHeadroom, wrapClaudeSpawn } from './headroom';
 import { logger } from './logger';
 import { recordLlmUsage } from './llm-cost';
+import { getSettings } from './settings';
 
 // 사전 리뷰(Opus thinking) 는 오래 걸릴 수 있어 넉넉히. 호출부가 override 가능.
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -143,11 +145,30 @@ function runOnce(
   }
   cliArgs.push(opts.instruction);
 
+  // Headroom wrap 적용(opt-in 토글) — ON + binary 감지면 `headroom wrap claude <원본 args...>` 로
+  // 감싸 토큰 절감(README "zero code changes" — stdin/stdout pass-through). OFF/미감지면 원본 그대로.
+  // 토글 ON 인데 binary 미감지면 warning 1회.
+  const settings = getSettings();
+  const headroomPath = settings.headroomEnabled ? resolveHeadroom() : null;
+  if (settings.headroomEnabled && headroomPath === null) {
+    logger.warn(
+      { source: 'claude-cli' },
+      'headroomEnabled=ON 인데 PATH 에 headroom 이 없음 — 원본 claude 로 fallback',
+    );
+  }
+  const wrapped = wrapClaudeSpawn({
+    claudePath,
+    claudeArgs: cliArgs,
+    enabled: settings.headroomEnabled,
+    headroomPath,
+  });
+
   // Windows 전역 npm bin 은 claude.cmd (배치) — Node 가 .cmd 를 직접 spawn 못 하므로
   // cmd.exe /c 로 감싼다 (pty.ts 와 동일 전략). POSIX 는 resolve 된 경로 직접 실행.
-  const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(claudePath);
-  const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : claudePath;
-  const args = isWinScript ? ['/c', claudePath, ...cliArgs] : cliArgs;
+  // headroom 도 .cmd/.bat 가능(npm 글로벌) — 동일 처리.
+  const isWinScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(wrapped.command);
+  const file = isWinScript ? (process.env.ComSpec ?? 'cmd.exe') : wrapped.command;
+  const args = isWinScript ? ['/c', wrapped.command, ...wrapped.args] : wrapped.args;
 
   const cleanup = () => {
     if (sysPromptFile) {

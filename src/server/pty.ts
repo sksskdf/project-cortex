@@ -28,6 +28,7 @@ import {
 } from '@/lib/agent-worktree';
 import { installCortexSkill } from '@/lib/cortex-skill';
 import { claudeSpawnEnv, getClaudeCliVersion, resolveClaude } from '@/lib/agents';
+import { getHeadroomVersion } from '@/lib/headroom';
 import { logger } from '@/lib/logger';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import { reconcileStuckAutoMerges } from '@/lib/auto-merge';
@@ -166,6 +167,14 @@ void getClaudeCliVersion()
   .then((v) => {
     if (v) logger.info({ source: 'pty', claudeCliVersion: v }, `claude CLI 버전: ${v}`);
     else logger.warn({ source: 'pty' }, 'claude CLI 미설치 또는 버전 조회 실패 — 위임/분석 불가');
+  })
+  .catch(() => {});
+
+// Headroom 통합 — 시작 시 binary 가용성 + 버전 로깅. 미설치는 info 만(opt-in 기능이라 경고 아님).
+void getHeadroomVersion()
+  .then((v) => {
+    if (v) logger.info({ source: 'pty', headroomVersion: v }, `headroom 버전: ${v}`);
+    else logger.info({ source: 'pty' }, 'headroom 미설치 — 컨텍스트 압축 기능 비활성');
   })
   .catch(() => {});
 

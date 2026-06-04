@@ -244,6 +244,10 @@ export const appSettings = sqliteTable('app_settings', {
   agentWorktreeEnabled: integer('agent_worktree_enabled', { mode: 'boolean' })
     .notNull()
     .default(false),
+  // Headroom 통합 — headless 자동화 4종(사전 리뷰·테스트 수정·충돌 해결·리뷰 반영)이 claude CLI 를
+  // spawn 할 때 `headroom wrap claude ...` 로 감쌀지. 기본 OFF(opt-in) — headroom 미설치 머신
+  // 무회귀. ON 이라도 binary 미감지면 fallback(원본 claude 직접 spawn, warning 로그)으로 동작.
+  headroomEnabled: integer('headroom_enabled', { mode: 'boolean' }).notNull().default(false),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 

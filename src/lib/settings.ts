@@ -36,3 +36,15 @@ export function setAgentWorktreeEnabled(enabled: boolean): AppSettingsRow {
     .returning()
     .get();
 }
+
+// Headroom 통합 — headless 자동화 spawn 을 `headroom wrap claude` 로 감쌀지(토큰 절감).
+// 기본 OFF — settings 토글로 켬. 미설치 머신은 켜도 fallback(원본 claude) + warning.
+export function setHeadroomEnabled(enabled: boolean): AppSettingsRow {
+  getSettings();
+  return db
+    .update(appSettings)
+    .set({ headroomEnabled: enabled, updatedAt: new Date() })
+    .where(eq(appSettings.id, SETTINGS_ID))
+    .returning()
+    .get();
+}

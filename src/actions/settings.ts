@@ -22,7 +22,7 @@ import {
 } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
-import { setAgentWorktreeEnabled } from '@/lib/settings';
+import { setAgentWorktreeEnabled, setHeadroomEnabled } from '@/lib/settings';
 
 // Phase 16 — 위임 세션 worktree 격리 토글 (기본 OFF, opt-in).
 export type WorktreeActionState =
@@ -35,6 +35,22 @@ export async function toggleAgentWorktreeAction(enabled: boolean): Promise<Workt
     const row = setAgentWorktreeEnabled(enabled);
     revalidatePath('/settings');
     return { kind: 'updated', enabled: row.agentWorktreeEnabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Headroom 통합 토글 — headless 자동화 4종이 `headroom wrap claude` 로 spawn (기본 OFF).
+export type HeadroomActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; enabled: boolean }
+  | { kind: 'error'; message: string };
+
+export async function toggleHeadroomAction(enabled: boolean): Promise<HeadroomActionState> {
+  try {
+    const row = setHeadroomEnabled(enabled);
+    revalidatePath('/settings');
+    return { kind: 'updated', enabled: row.headroomEnabled };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
