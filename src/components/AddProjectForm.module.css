@@ -16,7 +16,7 @@
 .formHead {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ds-spacing-4);
 }
 
 .formTitle {
@@ -34,7 +34,7 @@
 .label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ds-spacing-4);
   font-size: var(--ds-typography-font-size-11);
   color: var(--ds-color-text-02);
 }
