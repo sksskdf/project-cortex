@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractResult, parseJsonFromText } from './claude-cli';
+import { extractResult, extractUsageFromStdout, parseJsonFromText } from './claude-cli';
 
 describe('parseJsonFromText', () => {
   it('순수 JSON 파싱', () => {
@@ -93,5 +93,42 @@ describe('extractResult', () => {
 
   it('깨진 JSON 은 null', () => {
     expect(extractResult('{ not json')).toBeNull();
+  });
+});
+
+describe('extractUsageFromStdout — is_error 무관 비용 관측 (리뷰 회귀)', () => {
+  it('is_error=true 봉투에서도 비용·토큰 추출 (extractResult 는 null 이지만)', () => {
+    const stdout = JSON.stringify({
+      result: '',
+      is_error: true,
+      total_cost_usd: 0.0042,
+      usage: { input_tokens: 900, output_tokens: 0 },
+    });
+    // extractResult 는 is_error 라 null (결과 파싱 실패) — 하지만 비용은 살아있어야.
+    expect(extractResult(stdout)).toBeNull();
+    expect(extractUsageFromStdout(stdout)).toEqual({
+      costUsd: 0.0042,
+      inputTokens: 900,
+      outputTokens: 0,
+    });
+  });
+
+  it('result·structured 둘 다 없어도(빈 응답) 비용 추출', () => {
+    const stdout = JSON.stringify({ total_cost_usd: 0.001 });
+    expect(extractResult(stdout)).toBeNull();
+    expect(extractUsageFromStdout(stdout)).toEqual({
+      costUsd: 0.001,
+      inputTokens: null,
+      outputTokens: null,
+    });
+  });
+
+  it('사용량 정보 없으면 null', () => {
+    expect(extractUsageFromStdout(JSON.stringify({ result: 'ok' }))).toBeNull();
+  });
+
+  it('깨진 JSON(프로세스 크래시 stdout)은 null — throw 안 함', () => {
+    expect(extractUsageFromStdout('partial garbage not json')).toBeNull();
+    expect(extractUsageFromStdout('')).toBeNull();
   });
 });
