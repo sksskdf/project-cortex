@@ -95,6 +95,15 @@ describe('decideTriage', () => {
     expect(r.reason).toContain('CI 결과');
   });
 
+  // 회귀(리뷰 발견): triage 가 mergeable_state='blocked' 를 안 봐서 auto-merge 결정 → 405
+  // 거부 → 알림 루프. merge-gate 와 일관되게 human-review.
+  it('human-review when mergeable_state=blocked (브랜치 보호 — merge-gate 와 일관)', () => {
+    // CI 통과해도 blocked 면 머지 불가.
+    const r = decideTriage(base({ testsPassed: true, mergeableState: 'blocked' }));
+    expect(r.decision).toBe('human-review');
+    expect(r.reason).toMatch(/차단|보호/);
+  });
+
   it('auto-merge regardless of confidence — 신뢰점수 게이트 제거 (위험 아니면 자동 머지)', () => {
     // 낮은 신뢰 점수여도 위험 플래그·CI 문제 없으면 자동 머지.
     expect(decideTriage(base({ confidence: 10 })).decision).toBe('auto-merge');

@@ -90,6 +90,17 @@ export function decideTriage(input: TriageInput): TriageResult {
     };
   }
 
+  // mergeable_state='blocked' (브랜치 보호·필수 리뷰 미충족·미해소 변경요청)은 GitHub 이 머지를
+  // 막는 상태라, 자동 머지를 시도해도 405 로 거부되고 매 재트라이지마다 '머지 실패' 알림이 반복
+  // 발사된다(리뷰 발견 — triage 는 'blocked' 를 안 봤지만 merge-gate 버튼은 차단해 둘이 불일치).
+  // merge-gate(computeMergeGate)와 일관되게 human-review 로 — 사람이 보호규칙을 풀어야 머지 가능.
+  if (input.mergeableState === 'blocked') {
+    return {
+      decision: 'human-review',
+      reason: '브랜치 보호·필수 리뷰 등으로 머지가 차단된 상태입니다.',
+    };
+  }
+
   if (input.testsPassed === false) {
     return {
       decision: 'human-review',
