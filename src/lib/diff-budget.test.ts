@@ -105,4 +105,38 @@ describe('budgetDiff', () => {
     expect(r.includedPaths).toEqual([]);
     expect(r.text).toBe('');
   });
+
+  // 회귀(리뷰 발견): `auth(?!or)` 가 authorization/authorize 파일을 high 우선순위에서 제외해
+  // access-control 파일이 예산 압박 시 본문 잘림/생략됐다. 이제 authz 도 high 로 보존.
+  it('authorization 파일을 high 우선순위로 — 일반 파일보다 본문 우선 보존', () => {
+    // 각 파일 ~1KB(100줄). 예산은 1.x 파일분 → high 우선순위 1개만 본문 포함, 나머지는 잘림.
+    // authz 파일을 입력 2번째에 둬, 정렬이 high 로 끌어올리는지 확인.
+    const diff = [
+      makeFile('src/a-normal.ts', 100),
+      makeFile('src/authorization/policy.ts', 100),
+      makeFile('src/b-normal.ts', 100),
+    ].join('\n');
+    const r = budgetDiff(diff, 1500);
+    // authz 파일은 본문까지 포함(우선순위 high). 일반 파일들은 본문 잘림.
+    expect(r.includedPaths).toContain('src/authorization/policy.ts');
+    expect(r.includedPaths).not.toContain('src/a-normal.ts');
+  });
+
+  // 회귀(리뷰 발견): 최종 fully-skipped note 가 budget 검사 없이 push 돼, 경로가 많고 깊으면
+  // finalLength 가 charBudget 을 크게 초과했다. note 를 bound 해 오버슈트를 작게 고정.
+  it('fully-skipped 경로가 많아도 finalLength 가 budget 을 크게 초과하지 않음', () => {
+    const bigBody = ('+ ' + 'x'.repeat(100) + '\n').repeat(20);
+    const file = (path: string) =>
+      `diff --git a/${path} b/${path}\nindex 0..1 100644\n--- a/${path}\n+++ b/${path}\n@@ -0,0 +1 @@\n${bigBody}`;
+    // 깊고 긴 경로 30개 → 예전엔 note 가 ~900자라 budget+500 초과.
+    const paths = Array.from(
+      { length: 30 },
+      (_, i) => `src/very/deeply/nested/directory/structure/module${i}/handler${i}.ts`,
+    );
+    const diff = paths.map(file).join('\n');
+    const budget = 3_000;
+    const r = budgetDiff(diff, budget);
+    expect(r.fullySkippedPaths.length).toBeGreaterThan(10);
+    expect(r.finalLength).toBeLessThanOrEqual(budget + 500); // note bound 으로 계약 유지
+  });
 });

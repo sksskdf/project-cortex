@@ -30,7 +30,10 @@ const SKIP_BODY_PATTERNS: ReadonlyArray<RegExp> = [
 // 위험 도메인 키워드 — 매칭 파일은 우선 포함 + 본문 보존.
 const HIGH_PRIORITY_PATTERNS: ReadonlyArray<RegExp> = [
   /payment|billing|invoice|refund/i,
-  /auth(?!or)|login|session|password|credential|token/i,
+  // 예전 `auth(?!or)` 는 'authorization'·'authorize'(access-control)도 함께 제외해, authz 파일이
+  // 우선순위/본문 보존에서 빠졌다(리뷰 발견). 우선순위 리스트는 over-match 가 안전(본문 더 보존)
+  // 하므로 `auth` 로 단순화 — authentication/authorization 모두 high 로 분류.
+  /auth|login|session|password|credential|token/i,
   /security|crypto|encrypt|secret/i,
   /(^|\/)migrations?\//,
   /\.(sql)$/,
@@ -188,15 +191,17 @@ export function budgetDiff(diff: string, charBudget = DEFAULT_DIFF_CHAR_BUDGET):
   if (fullySkippedPaths.length > 0) {
     // Phase 4.7 — 잘린 파일 경로도 함께 노출 → LLM 이 "내 분석은 불완전, 잘린 파일이 어떤 영역인가"
     // 인지하고 신뢰 점수에 반영할 수 있게. 너무 많으면 일부만(토큰 보호).
+    // 이 note 는 예전엔 budget 검사 없이 push 돼, 경로가 깊고 많으면(~900자) finalLength 가
+    // charBudget 을 초과했다(리뷰 발견 — budget 계약 위반). note 본문을 NOTE_MAX 로 bound 해
+    // 오버슈트를 작게 고정(루프의 per-block 검사로 used ≤ charBudget 이므로 총 ≤ budget+NOTE_MAX).
     const MAX_SHOWN = 10;
+    const NOTE_MAX = 240;
     const shown = fullySkippedPaths.slice(0, MAX_SHOWN);
     const rest = fullySkippedPaths.length - shown.length;
     const tail = rest > 0 ? ` … 외 ${rest}개` : '';
-    out.push(
-      bodyOmittedNote(
-        `${fullySkippedPaths.length}개 파일 전체 생략 (토큰 예산 초과): ${shown.join(', ')}${tail}`,
-      ),
-    );
+    let note = `${fullySkippedPaths.length}개 파일 전체 생략 (토큰 예산 초과): ${shown.join(', ')}${tail}`;
+    if (note.length > NOTE_MAX) note = `${note.slice(0, NOTE_MAX - 1)}…`;
+    out.push(bodyOmittedNote(note));
   }
 
   const text = out.join('\n');
