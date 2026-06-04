@@ -211,6 +211,13 @@
       "when": 1781300000000,
       "tag": "0029_app_settings_headroom",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1781400000000,
+      "tag": "0030_project_roadmap_autosync",
+      "breakpoints": true
     }
   ]
 }

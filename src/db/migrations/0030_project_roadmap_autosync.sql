@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `roadmap_auto_sync_enabled` integer DEFAULT 0 NOT NULL;

@@ -38,6 +38,12 @@ export const projects = sqliteTable(
     autoResolveChangesEnabled: integer('auto_resolve_changes_enabled', { mode: 'boolean' })
       .notNull()
       .default(false),
+    // Phase 10.4 — UI(RoadmapBoard)에서 로드맵을 편집하면 자동으로 git `.cortex/roadmap.md` 로
+    // 반영(롤링 PR)할지. 디폴트 OFF(opt-in) — 자동 push 가 놀랍지 않게. roadmap.md 만 sync 하며
+    // project.yml 자동화 토글은 절대 안 건드림(로컬 DB 전용 원칙). 켜면 편집마다 fire-and-forget.
+    roadmapAutoSyncEnabled: integer('roadmap_auto_sync_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     // 뮤트 — 이 프로젝트의 PR/check webhook 을 무시(인박스 ingest·분석·트라이아지·자동머지 차단).
     // 웹훅 자동 onboard 로 새로 감지된 레포는 muted=true 로 시작(조직의 남의 레포가 인박스를
     // 어지럽히지 않게). /projects 에서 '관리 시작' 으로 해제. 수동 등록/import 는 muted=false.

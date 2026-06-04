@@ -14,6 +14,7 @@ import {
   updatePhaseStatus,
   type RoadmapStatus,
 } from '@/lib/roadmap';
+import { autoSyncRoadmapIfEnabled } from '@/lib/roadmap-sync';
 
 export type RoadmapActionState =
   | { kind: 'idle' }
@@ -30,6 +31,9 @@ function revalidateAll(projectId: number) {
   revalidatePath(`/projects/${projectId}/roadmap`);
   revalidatePath(`/projects`);
   revalidatePath('/');
+  // Phase 10.4 — UI 로드맵 편집이 성공하면 자동 git sync(roadmapAutoSyncEnabled ON 인 프로젝트만).
+  // fire-and-forget·롤링 PR 누적이라 편집마다 호출해도 안전(스팸 없음). OFF 면 즉시 no-op.
+  autoSyncRoadmapIfEnabled(projectId);
 }
 
 export async function createPhaseAction(input: {

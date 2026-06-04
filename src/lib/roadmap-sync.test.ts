@@ -6,11 +6,13 @@ import { projects, roadmapItems, roadmapPhases } from '@/db/schema';
 import { setOctokit } from './github';
 import { CORTEX_SYNC_MARKER, serializeRoadmapToMd } from './project-meta';
 import {
+  autoSyncRoadmapIfEnabled,
   loadSerializableRoadmap,
   pushRoadmapToGit,
   setRoadmapPRCreator,
   type PushRoadmapResult,
 } from './roadmap-sync';
+import { setProjectRoadmapAutoSync } from './projects';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -142,26 +144,56 @@ describe('pushRoadmapToGit', () => {
     expect(captured).not.toBeNull();
     const opts = captured!;
     expect(opts.path).toBe('.cortex/roadmap.md');
-    expect(opts.existingSha).toBe('sha-cur'); // 기존 파일 갱신
     expect(opts.commitMessage).toContain(CORTEX_SYNC_MARKER); // 루프 방지 마커
     expect(opts.content).toContain('new item'); // 직렬화된 새 항목
-    expect(opts.branch).toMatch(/^cortex\/roadmap-sync-/);
+    expect(opts.branch).toBe('cortex/roadmap-sync'); // 고정 롤링 브랜치(스팸 방지)
   });
 
-  it('git 에 roadmap.md 없으면(신규) existingSha=null 로 생성', async () => {
+  it('git 에 roadmap.md 없으면(신규) 그대로 push (no-op 가드 통과)', async () => {
     const projectId = seedProject();
     seedPhaseWithItems(projectId, '1', 'P1', [{ title: 'x', status: 'planned' }]);
-    setOctokit(mockGitContent(null)); // 404 → 파일 없음
+    setOctokit(mockGitContent(null)); // 404 → default branch 에 파일 없음 → no-op 아님
 
-    let captured: Parameters<NonNullable<Parameters<typeof setRoadmapPRCreator>[0]>>[2] | null =
-      null;
-    setRoadmapPRCreator(async (_inst, _ref, opts) => {
-      captured = opts;
-      return { number: 1, url: 'u', branch: opts.branch };
-    });
+    const prCreator = vi.fn(async (_i: number, _r: unknown, opts: { branch: string }) => ({
+      number: 1,
+      url: 'u',
+      branch: opts.branch,
+    }));
+    setRoadmapPRCreator(prCreator);
 
     const r = await pushRoadmapToGit(projectId);
     expect(r.kind).toBe('pushed');
-    expect(captured!.existingSha).toBeNull();
+    expect(prCreator).toHaveBeenCalledOnce();
+  });
+});
+
+describe('autoSyncRoadmapIfEnabled — opt-in 토글 게이트', () => {
+  it('토글 OFF(기본)면 no-op — push 안 함', async () => {
+    const projectId = seedProject(); // roadmapAutoSyncEnabled 기본 false
+    seedPhaseWithItems(projectId, '1', 'P1', [{ title: 'a', status: 'planned' }]);
+    const prCreator = vi.fn();
+    setRoadmapPRCreator(prCreator);
+    setOctokit(mockGitContent('# old'));
+
+    autoSyncRoadmapIfEnabled(projectId);
+    await new Promise((r) => setTimeout(r, 20)); // fire-and-forget 완료 대기
+    expect(prCreator).not.toHaveBeenCalled();
+  });
+
+  it('토글 ON 이면 자동 push 발화', async () => {
+    const projectId = seedProject();
+    seedPhaseWithItems(projectId, '1', 'P1', [{ title: 'a', status: 'planned' }]);
+    setProjectRoadmapAutoSync(projectId, true);
+    const prCreator = vi.fn(async (_i: number, _r: unknown, opts: { branch: string }) => ({
+      number: 9,
+      url: 'u',
+      branch: opts.branch,
+    }));
+    setRoadmapPRCreator(prCreator);
+    setOctokit(mockGitContent('# 다른 내용')); // git 과 다름 → push
+
+    autoSyncRoadmapIfEnabled(projectId);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(prCreator).toHaveBeenCalledOnce();
   });
 });

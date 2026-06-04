@@ -759,11 +759,28 @@ export async function getRepoFileContent(
 
 export type OpenedPR = { number: number; url: string; branch: string };
 
-// Phase 10.4 — 한 파일을 새 브랜치에 커밋하고 default branch 로 PR 을 연다(Cortex UI 로드맵을
-// git 으로 되돌리는 수동 흐름). 단일 파일·단일 커밋. branch 이름은 호출부가 결정(충돌 회피).
-// existingSha 가 있으면 기존 파일 갱신, null 이면 신규 생성. commitMessage 에 Cortex-Sync 마커를
-// 넣어 push webhook 이 되돌아오는 sync 를 skip 하게 하는 건 호출부 책임.
-export async function commitFileAndOpenPR(
+// 한 ref 의 한 파일 현재 SHA (createOrUpdateFileContents 의 갱신용). 없으면 null(신규).
+async function fileShaOnBranch(
+  octokit: Awaited<ReturnType<typeof getOctokitForInstallation>>,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string,
+): Promise<string | null> {
+  try {
+    const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch });
+    if (Array.isArray(data) || data.type !== 'file') return null;
+    return data.sha;
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
+  }
+}
+
+// Phase 10.4 — 한 파일을 **고정 롤링 브랜치**에 upsert 하고 그 브랜치의 PR 을 보장(있으면 재사용,
+// 없으면 생성). 브랜치가 이미 있으면 그 위에 커밋(반복 호출 = 같은 PR 누적 → 자동 sync PR 스팸
+// 방지). 단일 파일. commitMessage 의 Cortex-Sync 마커로 머지 후 sync 루프 차단은 호출부 책임.
+export async function upsertFileToBranchPR(
   installationId: number,
   ref: RepoRef,
   opts: {
@@ -773,37 +790,58 @@ export async function commitFileAndOpenPR(
     commitMessage: string;
     prTitle: string;
     prBody: string;
-    existingSha: string | null;
   },
 ): Promise<OpenedPR> {
   const octokit = await getOctokitForInstallation(installationId);
   const { owner, repo } = ref;
+  const { branch } = opts;
 
-  // default branch + 그 head SHA → 새 브랜치 분기점.
   const repoInfo = await octokit.repos.get({ owner, repo });
   const baseBranch = repoInfo.data.default_branch;
-  const baseRef = await octokit.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
-  const baseSha = baseRef.data.object.sha;
 
-  await octokit.git.createRef({ owner, repo, ref: `refs/heads/${opts.branch}`, sha: baseSha });
+  // 롤링 브랜치 존재 여부 — 없으면 default head 에서 분기.
+  let branchExists = true;
+  try {
+    await octokit.git.getRef({ owner, repo, ref: `heads/${branch}` });
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status === 404) branchExists = false;
+    else throw err;
+  }
+  if (!branchExists) {
+    const baseRef = await octokit.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
+    await octokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${branch}`,
+      sha: baseRef.data.object.sha,
+    });
+  }
 
+  // 브랜치 위 현재 파일 SHA (갱신용; 신규면 null).
+  const existingSha = await fileShaOnBranch(octokit, owner, repo, opts.path, branch);
   await octokit.repos.createOrUpdateFileContents({
     owner,
     repo,
     path: opts.path,
     message: opts.commitMessage,
     content: Buffer.from(opts.content, 'utf-8').toString('base64'),
-    branch: opts.branch,
-    ...(opts.existingSha ? { sha: opts.existingSha } : {}),
+    branch,
+    ...(existingSha ? { sha: existingSha } : {}),
   });
 
+  // 이 브랜치의 열린 PR 재사용 — 없으면 새로 생성(롤링 PR 1개 유지).
+  const open = await octokit.pulls.list({ owner, repo, head: `${owner}:${branch}`, state: 'open' });
+  const existingPr = open.data[0];
+  if (existingPr) {
+    return { number: existingPr.number, url: existingPr.html_url, branch };
+  }
   const pr = await octokit.pulls.create({
     owner,
     repo,
     title: opts.prTitle,
-    head: opts.branch,
+    head: branch,
     base: baseBranch,
     body: opts.prBody,
   });
-  return { number: pr.data.number, url: pr.data.html_url, branch: opts.branch };
+  return { number: pr.data.number, url: pr.data.html_url, branch };
 }

@@ -8,7 +8,9 @@ import { RoadmapBoard } from '@/components/RoadmapBoard';
 import { RoadmapOpenItems } from '@/components/RoadmapOpenItems';
 import { RoadmapSyncButton } from '@/components/RoadmapSyncButton';
 import { RoadmapPushButton } from '@/components/RoadmapPushButton';
+import { RoadmapAutoSyncToggle } from '@/components/RoadmapAutoSyncToggle';
 import { backgroundSyncIfStale } from '@/lib/project-meta';
+import { getProjectRoadmapAutoSync } from '@/lib/projects';
 import { getProjectRoadmap } from '@/lib/roadmap';
 import styles from './page.module.css';
 
@@ -24,6 +26,7 @@ export default async function ProjectRoadmapPage({ params }: { params: Promise<{
 
   const view = getProjectRoadmap(projectId);
   if (!view) notFound();
+  const autoSyncEnabled = getProjectRoadmapAutoSync(projectId);
 
   return (
     <div className={styles.page}>
@@ -53,6 +56,7 @@ export default async function ProjectRoadmapPage({ params }: { params: Promise<{
         <div className={styles.headerActions}>
           <RoadmapSyncButton projectId={view.projectId} />
           <RoadmapPushButton projectId={view.projectId} />
+          <RoadmapAutoSyncToggle projectId={view.projectId} initial={autoSyncEnabled} />
         </div>
       </header>
 

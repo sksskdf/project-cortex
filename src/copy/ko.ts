@@ -391,6 +391,13 @@ export const ko = {
         failed: (message: string) => `PR 생성 실패: ${message}`,
       },
     },
+    // Phase 10.4 — UI 편집 자동 git sync 토글(프로젝트별, 기본 OFF).
+    autoSync: {
+      on: '자동 git 반영 ON',
+      off: '자동 git 반영 OFF',
+      hint: '켜면 로드맵 편집이 자동으로 git PR(롤링)에 반영됩니다. roadmap.md 만 — 설정은 안 바뀜.',
+      error: (message: string) => `토글 실패: ${message}`,
+    },
     openItems: {
       title: '남은 작업',
       ariaLabel: '진행 중 + 예정 산출물 목록',
