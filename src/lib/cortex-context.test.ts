@@ -54,4 +54,16 @@ describe('buildCortexContextPreamble', () => {
     const out = buildCortexContextPreamble(projectId);
     expect(out).not.toContain('로드맵 남은 작업');
   });
+
+  it('issueId 주면 Cortex-Issue 마커 지시 포함 (결과 PR↔이슈 연결)', () => {
+    const projectId = seedProject();
+    const out = buildCortexContextPreamble(projectId, 42);
+    expect(out).toContain('Cortex-Issue: #42');
+  });
+
+  it('issueId 없으면 마커 지시 없음 (기존 호출 무회귀)', () => {
+    const projectId = seedProject();
+    const out = buildCortexContextPreamble(projectId);
+    expect(out).not.toContain('Cortex-Issue:');
+  });
 });

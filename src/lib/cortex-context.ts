@@ -10,7 +10,7 @@ import { getProjectRoadmap } from './roadmap';
 const MAX_PHASES = 8;
 const MAX_ITEMS_PER_PHASE = 5;
 
-export function buildCortexContextPreamble(projectId: number): string {
+export function buildCortexContextPreamble(projectId: number, issueId?: number): string {
   const lines: string[] = [
     '# Cortex 컨텍스트',
     '이 작업은 Cortex 가 관리하는 레포입니다. 작업 전 `.cortex/roadmap.md` 를 확인하고, ' +
@@ -20,6 +20,14 @@ export function buildCortexContextPreamble(projectId: number): string {
     '**작업 완료 시 마지막 commit message 에 `Cortex: ready` trailer 를 박으세요** — 이 신호가 ' +
       '있어야 Cortex 가 자동 머지 큐에 올립니다(분석 후 추가 commit push 로 인한 race 박제).',
   ];
+  if (issueId !== undefined) {
+    // 결과 PR 을 이 위임 이슈에 연결하는 마커 — Cortex 가 이걸 보고 PR↔이슈를 잇고, 사전 리뷰에
+    // 이슈의 수용 기준(spec)을 주입한다(Phase 4.7). 본문 한 줄로(trailer 형식).
+    lines.push(
+      `**PR 본문에 \`Cortex-Issue: #${issueId}\` 한 줄을 넣으세요** — 이 결과 PR 을 위임 이슈에 ` +
+        '연결해 Cortex 가 사전 리뷰에 수용 기준을 반영합니다.',
+    );
+  }
 
   const roadmap = getProjectRoadmap(projectId);
   if (roadmap) {

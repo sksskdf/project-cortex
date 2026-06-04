@@ -366,6 +366,46 @@ export function countOpenIssues(): number {
   return result?.n ?? 0;
 }
 
+// PR 본문의 `Cortex-Issue: #<id>` trailer 에서 이슈 id 추출. 위임 claude 가 결과 PR 에 박는 마커로,
+// 이 PR 이 어느 위임 이슈의 산출물인지 연결하는 데 쓴다(agent_runs.outputPrId 의 writer). 없으면
+// null. 순수 함수 — 테스트 가능. (대소문자·여러 줄 중 한 줄 매칭.)
+export function extractCortexIssueRef(body: string | null | undefined): number | null {
+  if (!body) return null;
+  const m = body.match(/^Cortex-Issue:\s*#(\d+)\s*$/im);
+  return m ? Number(m[1]) : null;
+}
+
+// PR 본문 마커로 위임 이슈↔결과 PR 을 연결 — 그 이슈의 **가장 최근** agent_run.outputPrId 를 이
+// PR 로 세팅한다(getIssueContextForPR·result-PR 배지가 비로소 채워짐). cross-project 누수 방지:
+// 이슈와 PR 이 같은 repo 일 때만 연결(issue.repoId === pr.repoId — 리뷰 경고 반영). 매칭 이슈·run
+// 이 없거나 repo 가 다르면 no-op(false). 멱등 — 같은 run 에 다시 세팅해도 동일.
+export function linkOutputPrFromBody(prId: number): boolean {
+  const pr = db
+    .select({ id: prs.id, repoId: prs.repoId, body: prs.body })
+    .from(prs)
+    .where(eq(prs.id, prId))
+    .get();
+  if (!pr) return false;
+  const issueRef = extractCortexIssueRef(pr.body);
+  if (issueRef === null) return false;
+  const issue = db
+    .select({ id: issues.id, repoId: issues.repoId })
+    .from(issues)
+    .where(eq(issues.id, issueRef))
+    .get();
+  // cross-project 누수 가드 — 다른 repo 의 이슈 spec 이 이 PR 리뷰에 새지 않게.
+  if (!issue || issue.repoId !== pr.repoId) return false;
+  const run = db
+    .select({ id: agentRuns.id })
+    .from(agentRuns)
+    .where(eq(agentRuns.issueId, issue.id))
+    .orderBy(desc(agentRuns.id))
+    .get();
+  if (!run) return false;
+  db.update(agentRuns).set({ outputPrId: pr.id }).where(eq(agentRuns.id, run.id)).run();
+  return true;
+}
+
 // Phase 4.7 — 사전 리뷰 컨텍스트 보강. 이 PR 이 위임 이슈의 결과물이면(agent_runs.outputPrId
 // 매칭), 그 이슈의 title + spec(수용 기준)을 가져온다. 리뷰가 "PR 이 원래 의도한 일을 했는지"
 // 판단할 수 있게. 매칭 안 되면 null (사람 PR 등) — 호출부가 그냥 컨텍스트 없이 진행.
