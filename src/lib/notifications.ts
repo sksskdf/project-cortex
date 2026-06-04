@@ -1,8 +1,11 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { clusters, notifications, prs, projects } from '@/db/schema';
 import type { NotificationRow } from '@/db/schema';
 import { broadcastNotification } from './events';
+
+// workspace-pulled/failed 중복 알림 dedupe 창 — 이 안의 같은 kind+project 알림은 1건으로 collapse.
+const WORKSPACE_DEDUPE_MS = 2 * 60 * 1000;
 
 // 헤더 알림 드롭다운에 보이는 행 한 줄.
 export type NotificationKind = NotificationRow['kind'];
@@ -237,6 +240,26 @@ export function createNotification(input: CreateNotificationInput): {
         };
     }
   })();
+
+  // workspace-pulled/failed 는 per-repo 부작용 — 같은 repo 의 여러 PR 이 연달아 머지되면 동일한
+  // git 상태에 대해 같은 알림이 반복돼 인박스를 스팸한다(리뷰 발견: 5 PR 머지 → 5 알림). 최근
+  // WORKSPACE_DEDUPE_MS 안에 같은 kind+project 알림이 있으면 skip. (prId 가 달라 id 기준 dedupe
+  // 로는 안 잡혀 project 단위로 본다.) 다른 kind(per-PR 알림)는 prId 가 달라 자연히 구분됨.
+  if (input.kind === 'workspace-pulled' || input.kind === 'workspace-pull-failed') {
+    const since = new Date(Date.now() - WORKSPACE_DEDUPE_MS);
+    const recent = db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.kind, input.kind),
+          eq(notifications.projectId, pr.repoId),
+          gte(notifications.createdAt, since),
+        ),
+      )
+      .get();
+    if (recent) return { kind: 'skipped' };
+  }
 
   const row = db
     .insert(notifications)

@@ -108,6 +108,76 @@ describe('createNotification', () => {
     expect(row?.body).toContain('fast-forward');
   });
 
+  // 회귀(리뷰 발견): workspace-pulled 는 per-repo 부작용 — 같은 repo 의 여러 PR 이 연달아 머지되면
+  // 동일 알림이 반복 스팸. 같은 kind+project 의 최근 알림이 있으면 dedupe(skip).
+  it('workspace-pulled 는 같은 프로젝트의 후속 PR 머지에서 dedupe(skip)', () => {
+    const project = db
+      .insert(projects)
+      .values({ slug: 'acme/web', name: 'Web' })
+      .returning({ id: projects.id })
+      .get();
+    function prInProject(number: number): number {
+      return db
+        .insert(prs)
+        .values({
+          repoId: project.id,
+          number,
+          title: `pr ${number}`,
+          authorKind: 'agent',
+          authorId: 'claude',
+          headSha: `sha${number}`,
+          linesAdded: 1,
+          linesRemoved: 0,
+          filesChanged: 1,
+        })
+        .returning({ id: prs.id })
+        .get().id;
+    }
+    const pr1 = prInProject(1);
+    const pr2 = prInProject(2);
+
+    const first = createNotification({ kind: 'workspace-pulled', prId: pr1 });
+    expect(first.kind).toBe('created');
+    // 같은 프로젝트의 다른 PR — dedupe 창 안이라 skip.
+    const second = createNotification({ kind: 'workspace-pulled', prId: pr2 });
+    expect(second.kind).toBe('skipped');
+    // workspace-pulled 행은 1개뿐.
+    const rows = db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.kind, 'workspace-pulled'))
+      .all();
+    expect(rows).toHaveLength(1);
+  });
+
+  it('다른 kind(per-PR)는 dedupe 안 함 — 같은 프로젝트라도 각 PR 알림 유지', () => {
+    const project = db
+      .insert(projects)
+      .values({ slug: 'acme/web', name: 'Web' })
+      .returning({ id: projects.id })
+      .get();
+    const mk = (number: number) =>
+      db
+        .insert(prs)
+        .values({
+          repoId: project.id,
+          number,
+          title: `pr ${number}`,
+          authorKind: 'agent',
+          authorId: 'claude',
+          headSha: `sha${number}`,
+          linesAdded: 1,
+          linesRemoved: 0,
+          filesChanged: 1,
+        })
+        .returning({ id: prs.id })
+        .get().id;
+    expect(createNotification({ kind: 'auto-merged', prId: mk(1) }).kind).toBe('created');
+    expect(createNotification({ kind: 'auto-merged', prId: mk(2) }).kind).toBe('created');
+    const rows = db.select().from(notifications).where(eq(notifications.kind, 'auto-merged')).all();
+    expect(rows).toHaveLength(2);
+  });
+
   it('skips creating when PR missing', () => {
     const r = createNotification({ kind: 'ci-failed', prId: 9999 });
     expect(r.kind).toBe('skipped');
