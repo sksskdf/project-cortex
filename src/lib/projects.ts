@@ -270,6 +270,32 @@ export function setProjectAutoResolveChanges(
   return { kind: 'updated', id, enabled };
 }
 
+// Phase 10.4 — UI 로드맵 편집을 git 으로 자동 sync 할지 프로젝트별 토글. 디폴트 OFF(opt-in).
+// roadmap.md 만 sync(롤링 PR), project.yml 자동화 토글은 안 건드림 — 자동 push 가 놀랍지 않게.
+export type ToggleRoadmapAutoSyncResult =
+  | { kind: 'updated'; id: number; enabled: boolean }
+  | { kind: 'not-found' };
+
+export function setProjectRoadmapAutoSync(
+  id: number,
+  enabled: boolean,
+): ToggleRoadmapAutoSyncResult {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).get();
+  if (!existing) return { kind: 'not-found' };
+  db.update(projects).set({ roadmapAutoSyncEnabled: enabled }).where(eq(projects.id, id)).run();
+  return { kind: 'updated', id, enabled };
+}
+
+// roadmap 페이지가 자동 sync 토글 초기값을 읽는 용도. 없으면 false.
+export function getProjectRoadmapAutoSync(id: number): boolean {
+  const row = db
+    .select({ enabled: projects.roadmapAutoSyncEnabled })
+    .from(projects)
+    .where(eq(projects.id, id))
+    .get();
+  return row?.enabled ?? false;
+}
+
 // Phase 8 — 수동 레포 등록 (인테이크 마법사).
 // 자동 onboard 와 별개: webhook 도착 전이거나 App 미설치 상태에서도 사용자가 직접
 // projects 행 생성. installationId=null + autoMergeEnabled=false 로 시작.
