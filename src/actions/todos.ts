@@ -110,7 +110,8 @@ export async function promoteTodoToIssueAction(todoId: number): Promise<PromoteT
     if (r.kind !== 'promoted') return r;
 
     // 위임 prompt + (워크스페이스 있으면) 자동 spawn 정보 — createIssueAction 과 동일 패턴.
-    const prompt = buildCortexContextPreamble(r.repoId) + buildDelegatePrompt(r.title, r.spec);
+    const prompt =
+      buildCortexContextPreamble(r.repoId, r.issueId) + buildDelegatePrompt(r.title, r.spec);
     const workspace = getWorkspace(r.repoId);
     const autoStart = workspace
       ? {

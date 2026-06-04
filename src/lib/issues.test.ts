@@ -6,10 +6,12 @@ import { agentRuns, issues, projects, prs, roadmapItems, roadmapPhases } from '@
 import {
   completeIssueDelegation,
   countOpenIssues,
+  extractCortexIssueRef,
   finishAgentRun,
   getIssueContextForPR,
   getIssueDetail,
   linkIssueToRoadmapItem,
+  linkOutputPrFromBody,
   listIssueOptions,
   listIssues,
   reconcileOrphanedRuns,
@@ -557,5 +559,83 @@ describe('getIssueContextForPR — Phase 4.7 사전 리뷰 컨텍스트', () => 
     db.insert(agentRuns).values({ issueId: issueB, agent: 'claude', outputPrId: prId }).run();
     const ctx = getIssueContextForPR(prId);
     expect(ctx?.title).toBe('B');
+  });
+});
+
+describe('extractCortexIssueRef', () => {
+  it('본문의 `Cortex-Issue: #<id>` trailer 추출', () => {
+    expect(extractCortexIssueRef('변경 요약\n\nCortex-Issue: #42')).toBe(42);
+    expect(extractCortexIssueRef('cortex-issue:   #7')).toBe(7); // 대소문자·공백 관대
+  });
+  it('마커 없거나 형식 안 맞으면 null', () => {
+    expect(extractCortexIssueRef('일반 PR 본문')).toBeNull();
+    expect(extractCortexIssueRef('Cortex-Issue: 42')).toBeNull(); // # 없음
+    expect(extractCortexIssueRef(null)).toBeNull();
+    expect(extractCortexIssueRef(undefined)).toBeNull();
+  });
+});
+
+describe('linkOutputPrFromBody — agent_run ↔ 결과 PR 연결', () => {
+  function seedPRWithBody(repoId: number, number: number, body: string | null): number {
+    return db
+      .insert(prs)
+      .values({
+        repoId,
+        number,
+        title: 'result',
+        body,
+        authorKind: 'agent',
+        authorId: 'claude',
+        headSha: `sha-${number}`,
+        linesAdded: 1,
+        linesRemoved: 0,
+        filesChanged: 1,
+        status: 'review-needed',
+      })
+      .returning({ id: prs.id })
+      .get().id;
+  }
+  function seedAgentIssue(repoId: number, title: string): number {
+    return db
+      .insert(issues)
+      .values({ repoId, title, spec: `spec ${title}`, assigneeKind: 'agent', assigneeId: 'claude' })
+      .returning({ id: issues.id })
+      .get().id;
+  }
+
+  it('마커가 가리키는 이슈의 최신 run 에 outputPrId 세팅 → getIssueContextForPR 동작', () => {
+    const repoId = seedProject('owner/repo');
+    const issueId = seedAgentIssue(repoId, 'feat X');
+    const runId = startAgentRun(issueId);
+    const prId = seedPRWithBody(repoId, 1, `요약\n\nCortex-Issue: #${issueId}`);
+
+    expect(linkOutputPrFromBody(prId)).toBe(true);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()?.outputPrId).toBe(prId);
+    // 이제 사전 리뷰 컨텍스트가 채워진다(Phase 4.7 되살아남).
+    expect(getIssueContextForPR(prId)?.title).toBe('feat X');
+  });
+
+  it('마커 없으면 no-op (false)', () => {
+    const repoId = seedProject('owner/repo');
+    seedAgentIssue(repoId, 'x');
+    const prId = seedPRWithBody(repoId, 1, '마커 없는 본문');
+    expect(linkOutputPrFromBody(prId)).toBe(false);
+  });
+
+  it('cross-project 누수 가드 — 다른 repo 의 이슈는 연결 안 함', () => {
+    const repoA = seedProject('owner/a');
+    const repoB = seedProject('owner/b');
+    const issueInB = seedAgentIssue(repoB, 'B 이슈');
+    startAgentRun(issueInB);
+    // repoA 의 PR 이 repoB 의 이슈를 가리키는 마커 — 연결되면 안 됨.
+    const prId = seedPRWithBody(repoA, 1, `Cortex-Issue: #${issueInB}`);
+    expect(linkOutputPrFromBody(prId)).toBe(false);
+    expect(getIssueContextForPR(prId)).toBeNull();
+  });
+
+  it('존재하지 않는 이슈 id 마커는 no-op', () => {
+    const repoId = seedProject('owner/repo');
+    const prId = seedPRWithBody(repoId, 1, 'Cortex-Issue: #99999');
+    expect(linkOutputPrFromBody(prId)).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { attemptAutoMerge } from './auto-merge';
 import { attemptConflictResolution } from './conflict-resolve';
 import { getPRMergeStatus, listCheckRunsForRef } from './github';
 import { logger } from './logger';
+import { linkOutputPrFromBody } from './issues';
 import { createNotification, isRevertPR } from './notifications';
 import { analyzePR } from './pre-review';
 import { matchAndApplyDoneFromPR } from './roadmap';
@@ -157,6 +158,17 @@ function safeRoadmapMatch(prId: number): void {
   }
 }
 
+// PR 본문의 `Cortex-Issue: #<id>` 마커로 위임 이슈↔결과 PR 연결(agent_runs.outputPrId). 이게
+// 채워져야 result-PR 배지 + Phase 4.7 사전 리뷰의 이슈 spec 주입(getIssueContextForPR)이 동작한다.
+// best-effort — 마커 없으면 no-op, 실패해도 ingest 흐름엔 영향 없음.
+function safeLinkOutputPr(prId: number): void {
+  try {
+    linkOutputPrFromBody(prId);
+  } catch (err) {
+    logger.error({ source: 'sync', op: 'linkOutputPrFromBody', prId, err }, 'outputPr 연결 실패');
+  }
+}
+
 // reconcile 흐름 (수동 동기화) 은 AI 분석 명시 bypass — 크레딧 0. webhook 흐름은
 // 기본 동작 (analyzePR + triage + autoMerge) 유지.
 export type SyncSource = 'webhook' | 'reconcile';
@@ -242,6 +254,9 @@ export async function handlePullRequestWebhook(
       .values({ ...values, status: computeStatus(payload.action, payload.pr.merged) })
       .returning({ id: prs.id })
       .get();
+    // 위임 이슈↔결과 PR 연결 — 분석 전에 해야 safeAnalyze 의 getIssueContextForPR 가 이슈 spec 을
+    // 사전 리뷰에 주입할 수 있다(Phase 4.7).
+    safeLinkOutputPr(inserted.id);
     // 새 PR 의 title/body 가 GitHub revert UI 패턴이면 알림 — 사용자가 머지된 변경이
     // 되돌려졌음을 즉시 알 수 있게. reconcile 흐름에선 과거 PR 까지 모두 알림 폭탄이 될 수
     // 있어 webhook 진입만.
@@ -315,6 +330,9 @@ export async function handlePullRequestWebhook(
     })
     .where(eq(prs.id, existing.id))
     .run();
+
+  // body 가 편집돼 마커가 추가됐을 수 있고, 재분석 전에 연결돼 있어야 이슈 spec 주입됨(멱등).
+  safeLinkOutputPr(existing.id);
 
   // synchronize 면 새 headSha 기준으로 재분석 필요 — analyzePR 의 (prId, headSha)
   // 캐시가 자동으로 새 행을 만든다. opened/reopened 도 마찬가지 (이미 PR 이 있을 때 재오픈).
