@@ -48,3 +48,14 @@ export function setHeadroomEnabled(enabled: boolean): AppSettingsRow {
     .returning()
     .get();
 }
+
+// Phase 13.5 R4 — 자동화 헤드리스 호출의 좁은 도구 허용목록 사용 토글(기본 OFF).
+export function setCliAllowedToolsEnabled(enabled: boolean): AppSettingsRow {
+  getSettings();
+  return db
+    .update(appSettings)
+    .set({ cliAllowedToolsEnabled: enabled, updatedAt: new Date() })
+    .where(eq(appSettings.id, SETTINGS_ID))
+    .returning()
+    .get();
+}

@@ -218,6 +218,13 @@
       "when": 1781400000000,
       "tag": "0030_project_roadmap_autosync",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1781500000000,
+      "tag": "0031_app_settings_cli_allowed_tools",
+      "breakpoints": true
     }
   ]
 }

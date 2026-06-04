@@ -749,6 +749,13 @@ export const ko = {
       unavailable:
         'PATH 에서 headroom 을 찾을 수 없어 원본 claude 로 동작 중입니다. `headroom --version` 으로 설치를 확인하세요.',
     },
+    // Phase 13.5 R4 — claude CLI 자동화 도구 권한 정밀화 토글.
+    cliAllowedTools: {
+      title: 'claude CLI 도구 권한 정밀화 (실험)',
+      desc: '켜면 헤드리스 자동화(테스트 수정·충돌 해결·리뷰 반영)가 `--dangerously-skip-permissions`(전부 허용) 대신 작업별 좁은 `--allowed-tools` 목록만 사용합니다. 기본 OFF — 켜기 전 머신에서 자동 수정이 정상 동작하는지 1회 확인하세요(허용 목록 형식이 CLI 와 일치해야 동작). 동작 안 하면 OFF 로 즉시 복귀(기존 동작 무회귀). 사전 리뷰는 도구 미사용이라 영향 없음.',
+      on: '정밀화 ON',
+      off: '정밀화 OFF',
+    },
     skill: {
       title: 'Cortex 스킬',
       desc: 'Cortex 워크플로·컨벤션을 claude code 스킬로 ~/.claude/skills/cortex 에 설치합니다. 불러온 프로젝트에서 작업할 때 claude 가 Cortex 흐름(커밋 트레일러·로드맵 done 컨벤션·.cortex·PR 검증)을 참조합니다.',

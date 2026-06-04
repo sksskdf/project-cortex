@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { extractResult, extractUsageFromStdout, parseJsonFromText } from './claude-cli';
+import {
+  buildHeadlessArgs,
+  extractResult,
+  extractUsageFromStdout,
+  parseJsonFromText,
+} from './claude-cli';
+import type { ClaudeRunOptions } from './claude-cli';
 
 describe('parseJsonFromText', () => {
   it('순수 JSON 파싱', () => {
@@ -130,5 +136,104 @@ describe('extractUsageFromStdout — is_error 무관 비용 관측 (리뷰 회�
   it('깨진 JSON(프로세스 크래시 stdout)은 null — throw 안 함', () => {
     expect(extractUsageFromStdout('partial garbage not json')).toBeNull();
     expect(extractUsageFromStdout('')).toBeNull();
+  });
+});
+
+describe('buildHeadlessArgs — argv 빌더(R1/R2/R4/R5 + degrade + priority)', () => {
+  const base: ClaudeRunOptions = { input: 'body', instruction: 'do it' };
+
+  it('기본 — -p --output-format json + instruction (마지막)', () => {
+    const a = buildHeadlessArgs(base, true, null);
+    expect(a.slice(0, 3)).toEqual(['-p', '--output-format', 'json']);
+    expect(a[a.length - 1]).toBe('do it');
+  });
+
+  it('--model + R5 --fallback-model', () => {
+    const a = buildHeadlessArgs({ ...base, model: 'opus', fallbackModel: 'sonnet' }, true, null);
+    expect(a).toContain('--model');
+    expect(a[a.indexOf('--model') + 1]).toBe('opus');
+    expect(a).toContain('--fallback-model');
+    expect(a[a.indexOf('--fallback-model') + 1]).toBe('sonnet');
+  });
+
+  it('R1 --json-schema (직렬화 JSON)', () => {
+    const schema = { type: 'object' };
+    const a = buildHeadlessArgs({ ...base, jsonSchema: schema }, true, null);
+    expect(a).toContain('--json-schema');
+    expect(a[a.indexOf('--json-schema') + 1]).toBe(JSON.stringify(schema));
+  });
+
+  it('R2 --append-system-prompt-file (호출자가 쓴 경로)', () => {
+    const a = buildHeadlessArgs(
+      { ...base, appendSystemPrompt: 'irrelevant — 파일은 호출자가 씀' },
+      true,
+      '/tmp/cortex-sys-xyz.md',
+    );
+    expect(a).toContain('--append-system-prompt-file');
+    expect(a[a.indexOf('--append-system-prompt-file') + 1]).toBe('/tmp/cortex-sys-xyz.md');
+  });
+
+  // R4 권한 정밀화 — 핵심 회귀.
+  it('R4 --allowed-tools — 명시 시 dangerously-skip-permissions 안 씀(좁은 권한 우선)', () => {
+    const a = buildHeadlessArgs(
+      { ...base, allowedTools: ['Read', 'Edit', 'Bash'], dangerouslyAllowAllTools: true },
+      true,
+      null,
+    );
+    expect(a).toContain('--allowed-tools');
+    expect(a[a.indexOf('--allowed-tools') + 1]).toBe('Read,Edit,Bash');
+    expect(a).not.toContain('--dangerously-skip-permissions');
+  });
+
+  it('allowedTools 없고 dangerously=true → --dangerously-skip-permissions', () => {
+    const a = buildHeadlessArgs({ ...base, dangerouslyAllowAllTools: true }, true, null);
+    expect(a).toContain('--dangerously-skip-permissions');
+    expect(a).not.toContain('--allowed-tools');
+  });
+
+  it('빈 allowedTools 배열도 그대로 전달(=어떤 도구도 허용 안 함)', () => {
+    const a = buildHeadlessArgs({ ...base, allowedTools: [] }, true, null);
+    expect(a).toContain('--allowed-tools');
+    expect(a[a.indexOf('--allowed-tools') + 1]).toBe('');
+  });
+
+  // useEnhancements=false — degrade-retry 경로(미지원 CLI). allowedTools/json-schema/fallback/
+  // append 모두 생략하되 dangerously 는 폴백 유지(기존 동작 보존).
+  it('degrade(useEnhancements=false) — R1/R2/R4/R5 전부 생략, dangerously 만 유지', () => {
+    const a = buildHeadlessArgs(
+      {
+        ...base,
+        model: 'opus',
+        fallbackModel: 'sonnet',
+        jsonSchema: {},
+        allowedTools: ['Read'],
+        dangerouslyAllowAllTools: true,
+      },
+      false,
+      '/tmp/x.md',
+    );
+    expect(a).toContain('--model'); // --model 은 enhancement 아님
+    expect(a).not.toContain('--fallback-model');
+    expect(a).not.toContain('--json-schema');
+    expect(a).not.toContain('--allowed-tools');
+    expect(a).not.toContain('--append-system-prompt-file');
+    // dangerously 는 폴백으로 살아남음(없으면 자동화가 권한 프롬프트로 멈춤).
+    expect(a).toContain('--dangerously-skip-permissions');
+  });
+
+  it('instruction 은 항상 argv 마지막', () => {
+    const a = buildHeadlessArgs(
+      {
+        ...base,
+        model: 'opus',
+        fallbackModel: 'sonnet',
+        jsonSchema: {},
+        allowedTools: ['Read'],
+        appendSystemPrompt: 'x',
+      },
+      true,
+      '/tmp/sys.md',
+    );
+    expect(a[a.length - 1]).toBe('do it');
   });
 });

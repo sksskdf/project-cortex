@@ -254,6 +254,12 @@ export const appSettings = sqliteTable('app_settings', {
   // spawn 할 때 `headroom wrap claude ...` 로 감쌀지. 기본 OFF(opt-in) — headroom 미설치 머신
   // 무회귀. ON 이라도 binary 미감지면 fallback(원본 claude 직접 spawn, warning 로그)으로 동작.
   headroomEnabled: integer('headroom_enabled', { mode: 'boolean' }).notNull().default(false),
+  // Phase 13.5 R4 — 자동화 헤드리스 호출이 `--dangerously-skip-permissions`(전부 허용) 대신
+  // 작업별 좁은 `--allowed-tools` 목록을 쓸지. 기본 OFF — CLI 가 허용 목록 형식을 지원하는지
+  // 런타임 검증 후 켜라(잘못된 목록은 자동화를 깰 수 있음). OFF 면 기존 dangerously 동작 유지.
+  cliAllowedToolsEnabled: integer('cli_allowed_tools_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
 });
 

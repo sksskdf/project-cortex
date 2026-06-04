@@ -21,7 +21,9 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { prs, projects } from '@/db/schema';
 import { runClaudeHeadless } from './claude-cli';
+import { allowedToolsFor } from './cli-permissions';
 import { CORTEX_HEADLESS_GUIDANCE } from './cortex-skill';
+import { getSettings } from './settings';
 import { setAutomationInFlight, clearAutomationInFlight } from './automation-state';
 import { addPRComment, getPRMergeStatus, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
@@ -176,6 +178,8 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
       '현재 작업 디렉토리에서 테스트를 실행해 실패를 파악하고 수정하세요. 테스트가 통과할 때까지 고치되, 커밋·푸시는 하지 말고 변경만 남기세요.',
     model: TEST_FIX_MODEL,
     cwd,
+    // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
+    allowedTools: allowedToolsFor('test-fix', getSettings().cliAllowedToolsEnabled),
     dangerouslyAllowAllTools: true,
     appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
     timeoutMs: CLAUDE_TIMEOUT_MS,
