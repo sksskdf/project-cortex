@@ -78,7 +78,7 @@
   background: none;
   border: none;
   color: var(--ds-color-text-03-high);
-  font-size: 18px;
+  font-size: var(--ds-typography-font-size-18);
   line-height: 1;
   cursor: pointer;
   padding: 0 2px;

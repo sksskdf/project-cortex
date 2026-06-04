@@ -38,7 +38,7 @@
   border-radius: 999px;
   background: var(--ds-color-state-error-accent);
   color: var(--ds-color-text-on-accent, #fff);
-  font-size: 10px;
+  font-size: var(--ds-typography-font-size-10);
   font-weight: var(--ds-typography-font-weight-bold);
   display: inline-flex;
   align-items: center;
