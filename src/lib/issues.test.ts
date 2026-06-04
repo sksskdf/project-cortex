@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
@@ -144,6 +144,39 @@ describe('startAgentRun / finishAgentRun', () => {
     expect(run?.completedAt).toBeNull();
 
     expect(getIssueDetail(issueId)!.runs[0].status).toBe('running');
+  });
+
+  // 회귀(리뷰 발견): double-invoke 로 같은 이슈에 'running' 이 중복 누적되던 것 — 새 위임이
+  // 기존 active run 을 superseded(failed)로 마감해 한 이슈 = 한 active 위임 유지.
+  it('startAgentRun 재호출 시 같은 이슈의 이전 active run 을 superseded(failed) 처리', () => {
+    const repoId = seedProject('repo');
+    const issueId = seedIssue(repoId, 'double', 'in-progress');
+
+    const first = startAgentRun(issueId);
+    const second = startAgentRun(issueId);
+    expect(second).not.toBe(first);
+
+    // 이전 run 은 failed 로 마감, 새 run 만 running.
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, first)).get()?.status).toBe('failed');
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, second)).get()?.status).toBe(
+      'running',
+    );
+    // 이슈의 active running run 은 정확히 1개.
+    const activeRunning = db
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.issueId, issueId), eq(agentRuns.status, 'running')))
+      .all();
+    expect(activeRunning).toHaveLength(1);
+  });
+
+  it('다른 이슈의 active run 은 startAgentRun 에 영향받지 않음', () => {
+    const repoId = seedProject('repo');
+    const issueA = seedIssue(repoId, 'a', 'in-progress');
+    const issueB = seedIssue(repoId, 'b', 'in-progress');
+    const runA = startAgentRun(issueA);
+    startAgentRun(issueB); // 다른 이슈 — runA 에 영향 없어야
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, runA)).get()?.status).toBe('running');
   });
 
   it('finishAgentRun(ok=true) → completed + completedAt', () => {
