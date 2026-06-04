@@ -7,6 +7,7 @@ import { ko as t } from '@/copy/ko';
 import { RoadmapBoard } from '@/components/RoadmapBoard';
 import { RoadmapOpenItems } from '@/components/RoadmapOpenItems';
 import { RoadmapSyncButton } from '@/components/RoadmapSyncButton';
+import { RoadmapPushButton } from '@/components/RoadmapPushButton';
 import { backgroundSyncIfStale } from '@/lib/project-meta';
 import { getProjectRoadmap } from '@/lib/roadmap';
 import styles from './page.module.css';
@@ -51,6 +52,7 @@ export default async function ProjectRoadmapPage({ params }: { params: Promise<{
         </div>
         <div className={styles.headerActions}>
           <RoadmapSyncButton projectId={view.projectId} />
+          <RoadmapPushButton projectId={view.projectId} />
         </div>
       </header>
 

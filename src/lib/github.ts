@@ -756,3 +756,54 @@ export async function getRepoFileContent(
     throw err;
   }
 }
+
+export type OpenedPR = { number: number; url: string; branch: string };
+
+// Phase 10.4 — 한 파일을 새 브랜치에 커밋하고 default branch 로 PR 을 연다(Cortex UI 로드맵을
+// git 으로 되돌리는 수동 흐름). 단일 파일·단일 커밋. branch 이름은 호출부가 결정(충돌 회피).
+// existingSha 가 있으면 기존 파일 갱신, null 이면 신규 생성. commitMessage 에 Cortex-Sync 마커를
+// 넣어 push webhook 이 되돌아오는 sync 를 skip 하게 하는 건 호출부 책임.
+export async function commitFileAndOpenPR(
+  installationId: number,
+  ref: RepoRef,
+  opts: {
+    path: string;
+    content: string;
+    branch: string;
+    commitMessage: string;
+    prTitle: string;
+    prBody: string;
+    existingSha: string | null;
+  },
+): Promise<OpenedPR> {
+  const octokit = await getOctokitForInstallation(installationId);
+  const { owner, repo } = ref;
+
+  // default branch + 그 head SHA → 새 브랜치 분기점.
+  const repoInfo = await octokit.repos.get({ owner, repo });
+  const baseBranch = repoInfo.data.default_branch;
+  const baseRef = await octokit.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
+  const baseSha = baseRef.data.object.sha;
+
+  await octokit.git.createRef({ owner, repo, ref: `refs/heads/${opts.branch}`, sha: baseSha });
+
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: opts.path,
+    message: opts.commitMessage,
+    content: Buffer.from(opts.content, 'utf-8').toString('base64'),
+    branch: opts.branch,
+    ...(opts.existingSha ? { sha: opts.existingSha } : {}),
+  });
+
+  const pr = await octokit.pulls.create({
+    owner,
+    repo,
+    title: opts.prTitle,
+    head: opts.branch,
+    base: baseBranch,
+    body: opts.prBody,
+  });
+  return { number: pr.data.number, url: pr.data.html_url, branch: opts.branch };
+}
