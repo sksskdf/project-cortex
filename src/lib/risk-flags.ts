@@ -32,7 +32,17 @@ const PATH_PATTERNS: ReadonlyArray<{ patterns: ReadonlyArray<RegExp>; flag: Risk
   // migration: 마이그레이션 파일 + drizzle schema 소스(이 레포의 DB 스키마 단일 소스). schema.ts
   // 만 변경하고 .sql 미동반인 PR 도 잡도록 db/schema 추가(리뷰 발견).
   { patterns: [/migrat(ion|e)|\.sql\b|db\/schema|drizzle\//i], flag: 'migration' },
-  { patterns: [/password|secret|credential|\.env|crypto/i], flag: 'security-sensitive' },
+  // security-sensitive: 비밀번호·시크릿·자격증명 + **자격증명 파일류**(리뷰 발견 미탐 보강). apiKey·
+  // private-key·.pem/.p12/keystore·signing-key 등 명확히 자격증명인 이름만 추가(저-오탐). bare
+  // 'token' 은 영어/페이지네이션 충돌이 커 제외(블로킹 플래그라 over-block 위험). 자격증명 변경은
+  // 자동 머지 차단 = 의도된 안전.
+  {
+    patterns: [
+      /password|secret|credential|\.env|crypto/i,
+      /api[_-]?key|private[_-]?key|signing[_-]?key|\.pem\b|\.p12\b|\.pfx\b|keystore/i,
+    ],
+    flag: 'security-sensitive',
+  },
 ];
 
 // diff 본문 휴리스틱. 신규 외부 호출은 LLM이 더 정확하지만 1차 거르기용.
