@@ -715,6 +715,14 @@ export const ko = {
       on: '격리 ON',
       off: '격리 OFF',
     },
+    headroom: {
+      title: 'Headroom 컨텍스트 압축 (실험)',
+      desc: '켜면 헤드리스 자동화(사전 리뷰·테스트 수정·충돌 해결·리뷰 반영)가 `headroom wrap claude` 로 spawn 되어 LLM 호출 전 컨텍스트가 로컬 압축됩니다(토큰 60-95% 절감). 기본 OFF — `npm i -g headroom-ai` 또는 `pip install headroom-ai[all]` 로 설치 후 켜세요. 미설치 머신에서 켜면 원본 claude 로 fallback(무회귀, 압축 효과만 없음). 위임 PTY 세션은 영향 없음.',
+      on: '압축 ON',
+      off: '압축 OFF',
+      unavailable:
+        'PATH 에서 headroom 을 찾을 수 없어 원본 claude 로 동작 중입니다. `headroom --version` 으로 설치를 확인하세요.',
+    },
     skill: {
       title: 'Cortex 스킬',
       desc: 'Cortex 워크플로·컨벤션을 claude code 스킬로 ~/.claude/skills/cortex 에 설치합니다. 불러온 프로젝트에서 작업할 때 claude 가 Cortex 흐름(커밋 트레일러·로드맵 done 컨벤션·.cortex·PR 검증)을 참조합니다.',

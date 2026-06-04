@@ -204,6 +204,13 @@
       "when": 1781200000000,
       "tag": "0028_pr_author_association",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1781300000000,
+      "tag": "0029_app_settings_headroom",
+      "breakpoints": true
     }
   ]
 }
