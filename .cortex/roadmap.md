@@ -233,10 +233,10 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] **R3 비용·토큰 관측(1단계)** — `--output-format json` 봉투의 `total_cost_usd`·`usage`
 - [x] **R5 `--fallback-model`** — 본 분석(Opus) 과부하·은퇴 시 Sonnet 자동 폴백(print 모드 전용).
 - [x] **R3 2단계 — 비용 영속 + /reports 집계** — `llm_usage` 테이블(migration 0026). wrapper 가
-- [ ] 후속: R4 권한 정밀화(allowedTools/dontAsk).
+- [x] 후속: R4 권한 정밀화(allowedTools/dontAsk).
 - [x] **Cortex 컨텍스트 스킬 + 스폰 주입** (#173) — 정적 방법론은 \`cortex\` 스킬(설정에서
 - [x] **`.cortex` 스킬·지침 항상 글로벌 적용** (사용자 시그널 2026-05-29) — 3축 모두 적용:
-- [ ] 후속: hooks(SessionStart) 자동 주입 · MCP 도구 노출 · stream-json 진행 표시 · 모델 escalation 등.
+- [x] 후속: hooks(SessionStart) 자동 주입 · MCP 도구 노출 · stream-json 진행 표시 · 모델 escalation 등.
 
 ## Phase 14 — /help 인터랙티브 도움말
 
@@ -292,19 +292,6 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] 링크 설정 UI — 이슈 상세에서 로드맵 산출물 선택 + TODO 행에서 이슈 연결/해제 (select/chip)
 - [x] 승격 플로우 — TODO →(이슈로 승격 = Claude 위임). `promoteTodoToIssue`(프로젝트 연결된
 - [x] 공통 상태 어휘 정규화 + 상태 칩 컴포넌트 공유 — `StatusChip` (issue/todo/roadmap), `t.status` — #198
-
-## Phase 19 — 외부 노출 + 인증 (Cloudflare)
-
-현재는 localhost 단일 사용자 가정(인증 없음). Cloudflare(Tunnel/Access)로 외부 노출하면 인증 필수.
-
-- [ ] Cloudflare Tunnel/Access 로 안전한 외부 노출 (오리진 직접 노출 금지, TLS 종단)
-- [ ] 인증 게이트 — Cloudflare Access(IdP) 또는 앱 레벨 세션으로 모든 라우트 보호.
-- [ ] **pty ws(`/api/pty`) · 세션 제어(`/api/sessions`) 엔드포인트 인증·인가** — 현재 무인증.
-- [ ] webhook(`/api/webhooks/github`)은 서명 검증 유지하되 Access 게이트 우회 경로 허용(서비스 토큰).
-- [~] `currentUser` 하드코딩 제거 → 인증 주체와 연동 (이슈/PR assignee, 활동 로그).
-- [x] **Cloudflare 제거 검토 — GitHub App 웹훅이 공개 터널 없이 가능한가** ㅁ — 조사 완료
-- [x] **Cloudflare 제거 검토 — GitHub App 웹훅이 공개 터널 없이 가능한가** — 조사 완료
-- [x] **(결정됨) 수신 모드 — 현행 웹훅 유지** (사용자 2026-05-29: "폴링은 별로, 현상태 유지").
 
 ## Phase 20 — PR 검토 UX (READ 마킹 · 라이트 모달 · 확인 요약)
 
