@@ -89,12 +89,23 @@ export function buildDelegatePrompt(title: string, spec: string): string {
 // 이 id 를 spawn 되는 pty 세션에 runId 로 전달해, 세션 종료 시 finishAgentRun 으로 상태를
 // 마감한다 (이슈 목록/상세에 실시간 반영).
 export function startAgentRun(issueId: number): number {
-  const row = db
-    .insert(agentRuns)
-    .values({ issueId, agent: CLAUDE_ASSIGNEE_ID, status: 'running', startedAt: new Date() })
-    .returning({ id: agentRuns.id })
-    .get();
-  return row.id;
+  return db.transaction((tx) => {
+    // 같은 이슈의 기존 active(running/queued) run 은 새 위임이 대체 — 'failed'(superseded)로 마감.
+    // 안 그러면 double-invoke(action 재발화·todos→issue 재위임)로 같은 이슈에 'running' 이 여러 개
+    // 쌓이는데, 세션은 최신 것 하나에만 묶여 잉여 run 이 24h sweep 까지 대시보드 카운트를 부풀린다
+    // (리뷰 발견). 한 이슈 = 한 active 위임 불변식. 이전 run 에 실제 세션이 살아있어도 그 exit 은
+    // finishAgentRun 의 terminal 가드(#251)로 no-op 이라 안전.
+    tx.update(agentRuns)
+      .set({ status: 'failed', completedAt: new Date() })
+      .where(and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, ['running', 'queued'])))
+      .run();
+    const row = tx
+      .insert(agentRuns)
+      .values({ issueId, agent: CLAUDE_ASSIGNEE_ID, status: 'running', startedAt: new Date() })
+      .returning({ id: agentRuns.id })
+      .get();
+    return row.id;
+  });
 }
 
 // Phase 13.4 — 서버 시작 시 orphan 정리. 라이브 pty 세션은 프로세스와 함께 죽으므로, 재시작
