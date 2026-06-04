@@ -551,14 +551,33 @@ export function deleteItem(itemId: number): { kind: 'deleted' } | { kind: 'not-f
 }
 
 // PR 본문에서 'Closes #PHASE-<key>' 또는 'Closes #ITEM-<id>' 패턴을 추출.
-// GitHub PR description 컨벤션. case-insensitive, 'Fixes' / 'Resolves' 도 인식.
-// 같은 PR 에 여러 매칭 가능.
+// GitHub PR description 컨벤션. case-insensitive. GitHub 가 인정하는 3종 시제 모두 인식:
+// close/closes/closed, fix/fixes/fixed, resolve/resolves/resolved (예전엔 복수형만 인식해
+// `Closed #PHASE-3`·`Fix #ITEM-7` 이 조용히 누락됐다).
+//
+// 단어 경계(`\b`) 필수 — 예전엔 경계가 없어 `discloses`·`forecloses`·`encloses`·`unresolves`
+// 같은 산문 단어 속 부분 문자열이 매칭돼 무관한 phase/item 을 done 으로 뒤집었다(리뷰 발견 —
+// 데이터 부패). `\b` 앞에서 키워드가 단어 시작일 때만 매칭.
+//
 // 키는 점 구분 세그먼트 허용 — `Closes #PHASE-13.6` 같은 sub-Phase. 끝 문장부호(`.`)는
-// 키에 포함하지 않으므로 부모(`13`)와 자식(`13.6`)은 별개 매칭 (예전 [A-Za-z0-9_-]+ 만 쓰면
-// `13.6` 이 `13` 으로 잘려 부모 오매칭 → 데이터 오염 위험).
-const PHASE_KEY_PATTERN =
-  /(?:Closes|Fixes|Resolves)\s+#PHASE-([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)/gi;
-const ITEM_ID_PATTERN = /(?:Closes|Fixes|Resolves)\s+#ITEM-(\d+)/gi;
+// 키에 포함하지 않으므로 부모(`13`)와 자식(`13.6`)은 별개 매칭.
+const CLOSE_VERB = String.raw`\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)`;
+const PHASE_KEY_PATTERN = new RegExp(
+  `${CLOSE_VERB}\\s+#PHASE-([A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*)`,
+  'gi',
+);
+const ITEM_ID_PATTERN = new RegExp(`${CLOSE_VERB}\\s+#ITEM-(\\d+)`, 'gi');
+
+// 매칭 전 PR 본문에서 "실제 의도가 아닌 텍스트"를 제거 — 펜스 코드블록(``` / ~~~),
+// HTML 주석(<!-- -->), blockquote(> 인용) 안의 'Closes #...' 는 컨벤션 발화가 아니라
+// 예시·인용일 뿐인데 예전엔 그대로 매칭돼 실제 상태 전환을 일으켰다(리뷰 발견). 이들을 비운다.
+export function stripNonProse(body: string): string {
+  return body
+    .replace(/```[\s\S]*?```/g, ' ') // ``` 펜스 블록
+    .replace(/~~~[\s\S]*?~~~/g, ' ') // ~~~ 펜스 블록
+    .replace(/<!--[\s\S]*?-->/g, ' ') // HTML 주석
+    .replace(/^\s*>.*$/gm, ' '); // blockquote 라인
+}
 
 export type RoadmapMatchResult = {
   phasesDone: number[]; // phase id 들
@@ -575,27 +594,35 @@ export function matchAndApplyDoneFromPR(prId: number): RoadmapMatchResult {
     .get();
   if (!pr || !pr.body) return { phasesDone: [], itemsDone: [] };
 
+  // 펜스 코드·HTML 주석·blockquote 안의 'Closes #...' 는 예시·인용이라 매칭 대상에서 제외.
+  const body = stripNonProse(pr.body);
+
   // Phase key 매칭.
   const phaseKeys = new Set<string>();
-  for (const m of pr.body.matchAll(PHASE_KEY_PATTERN)) {
+  for (const m of body.matchAll(PHASE_KEY_PATTERN)) {
     phaseKeys.add(m[1]);
   }
   // Item id 매칭.
   const itemIds = new Set<number>();
-  for (const m of pr.body.matchAll(ITEM_ID_PATTERN)) {
+  for (const m of body.matchAll(ITEM_ID_PATTERN)) {
     const n = Number(m[1]);
     if (!Number.isNaN(n)) itemIds.add(n);
   }
   if (phaseKeys.size === 0 && itemIds.size === 0) return { phasesDone: [], itemsDone: [] };
 
-  // 같은 project 의 phase 만.
+  // 같은 project 의 phase 만. 사용자가 수정한(sourceOverrideAt) phase 는 PR 자동 done 에서 제외 —
+  // 명시적 override 보존(project-meta sync 의 override 보존 계약과 일관).
   const matchedPhases =
     phaseKeys.size > 0
       ? db
           .select({ id: roadmapPhases.id })
           .from(roadmapPhases)
           .where(
-            and(eq(roadmapPhases.projectId, pr.repoId), inArray(roadmapPhases.key, [...phaseKeys])),
+            and(
+              eq(roadmapPhases.projectId, pr.repoId),
+              inArray(roadmapPhases.key, [...phaseKeys]),
+              isNull(roadmapPhases.sourceOverrideAt),
+            ),
           )
           .all()
       : [];
@@ -607,7 +634,11 @@ export function matchAndApplyDoneFromPR(prId: number): RoadmapMatchResult {
       .run();
   }
 
-  // 같은 project 의 phase 에 속한 item 만 done 으로 (orphan 방지).
+  // 같은 project 의 phase 에 속한 item 만 done 으로 (orphan 방지). 추가 가드:
+  // - sourceOverrideAt IS NULL — 사용자 override 보존.
+  // - doneByPrId IS NULL — 이미 다른 PR 로 done 된 item 의 attribution 을 덮어쓰지 않음(멱등).
+  //   예전엔 명시 #ITEM-N 경로에 이 가드가 없어 reapply 나 두 번째 PR 이 doneByPrId 를 뒤집어
+  //   PR 배지가 비결정적으로 흔들렸다(리뷰 발견).
   const matchedItems =
     itemIds.size > 0
       ? db
@@ -615,7 +646,12 @@ export function matchAndApplyDoneFromPR(prId: number): RoadmapMatchResult {
           .from(roadmapItems)
           .innerJoin(roadmapPhases, eq(roadmapPhases.id, roadmapItems.phaseId))
           .where(
-            and(inArray(roadmapItems.id, [...itemIds]), eq(roadmapPhases.projectId, pr.repoId)),
+            and(
+              inArray(roadmapItems.id, [...itemIds]),
+              eq(roadmapPhases.projectId, pr.repoId),
+              isNull(roadmapItems.sourceOverrideAt),
+              isNull(roadmapItems.doneByPrId),
+            ),
           )
           .all()
       : [];
@@ -642,6 +678,8 @@ export function matchAndApplyDoneFromPR(prId: number): RoadmapMatchResult {
         and(
           inArray(roadmapItems.phaseId, [...matchedPhaseIds]),
           isNull(roadmapItems.doneByPrId),
+          // 사용자가 수정한 item 은 cascade 자동 done 에서 제외 (override 보존).
+          isNull(roadmapItems.sourceOverrideAt),
           ne(roadmapItems.status, 'done'),
         ),
       )
@@ -671,10 +709,14 @@ export function reapplyRoadmapMatchesForProject(projectId: number): {
   scanned: number;
   matched: number;
 } {
+  // PR id 오름차순 — 같은 #ITEM-N 을 여러 PR 이 닫을 때 가장 먼저 머지된(작은 id) PR 이
+  // doneByPrId 를 차지하도록 결정적 순서 보장(idempotency 가드와 결합 — first-writer-wins).
+  // 예전엔 ORDER BY 가 없어 SQLite scan 순서에 따라 attribution 이 VACUUM 등으로 바뀔 수 있었다.
   const merged = db
     .select({ id: prs.id })
     .from(prs)
     .where(and(eq(prs.repoId, projectId), eq(prs.status, 'merged')))
+    .orderBy(asc(prs.id))
     .all();
   let matched = 0;
   for (const pr of merged) {

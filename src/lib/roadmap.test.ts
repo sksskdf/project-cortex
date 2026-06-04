@@ -322,6 +322,123 @@ describe('matchAndApplyDoneFromPR — Closes #PHASE-<key>', () => {
     const r = matchAndApplyDoneFromPR(prId);
     expect(r.phasesDone).toEqual([child.id]);
   });
+
+  // 회귀(리뷰 발견): 단어 경계 없어 산문 단어 속 부분 문자열이 매칭 → 무관 phase done.
+  it('산문 단어 속 부분 문자열은 매칭 안 됨 (discloses/encloses/unresolves)', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '3', title: 'P3' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const body = [
+      'This PR discloses #PHASE-3 internals for review.',
+      'It also encloses #PHASE-3 and unresolves #PHASE-3 nothing.',
+    ].join('\n');
+    const r = matchAndApplyDoneFromPR(seedPR(projectId, body));
+    expect(r.phasesDone).toEqual([]);
+    const phase = db.select().from(roadmapPhases).where(eq(roadmapPhases.id, p.id)).get();
+    expect(phase?.status).toBe('planned');
+  });
+
+  // 회귀: 시제 변형(Closed/Fix/Fixed/Resolve/Resolved) 모두 인식 (GitHub 컨벤션).
+  it('단/복수·과거형 키워드 모두 인식', () => {
+    const projectId = seedProject();
+    for (const [key, kw] of [
+      ['a', 'Close'],
+      ['b', 'Closed'],
+      ['c', 'Fix'],
+      ['d', 'Fixed'],
+      ['e', 'Resolve'],
+      ['f', 'Resolved'],
+    ] as const) {
+      const p = createPhase({ projectId, key, title: key });
+      if (p.kind !== 'created') throw new Error('setup');
+      matchAndApplyDoneFromPR(
+        seedPR(projectId, `${kw} #PHASE-${key}`, Math.floor(Math.random() * 1e6)),
+      );
+      const phase = db.select().from(roadmapPhases).where(eq(roadmapPhases.id, p.id)).get();
+      expect(phase?.status, `${kw} 인식`).toBe('done');
+    }
+  });
+
+  // 회귀: 펜스 코드/blockquote/HTML주석 안의 Closes 는 예시·인용이라 발화 안 됨.
+  it('펜스 코드블록·blockquote·HTML주석 안의 Closes 는 매칭 안 됨', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '3', title: 'P3' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const body = [
+      '컨벤션 예시:',
+      '```',
+      'Closes #PHASE-3',
+      '```',
+      '> 인용: Fixes #PHASE-3',
+      '<!-- Resolves #PHASE-3 -->',
+    ].join('\n');
+    const r = matchAndApplyDoneFromPR(seedPR(projectId, body));
+    expect(r.phasesDone).toEqual([]);
+  });
+
+  it('펜스 밖 실제 Closes 는 정상 매칭 (펜스 안 예시와 공존)', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '3', title: 'P3' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const body = ['```\nCloses #PHASE-3\n```', '', '실제로 Closes #PHASE-3 완료.'].join('\n');
+    const r = matchAndApplyDoneFromPR(seedPR(projectId, body));
+    expect(r.phasesDone).toEqual([p.id]);
+  });
+
+  // 회귀: 사용자가 override 한 phase/item 은 PR Closes 가 force-done 하지 않음.
+  it('sourceOverrideAt 마킹된 phase 는 Closes 로 done 안 됨', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '3', title: 'P3' });
+    if (p.kind !== 'created') throw new Error('setup');
+    db.update(roadmapPhases)
+      .set({ sourceOverrideAt: new Date(), status: 'planned' })
+      .where(eq(roadmapPhases.id, p.id))
+      .run();
+    const r = matchAndApplyDoneFromPR(seedPR(projectId, 'Closes #PHASE-3'));
+    expect(r.phasesDone).toEqual([]);
+    expect(db.select().from(roadmapPhases).where(eq(roadmapPhases.id, p.id)).get()?.status).toBe(
+      'planned',
+    );
+  });
+
+  it('sourceOverrideAt 마킹된 item 은 cascade·명시 Closes 둘 다에서 제외', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '3', title: 'P3' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const overridden = createItem({ phaseId: p.id, title: 'override 항목' });
+    const normal = createItem({ phaseId: p.id, title: '일반 항목' });
+    if (overridden.kind !== 'created' || normal.kind !== 'created') throw new Error('setup');
+    db.update(roadmapItems)
+      .set({ sourceOverrideAt: new Date() })
+      .where(eq(roadmapItems.id, overridden.id))
+      .run();
+    // 명시 #ITEM-N + phase cascade 둘 다 시도.
+    const r = matchAndApplyDoneFromPR(
+      seedPR(projectId, `Closes #PHASE-3 and Closes #ITEM-${overridden.id}`),
+    );
+    expect(r.itemsDone).not.toContain(overridden.id); // override 제외
+    expect(r.itemsDone).toContain(normal.id); // 일반은 cascade
+    expect(
+      db.select().from(roadmapItems).where(eq(roadmapItems.id, overridden.id)).get()?.status,
+    ).not.toBe('done');
+  });
+
+  // 회귀: 명시 #ITEM-N 재적용이 다른 PR 의 doneByPrId 를 덮어쓰지 않음 (멱등).
+  it('명시 #ITEM-N 도 첫 PR attribution 보존 (두 번째 PR 이 덮어쓰지 않음)', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '1', title: 'A' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const item = createItem({ phaseId: p.id, title: 'i1' });
+    if (item.kind !== 'created') throw new Error('setup');
+    const prFirst = seedPR(projectId, `Closes #ITEM-${item.id}`, 1);
+    matchAndApplyDoneFromPR(prFirst);
+    const prSecond = seedPR(projectId, `Closes #ITEM-${item.id}`, 2);
+    const r = matchAndApplyDoneFromPR(prSecond);
+    expect(r.itemsDone).not.toContain(item.id); // 이미 done 이라 제외
+    expect(
+      db.select().from(roadmapItems).where(eq(roadmapItems.id, item.id)).get()?.doneByPrId,
+    ).toBe(prFirst); // 첫 PR 유지
+  });
 });
 
 describe('reapplyRoadmapMatchesForProject — backfill', () => {
