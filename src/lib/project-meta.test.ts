@@ -1,10 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import type { Octokit } from '@octokit/rest';
+import { eq } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { db } from '@/db/client';
+import { issues, projects, roadmapItems, roadmapPhases } from '@/db/schema';
+import { setOctokit } from './github';
 import {
   descriptiveMetaFields,
   isCortexSyncCommit,
   parseProjectYml,
   parseRoadmapMd,
   serializeRoadmapToMd,
+  syncProjectFromGit,
   type ProjectMetaV1,
 } from './project-meta';
 
@@ -354,5 +361,192 @@ describe('descriptiveMetaFields — 자동화 토글은 git sync 제외 (로컬 
     ]) {
       expect(fields).not.toHaveProperty(k);
     }
+  });
+});
+
+// 회귀(리뷰 발견): syncProjectFromGit 가 issues.roadmap_item_id 가 가리키는 roadmap item 을 삭제
+// 시도하면 SQLITE_CONSTRAINT_FOREIGNKEY 가 throw 됐다. 그 앞의 phase·item upsert 와 project
+// meta 갱신은 이미 영속화돼 있어 부분 쓰기로 남았다. 이제는 db.transaction 으로 묶고, issues 가
+// 참조하는 item 은 삭제 대신 source='manual' 강등으로 보존한다.
+describe('syncProjectFromGit — 트랜잭션 + issues FK 가드', () => {
+  // octokit.repos.getContent 를 yml + md 두 파일에 대해 분기 응답. base64 encoded content 반환
+  // (getRepoFileContent 의 디코딩 경로 시뮬). 그 외 path 는 404.
+  function mockGithubContent(opts: { yml?: string; md?: string }): Octokit {
+    return {
+      repos: {
+        getContent: vi.fn().mockImplementation(async ({ path }: { path: string }) => {
+          if (path === '.cortex/project.yml' && opts.yml !== undefined) {
+            return {
+              data: {
+                type: 'file',
+                content: Buffer.from(opts.yml).toString('base64'),
+                sha: 'sha-yml',
+              },
+            };
+          }
+          if (path === '.cortex/roadmap.md' && opts.md !== undefined) {
+            return {
+              data: {
+                type: 'file',
+                content: Buffer.from(opts.md).toString('base64'),
+                sha: 'sha-md',
+              },
+            };
+          }
+          throw Object.assign(new Error('not found'), { status: 404 });
+        }),
+      },
+    } as unknown as Octokit;
+  }
+
+  beforeAll(() => {
+    migrate(db, { migrationsFolder: 'src/db/migrations' });
+  });
+
+  beforeEach(() => {
+    db.delete(issues).run();
+    db.delete(roadmapItems).run();
+    db.delete(roadmapPhases).run();
+    db.delete(projects).run();
+  });
+
+  afterEach(() => setOctokit(null));
+
+  function seedProject(slug = 'acme/web'): number {
+    return db
+      .insert(projects)
+      .values({ slug, name: slug, installationId: 12345 })
+      .returning({ id: projects.id })
+      .get().id;
+  }
+
+  it('issues 가 참조하는 stale git item 은 삭제 대신 source=manual 로 강등 (FK throw 없음)', async () => {
+    const projectId = seedProject();
+    // git sync 가 만들 phase + 2 item 을 미리 시드.
+    const phase = db
+      .insert(roadmapPhases)
+      .values({ projectId, key: '1', title: 'Phase 1', source: 'git', sortOrder: 0 })
+      .returning({ id: roadmapPhases.id })
+      .get();
+    const keptItem = db
+      .insert(roadmapItems)
+      .values({
+        phaseId: phase.id,
+        title: '유지 항목',
+        status: 'planned',
+        source: 'git',
+        sortOrder: 0,
+      })
+      .returning({ id: roadmapItems.id })
+      .get();
+    const referencedItem = db
+      .insert(roadmapItems)
+      .values({
+        phaseId: phase.id,
+        title: '연결된 사라질 항목',
+        status: 'planned',
+        source: 'git',
+        sortOrder: 1,
+      })
+      .returning({ id: roadmapItems.id })
+      .get();
+    // issue 가 referencedItem 을 참조 — 이게 있으면 git 에서 사라져도 삭제 못 함.
+    db.insert(issues)
+      .values({
+        repoId: projectId,
+        title: 'related issue',
+        spec: 'spec body',
+        assigneeKind: 'human',
+        assigneeId: 'me',
+        roadmapItemId: referencedItem.id,
+      })
+      .run();
+
+    // 새 roadmap.md 는 referencedItem 의 제목이 없음 → stale 로 분류돼야.
+    setOctokit(
+      mockGithubContent({
+        yml: 'schema: 1\nname: web\nslug: acme/web',
+        md: '## Phase 1 — Phase 1\n\n- [ ] 유지 항목',
+      }),
+    );
+
+    const r = await syncProjectFromGit(projectId);
+    expect(r.kind).toBe('synced');
+
+    // referencedItem 은 살아 있고 source='manual' 로 강등됨.
+    const after = db
+      .select()
+      .from(roadmapItems)
+      .where(eq(roadmapItems.id, referencedItem.id))
+      .get();
+    expect(after).toBeDefined();
+    expect(after?.source).toBe('manual');
+    // keptItem 은 그대로.
+    const kept = db.select().from(roadmapItems).where(eq(roadmapItems.id, keptItem.id)).get();
+    expect(kept?.source).toBe('git');
+  });
+
+  it('참조 없는 stale git item 은 기존처럼 삭제', async () => {
+    const projectId = seedProject();
+    const phase = db
+      .insert(roadmapPhases)
+      .values({ projectId, key: '1', title: 'Phase 1', source: 'git', sortOrder: 0 })
+      .returning({ id: roadmapPhases.id })
+      .get();
+    const staleItem = db
+      .insert(roadmapItems)
+      .values({
+        phaseId: phase.id,
+        title: '곧 사라질 항목',
+        status: 'planned',
+        source: 'git',
+        sortOrder: 0,
+      })
+      .returning({ id: roadmapItems.id })
+      .get();
+
+    setOctokit(
+      mockGithubContent({
+        yml: 'schema: 1\nname: web\nslug: acme/web',
+        md: '## Phase 1 — Phase 1\n\n- [ ] 새 항목', // staleItem 의 제목 없음.
+      }),
+    );
+
+    const r = await syncProjectFromGit(projectId);
+    expect(r.kind).toBe('synced');
+    const after = db.select().from(roadmapItems).where(eq(roadmapItems.id, staleItem.id)).get();
+    expect(after).toBeUndefined(); // 정상 삭제.
+  });
+
+  it('단일 트랜잭션 — 정상 흐름은 끝까지 영속화', async () => {
+    const projectId = seedProject();
+    setOctokit(
+      mockGithubContent({
+        yml: 'schema: 1\nname: web\nslug: acme/web\ndescription: test',
+        md: '## Phase 1 — Phase 1\n\n- [x] 완료 항목\n- [~] 진행 항목',
+      }),
+    );
+
+    const r = await syncProjectFromGit(projectId);
+    expect(r.kind).toBe('synced');
+
+    // 메타 갱신 확인.
+    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
+    expect(project?.description).toBe('test');
+    // phase + 2 item 모두 영속화.
+    const phaseRows = db
+      .select()
+      .from(roadmapPhases)
+      .where(eq(roadmapPhases.projectId, projectId))
+      .all();
+    expect(phaseRows).toHaveLength(1);
+    const itemRows = db
+      .select()
+      .from(roadmapItems)
+      .where(eq(roadmapItems.phaseId, phaseRows[0].id))
+      .all();
+    expect(itemRows).toHaveLength(2);
+    expect(itemRows.find((it) => it.title === '완료 항목')?.status).toBe('done');
+    expect(itemRows.find((it) => it.title === '진행 항목')?.status).toBe('in-progress');
   });
 });
