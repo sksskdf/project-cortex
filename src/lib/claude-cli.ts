@@ -218,6 +218,12 @@ function runOnce(
       done({ ok: false, reason: `claude CLI 오류: ${err.message}`, nonZeroExit: false }),
     );
     child.on('close', (code) => {
+      // R3 — 비용·토큰 관측을 **결과 파싱과 분리**해 가장 먼저 기록. 구독 과금(2026-06-15+)은
+      // is_error 응답·overload 에도 발생하는데, 예전엔 extractResult 가 is_error/빈 result 에
+      // null 을 반환하기 전이라 그 비용이 통째로 누락돼 /reports 가 과소 집계됐다(리뷰 발견).
+      // 이제는 봉투에 사용량이 있으면 성공/실패·is_error 무관하게 기록. best-effort.
+      recordUsageFromStdout(stdout, opts.model ?? null);
+
       if (code !== 0) {
         done({
           ok: false,
@@ -234,19 +240,6 @@ function runOnce(
           nonZeroExit: false,
         });
         return;
-      }
-      // R3 — 비용·토큰 관측. 봉투에 사용량이 있으면 호출별로 구조화 로깅 + DB 기록(/reports 집계).
-      // 둘 다 best-effort — 관측 실패가 호출 흐름을 막지 않게.
-      if (extracted.usage) {
-        logger.info(
-          { source: 'claude-cli', model: opts.model ?? null, ...extracted.usage },
-          'headless 호출 사용량',
-        );
-        try {
-          recordLlmUsage(opts.model ?? null, extracted.usage);
-        } catch (err) {
-          logger.error({ source: 'claude-cli', err }, 'llm usage 기록 실패');
-        }
       }
       done({
         ok: true,
@@ -308,6 +301,33 @@ function extractUsage(envelope: {
   const outputTokens = num(envelope.usage?.output_tokens);
   if (costUsd === null && inputTokens === null && outputTokens === null) return null;
   return { costUsd, inputTokens, outputTokens };
+}
+
+// stdout 봉투에서 비용·토큰만 추출 — is_error·result 유무와 무관(extractResult 와 달리 항상 시도).
+// 구독 과금은 error 응답에도 발생하므로 성공/실패 가리지 않고 관측해야 /reports 비용이 정확.
+// stdout 이 JSON 봉투가 아니면(프로세스 크래시 등) null. 순수 함수 — 테스트 가능.
+export function extractUsageFromStdout(stdout: string): ClaudeUsage | null {
+  try {
+    const envelope = JSON.parse(stdout) as {
+      total_cost_usd?: unknown;
+      usage?: { input_tokens?: unknown; output_tokens?: unknown };
+    };
+    return extractUsage(envelope);
+  } catch {
+    return null;
+  }
+}
+
+// 봉투의 사용량을 로깅 + DB 기록 (best-effort — 관측 실패가 호출 흐름을 막지 않게).
+function recordUsageFromStdout(stdout: string, model: string | null): void {
+  const usage = extractUsageFromStdout(stdout);
+  if (!usage) return;
+  logger.info({ source: 'claude-cli', model, ...usage }, 'headless 호출 사용량');
+  try {
+    recordLlmUsage(model, usage);
+  } catch (err) {
+    logger.error({ source: 'claude-cli', err }, 'llm usage 기록 실패');
+  }
 }
 
 // 모델 응답에서 JSON 을 꺼낸다. 코드펜스(```json ... ```)를 벗기고, 산문이 섞여 있어도
