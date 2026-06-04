@@ -379,6 +379,18 @@ export const ko = {
         error: (message: string) => `동기화 실패: ${message}`,
       },
     },
+    // Phase 10.4 — Cortex UI 로드맵(DB) → git roadmap.md PR 생성(수동 push 방향).
+    push: {
+      button: 'git 에 반영 (PR)',
+      pending: 'PR 생성 중…',
+      result: {
+        pushed: (pr: number) => `로드맵 변경 PR #${pr} 생성됨 — git 에서 리뷰·머지하세요.`,
+        noChanges: 'git roadmap.md 와 동일 — 반영할 변경이 없습니다.',
+        noInstallation: 'GitHub App 설치가 없어 PR 생성 불가.',
+        noProject: '프로젝트를 찾을 수 없습니다.',
+        failed: (message: string) => `PR 생성 실패: ${message}`,
+      },
+    },
     openItems: {
       title: '남은 작업',
       ariaLabel: '진행 중 + 예정 산출물 목록',

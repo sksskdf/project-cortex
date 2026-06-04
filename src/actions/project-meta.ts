@@ -6,6 +6,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { syncProjectFromGit, type SyncResult } from '@/lib/project-meta';
+import { pushRoadmapToGit, type PushRoadmapResult } from '@/lib/roadmap-sync';
 
 export type SyncActionState = { kind: 'idle' } | SyncResult | { kind: 'error'; message: string };
 
@@ -18,6 +19,20 @@ export async function syncProjectMetaAction(projectId: number): Promise<SyncActi
       revalidatePath('/');
     }
     return result;
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 10.4 — Cortex UI 로드맵(DB)을 git `.cortex/roadmap.md` 로 PR 생성(수동 push 방향).
+export type PushRoadmapActionState =
+  | { kind: 'idle' }
+  | PushRoadmapResult
+  | { kind: 'error'; message: string };
+
+export async function pushRoadmapToGitAction(projectId: number): Promise<PushRoadmapActionState> {
+  try {
+    return await pushRoadmapToGit(projectId);
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }
