@@ -61,16 +61,21 @@ export function parseUnifiedDiff(diff: string): FileBlock[] {
       continue;
     }
 
-    // index / mode / --- / +++ 헤더는 hunk 시작 전에 등장 — 무시.
+    // index / mode / --- / +++ 파일 헤더는 **첫 hunk 전(currentHunk===null)** 에만 등장한다.
+    // 이 가드가 없으면, hunk 안에서 `-- ` 로 시작하는 줄을 **삭제**한 content line(raw `--- ...`)
+    // 이나 `++ ` 로 시작하는 줄을 추가한 content line(raw `+++ ...`)을 파일 헤더로 오인해 통째로
+    // 버린다 → 삭제/추가 줄이 hunk·카운트에서 누락(리뷰 발견. 예: SQL/Lua 주석 `-- note`·
+    // 이메일 서명 `-- ` 삭제). hunk 진입 후엔 +/-/space content 로만 처리.
     if (
-      line.startsWith('index ') ||
-      line.startsWith('new file ') ||
-      line.startsWith('deleted file ') ||
-      line.startsWith('similarity index') ||
-      line.startsWith('rename ') ||
-      line.startsWith('Binary files') ||
-      line.startsWith('--- ') ||
-      line.startsWith('+++ ')
+      currentHunk === null &&
+      (line.startsWith('index ') ||
+        line.startsWith('new file ') ||
+        line.startsWith('deleted file ') ||
+        line.startsWith('similarity index') ||
+        line.startsWith('rename ') ||
+        line.startsWith('Binary files') ||
+        line.startsWith('--- ') ||
+        line.startsWith('+++ '))
     ) {
       continue;
     }

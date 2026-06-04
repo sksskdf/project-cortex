@@ -72,6 +72,55 @@ rename to new.txt
   it('returns empty array for empty input', () => {
     expect(parseUnifiedDiff('')).toEqual([]);
   });
+
+  // 회귀(리뷰 발견): hunk 안에서 `-- `/`++ ` 로 시작하는 줄을 삭제/추가한 content line(raw
+  // `--- `/`+++ `)을 파일 헤더로 오인해 버리던 버그. 헤더 skip 은 첫 hunk 전에만 적용해야 함.
+  it('hunk 안의 `--- `/`+++ ` content line 을 헤더로 오인해 버리지 않음', () => {
+    // SQL 주석 `-- old comment` 삭제 + `++ counter` 추가 → raw diff 에서 `--- `/`+++ ` 로 시작.
+    const diff = `diff --git a/q.sql b/q.sql
+index 111..222 100644
+--- a/q.sql
++++ b/q.sql
+@@ -1,3 +1,3 @@
+ SELECT 1;
+-- old comment
+++ counter
+ SELECT 2;
+`;
+    const files = parseUnifiedDiff(diff);
+    expect(files).toHaveLength(1);
+    const hunk = files[0].hunks[0];
+    expect(hunk.kind).toBe('expanded');
+    if (hunk.kind !== 'expanded') return;
+    // 삭제 줄(content `- old comment`)·추가 줄(content `+ counter`)이 보존돼야.
+    const del = hunk.lines.find((l) => l.kind === 'del');
+    const add = hunk.lines.find((l) => l.kind === 'add');
+    expect(del?.text).toBe('- old comment');
+    expect(add?.text).toBe('+ counter');
+    // 카운트도 정확.
+    expect(files[0].deletions).toBe(1);
+    expect(files[0].additions).toBe(1);
+  });
+
+  it('파일 헤더 `--- a/x`/`+++ b/x` 는 (첫 hunk 전이라) 여전히 무시', () => {
+    const diff = `diff --git a/x.txt b/x.txt
+index 111..222 100644
+--- a/x.txt
++++ b/x.txt
+@@ -1 +1 @@
+-a
++b
+`;
+    const files = parseUnifiedDiff(diff);
+    expect(files).toHaveLength(1);
+    // 헤더가 content 로 새지 않았는지 — 줄은 hunk-head + del + add 3개뿐.
+    const hunk = files[0].hunks[0];
+    if (hunk.kind !== 'expanded') throw new Error('expanded expected');
+    expect(hunk.lines.filter((l) => l.kind === 'del')).toHaveLength(1);
+    expect(hunk.lines.filter((l) => l.kind === 'add')).toHaveLength(1);
+    expect(files[0].deletions).toBe(1);
+    expect(files[0].additions).toBe(1);
+  });
 });
 
 describe('attachCommentsToFiles', () => {
