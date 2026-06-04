@@ -34,6 +34,7 @@ function seedMergedPR(opts: {
   updatedAt?: Date;
   createdAt?: Date;
   confidence?: number;
+  analyzedAt?: Date;
 }) {
   const slug = opts.slug ?? 'acme/web';
   // 같은 슬러그 재사용 — 한 테스트에서 여러 PR 을 같은 project 에 묶기 위함.
@@ -82,6 +83,7 @@ function seedMergedPR(opts: {
         confidence: opts.confidence,
         confidenceTier: 'high',
         flags: [],
+        ...(opts.analyzedAt ? { analyzedAt: opts.analyzedAt } : {}),
       })
       .run();
   }
@@ -153,6 +155,50 @@ describe('getDailyAvgConfidence', () => {
     expect(today.avg).toBe(85);
     // 다른 날은 null.
     expect(days.slice(0, -1).every((d) => d.avg === null)).toBe(true);
+  });
+
+  // 회귀(리뷰 발견): 예전엔 prs.createdAt 으로 버킷팅해 며칠 전 만든 PR 을 오늘 재분석하면
+  // 신뢰도가 생성일 버킷에 잘못 들어갔다. 이제는 analyzedAt 기준 → 분석 시점의 버킷에만 기록.
+  it('analyzedAt 기준 버킷팅 — PR 생성일과 분석일이 다르면 분석일 점에 기록', () => {
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    // 3일 전에 만든 PR 을 오늘 분석.
+    seedMergedPR({
+      number: 1,
+      confidence: 70,
+      createdAt: threeDaysAgo,
+      updatedAt: threeDaysAgo,
+      analyzedAt: now,
+    });
+    const days = getDailyAvgConfidence(7);
+    const today = days[days.length - 1];
+    const threeDaysIdx = days.length - 4; // 7일 창 끝에서 -3 = 3일 전.
+    // 오늘 버킷에 점이 찍힘 — 예전엔 3일 전 버킷에 잘못 들어갔음.
+    expect(today.avg).toBe(70);
+    expect(days[threeDaysIdx].avg).toBeNull();
+  });
+
+  it('같은 PR 의 여러 분석은 각 분석일 버킷에 분산 기록', () => {
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    // 같은 PR 의 두 번 분석 (재푸시 시뮬). 헬퍼가 PR 당 preReview 1건만 만들므로 직접 삽입.
+    const prId = seedMergedPR({ number: 1, confidence: 60, analyzedAt: twoDaysAgo });
+    db.insert(preReviews)
+      .values({
+        prId,
+        headSha: 'sha-new',
+        confidence: 90,
+        confidenceTier: 'high',
+        flags: [],
+        analyzedAt: now,
+      })
+      .run();
+
+    const days = getDailyAvgConfidence(7);
+    const today = days[days.length - 1];
+    const twoDaysIdx = days.length - 3;
+    expect(today.avg).toBe(90); // 오늘 분석.
+    expect(days[twoDaysIdx].avg).toBe(60); // 2일 전 분석.
   });
 });
 

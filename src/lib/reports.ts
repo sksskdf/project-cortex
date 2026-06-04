@@ -149,18 +149,19 @@ export function getDailyMergeBreakdown(days: number = 7): DailyMergeBreakdown[] 
   return Array.from(buckets.values());
 }
 
-// 일별 평균 신뢰 점수 — 머지된 PR 의 triage decision 시점 신뢰도 평균.
+// 일별 평균 신뢰 점수 — preReviews 의 analyzedAt 기준 버킷팅("그 날 수행된 분석"의 평균).
 // preReview 가 있는 PR 만 — AI off 기간엔 빈 점이 생길 수 있음.
 export type DailyAvgConfidence = { date: string; avg: number | null };
 
 export function getDailyAvgConfidence(days: number = 7): DailyAvgConfidence[] {
   const since = new Date(Date.now() - days * ONE_DAY_MS);
-  // 한 번에 가져와서 JS 에서 일별 bucket — SQL date 함수 의존 피함.
+  // 분석 시점(analyzedAt) 기준 버킷팅. 예전엔 prs.createdAt(PR 생성일)로 묶어, 며칠 전 만든 PR 을
+  // 오늘 재분석하면 그 신뢰도가 생성일 버킷에 잘못 들어가 그래프의 날짜 축이 어긋났다(리뷰 발견).
+  // 분석 1건 = 그 분석일의 데이터 1점. prs 조인 불필요 — preReviews 만으로 충분.
   const rows = db
-    .select({ createdAt: prs.createdAt, confidence: preReviews.confidence })
-    .from(prs)
-    .innerJoin(preReviews, eq(preReviews.prId, prs.id))
-    .where(gte(prs.createdAt, since))
+    .select({ analyzedAt: preReviews.analyzedAt, confidence: preReviews.confidence })
+    .from(preReviews)
+    .where(gte(preReviews.analyzedAt, since))
     .all();
 
   const sums = new Map<string, { sum: number; n: number }>();
@@ -169,7 +170,7 @@ export function getDailyAvgConfidence(days: number = 7): DailyAvgConfidence[] {
     sums.set(dateKey(d), { sum: 0, n: 0 });
   }
   for (const row of rows) {
-    const key = dateKey(row.createdAt);
+    const key = dateKey(row.analyzedAt);
     const bucket = sums.get(key);
     if (!bucket) continue;
     bucket.sum += row.confidence;
