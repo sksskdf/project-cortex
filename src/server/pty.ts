@@ -29,6 +29,7 @@ import {
 import { installCortexSkill } from '@/lib/cortex-skill';
 import { claudeSpawnEnv, getClaudeCliVersion, resolveClaude } from '@/lib/agents';
 import { getHeadroomVersion } from '@/lib/headroom';
+import { isPromptReady } from './prompt-ready';
 import { logger } from '@/lib/logger';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import { reconcileStuckAutoMerges } from '@/lib/auto-merge';
@@ -471,7 +472,6 @@ function createSession(
 // 안 끝나면 paste 가 묻혀 사라졌다(간헐적 "복사 안 됨" 보고). 이제 출력 버퍼에서 REPL 준비
 // 신호(`? for shortcuts` 등)를 감지해 그 시점에 주입 + 신호 못 보면 8s fallback. idempotent
 // (한 번만 발화 — 신호 감지/타이머/destroy 어느 쪽에서도 안전).
-const PROMPT_READY_RE = /\? for shortcuts|for agents/i;
 const PROMPT_READY_STABILIZE_MS = 400;
 const PROMPT_FALLBACK_DELAY_MS = 8000;
 
@@ -500,12 +500,17 @@ function sendInitialPrompt(session: Session, prompt: string) {
   };
 
   // 신호 감지 — paste 직전 살짝 안정화(렌더 안정) 후 발화.
-  promptInjectors.set(session.id, (buf) => {
+  const injector = (buf: string) => {
     if (!armed || stabilizeTimer) return;
-    if (PROMPT_READY_RE.test(buf)) {
+    if (isPromptReady(buf)) {
       stabilizeTimer = setTimeout(doPaste, PROMPT_READY_STABILIZE_MS);
     }
-  });
+  };
+  promptInjectors.set(session.id, injector);
+  // 등록 즉시 기존 버퍼 1회 검사 — wireProc 의 onData 구독(createSession)과 이 등록 사이의 갭에
+  // ready 신호가 이미 출력됐으면, 다음 onData 청크가 올 때까지(또는 8s fallback) 못 보고 늦어진다
+  // (리뷰 발견 — 간헐적 "복사 안 됨"의 유력 원인). 등록 시 현재 버퍼를 한 번 스캔해 그 갭을 메운다.
+  injector(session.buffer);
 
   // 신호 못 봐도 fallback — 무한 대기 방지. 옛 1500ms 보다 넉넉.
   fallbackTimer = setTimeout(doPaste, PROMPT_FALLBACK_DELAY_MS);
