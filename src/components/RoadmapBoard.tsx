@@ -32,17 +32,37 @@ const statusClass: Record<RoadmapStatus, string> = {
 
 export function RoadmapBoard({ view }: { view: ProjectRoadmapView }) {
   const [showAddPhase, setShowAddPhase] = useState(false);
+  // Phase 10.4 — 별도 '남은 작업' 패널을 보드로 흡수: 남은(미완) 산출물 수 요약 + 완료 숨김 토글.
+  const [hideDone, setHideDone] = useState(false);
+  const remaining = view.phases.reduce(
+    (sum, p) => sum + p.items.filter((it) => it.status !== 'done').length,
+    0,
+  );
 
   return (
     <div className={styles.board}>
       <div className={styles.boardHead}>
-        <button
-          type="button"
-          className="ds-btn ds-btn--md ds-btn--outlined-basic"
-          onClick={() => setShowAddPhase((v) => !v)}
-        >
-          <span className="ds-btn__label">{t.roadmap.section.addPhase}</span>
-        </button>
+        <span className={styles.boardSummary}>{t.roadmap.board.remaining(remaining)}</span>
+        <div className={styles.boardActions}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hideDone}
+            className={`ds-btn ds-btn--md ${hideDone ? 'ds-btn--filled-blue' : 'ds-btn--outlined-basic'}`}
+            onClick={() => setHideDone((v) => !v)}
+          >
+            <span className="ds-btn__label">
+              {hideDone ? t.roadmap.board.showDone : t.roadmap.board.hideDone}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="ds-btn ds-btn--md ds-btn--outlined-basic"
+            onClick={() => setShowAddPhase((v) => !v)}
+          >
+            <span className="ds-btn__label">{t.roadmap.section.addPhase}</span>
+          </button>
+        </div>
       </div>
 
       {showAddPhase && (
@@ -57,7 +77,12 @@ export function RoadmapBoard({ view }: { view: ProjectRoadmapView }) {
       ) : (
         <div className={styles.phaseList}>
           {view.phases.map((phase) => (
-            <PhaseCard key={phase.id} projectId={view.projectId} phase={phase} />
+            <PhaseCard
+              key={phase.id}
+              projectId={view.projectId}
+              phase={phase}
+              hideDone={hideDone}
+            />
           ))}
         </div>
       )}
@@ -156,10 +181,20 @@ function AddPhaseForm({ projectId, onClose }: { projectId: number; onClose: () =
   );
 }
 
-function PhaseCard({ projectId, phase }: { projectId: number; phase: RoadmapPhaseView }) {
+function PhaseCard({
+  projectId,
+  phase,
+  hideDone,
+}: {
+  projectId: number;
+  phase: RoadmapPhaseView;
+  hideDone: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [showAddItem, setShowAddItem] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  // 완료 숨김 토글 — done 항목 필터(보드 흡수한 '남은 작업' 요약 기능).
+  const visibleItems = hideDone ? phase.items.filter((it) => it.status !== 'done') : phase.items;
 
   function onStatusChange(next: RoadmapStatus) {
     startTransition(async () => {
@@ -211,9 +246,11 @@ function PhaseCard({ projectId, phase }: { projectId: number; phase: RoadmapPhas
 
       {phase.items.length === 0 ? (
         <div className={styles.itemEmpty}>{t.roadmap.phase.noItems}</div>
+      ) : visibleItems.length === 0 ? (
+        <div className={styles.itemEmpty}>{t.roadmap.phase.allDone}</div>
       ) : (
         <ul className={styles.itemList}>
-          {phase.items.map((item) => (
+          {visibleItems.map((item) => (
             <ItemRow key={item.id} projectId={projectId} item={item} />
           ))}
         </ul>

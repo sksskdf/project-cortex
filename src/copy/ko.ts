@@ -318,6 +318,12 @@ export const ko = {
       addPhase: 'Phase 추가',
       addItem: '산출물 추가',
     },
+    // Phase 10.4 — 보드 헤더 요약(별도 '남은 작업' 패널 흡수).
+    board: {
+      remaining: (n: number) => (n === 0 ? '남은 작업 없음 — 모두 완료' : `남은 작업 ${n}건`),
+      hideDone: '완료 숨김',
+      showDone: '완료 표시',
+    },
     phase: {
       keyLabel: '키',
       keyPlaceholder: '예: 3 / auth / launch',
@@ -332,6 +338,7 @@ export const ko = {
       deleteConfirm: '이 Phase 와 산출물을 모두 삭제합니다.',
       deleteSubmit: '삭제',
       noItems: '산출물 없음',
+      allDone: '모든 산출물 완료 (완료 숨김 중)',
     },
     item: {
       titleLabel: '제목',

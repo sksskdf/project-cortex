@@ -6,7 +6,19 @@
 
 .boardHead {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-spacing-8);
+}
+
+.boardSummary {
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-03-high);
+}
+
+.boardActions {
+  display: flex;
+  gap: var(--ds-spacing-8);
 }
 
 .empty {

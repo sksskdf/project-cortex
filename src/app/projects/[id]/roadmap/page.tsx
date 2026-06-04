@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ko as t } from '@/copy/ko';
 import { RoadmapBoard } from '@/components/RoadmapBoard';
-import { RoadmapOpenItems } from '@/components/RoadmapOpenItems';
 import { RoadmapSyncButton } from '@/components/RoadmapSyncButton';
 import { RoadmapPushButton } from '@/components/RoadmapPushButton';
 import { RoadmapAutoSyncToggle } from '@/components/RoadmapAutoSyncToggle';
@@ -59,8 +58,6 @@ export default async function ProjectRoadmapPage({ params }: { params: Promise<{
           <RoadmapAutoSyncToggle projectId={view.projectId} initial={autoSyncEnabled} />
         </div>
       </header>
-
-      <RoadmapOpenItems groups={view.openItemGroups} />
 
       <RoadmapBoard view={view} />
     </div>
