@@ -40,16 +40,43 @@ export type ParseYmlResult =
   | { kind: 'ok'; meta: ProjectMetaV1 }
   | { kind: 'error'; message: string };
 
+// YAML 주석 strip — `#` 가 라인 시작 또는 공백 뒤에 있을 때만 주석으로 본다. 따옴표 안의 `#`(예:
+// 'a # b')와 공백 없는 `#`(예: URL fragment `https://x/y#frag`, hex 색 `#ffaa00`)은 보존.
+// 예전엔 `.replace(/#.*$/, '')` 로 단순 strip 해, homepage URL 의 fragment, 따옴표 속 `#`,
+// hex 색 등이 모두 잘렸다(리뷰 발견 — name: "a # b" → name: "a 로 따옴표까지 깨짐).
+function stripComment(line: string): string {
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    // 라인 시작 또는 공백 직후의 `#` 만 주석 시작.
+    if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) {
+      return line.slice(0, i);
+    }
+  }
+  return line;
+}
+
 // 매우 단순한 yaml subset 파서 — schema v1 만 지원.
-// 지원: key: value (string/number/bool), nested object (2-space indent), list (- value),
+// 지원: key: value (string/bool), nested object (2-space indent), list (- value),
 // # comment, "quoted" 또는 'quoted' string. 그 외는 unsupported.
 //
 // 한계: anchor, alias, multiline string, flow-style ({}/[]) 미지원 — 위 schema v1 케이스 안에선 무관.
+// 숫자 자동 변환은 하지 않는다 — `name: 2024` 같은 숫자형 문자열이 Number 로 강제 변환돼
+// `typeof !== 'string'` 검증에 떨어지던 회귀 방지(리뷰 발견). 유일한 숫자 필드 `schema: 1` 은
+// 검증부에서 String 비교로 처리.
 export function parseProjectYml(content: string): ParseYmlResult {
   try {
     const lines = content
       .split(/\r?\n/)
-      .map((l) => l.replace(/#.*$/, '').replace(/\s+$/, '')) // strip comment + trailing ws
+      .map((l) => stripComment(l).replace(/\s+$/, ''))
       .filter((l) => l.trim().length > 0);
 
     // 각 라인을 (indent, content) 로 분리.
@@ -70,11 +97,13 @@ export function parseProjectYml(content: string): ParseYmlResult {
       return t;
     }
 
-    function coerce(s: string): string | number | boolean {
+    // 숫자 자동 변환은 의도적으로 빼고 boolean 만 coerce. `name: 2024` 같은 값이 Number 가 돼
+    // string 검증에 떨어지던 회귀 방지. 자동화 boolean 토글은 그대로 동작. 유일한 진짜 숫자
+    // 필드(schema: 1)는 아래 검증에서 String 비교.
+    function coerce(s: string): string | boolean {
       const v = unquote(s);
       if (v === 'true') return true;
       if (v === 'false') return false;
-      if (/^-?\d+$/.test(v)) return Number(v);
       return v;
     }
 
@@ -139,9 +168,10 @@ export function parseProjectYml(content: string): ParseYmlResult {
       return { kind: 'error', message: 'project.yml root must be an object' };
     }
 
-    // schema 검증.
+    // schema 검증. 숫자 자동 변환을 뺐기 때문에 `schema: 1` 은 문자열 "1" 로 파싱된다. 사용자가
+    // 의도적으로 `schema: "1"` 라 quote 해도 동일. 둘 다 받아들이려 String 비교.
     const obj = root as Record<string, unknown>;
-    if (obj.schema !== 1) {
+    if (String(obj.schema) !== '1') {
       return { kind: 'error', message: `schema 필드 누락 또는 미지원 버전 — '1' 만 지원` };
     }
     if (typeof obj.name !== 'string' || obj.name.length === 0) {
