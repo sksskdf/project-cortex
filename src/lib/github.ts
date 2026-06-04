@@ -23,6 +23,15 @@ const _cache = new Map<string, CachedOctokit>();
 // 만료 5분 전에 갱신 — 사용 중 만료 회피.
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
+// installation→Octokit 토큰 캐시를 비운다. App 자격증명이 바뀌거나(키 로테이션·updateGithubApp)
+// App 이 삭제될 때 호출해야 한다 — 안 비우면 캐시된 클라이언트가 옛 installation 토큰으로 만료
+// 전(~55분)까지 계속 동작해, 사용자가 유출 키를 로테이션해도 즉시 반영 안 됨(리뷰 발견 — 보안).
+// 캐시는 installationId 로 키잉되고 App 은 여러 installation 을 가질 수 있어, 전체를 비운다(다음
+// 호출에서 자연 재생성 — 비용 무시 가능).
+export function clearOctokitCache(): void {
+  _cache.clear();
+}
+
 // installation 으로 등록된 프로젝트의 App 설정 id. 없으면 null.
 function appConfigIdForInstallation(installationId: number): number | null {
   const row = db

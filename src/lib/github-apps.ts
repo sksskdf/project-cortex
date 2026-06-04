@@ -4,7 +4,7 @@
 
 import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { githubApps, type GithubAppRow } from '@/db/schema';
+import { githubApps, projects, type GithubAppRow } from '@/db/schema';
 import { env } from './env';
 
 // 목록 표시용 — private key 는 노출하지 않고 보유 여부만. webhook secret 도 마스킹.
@@ -150,7 +150,13 @@ export function deleteGithubApp(id: number): { kind: 'deleted' } | { kind: 'not-
     .where(eq(githubApps.id, id))
     .get();
   if (!existing) return { kind: 'not-found' };
-  db.delete(githubApps).where(eq(githubApps.id, id)).run();
+  // projects.appConfigId 가 이 App 을 참조하면 (foreign_keys=ON) 바로 delete 시 FK throw —
+  // import 로 레포를 한 번이라도 등록하면 App 을 영영 못 지웠다(리뷰 발견). 트랜잭션 안에서
+  // 참조 project 의 appConfigId 를 null 로(자가 치유 백필이 다시 채움) → App 삭제.
+  db.transaction((tx) => {
+    tx.update(projects).set({ appConfigId: null }).where(eq(projects.appConfigId, id)).run();
+    tx.delete(githubApps).where(eq(githubApps.id, id)).run();
+  });
   return { kind: 'deleted' };
 }
 

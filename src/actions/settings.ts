@@ -5,6 +5,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { installCortexSkill } from '@/lib/cortex-skill';
+import { clearOctokitCache } from '@/lib/github';
 import {
   createGithubApp,
   deleteGithubApp,
@@ -97,7 +98,12 @@ export async function updateGithubAppAction(
 ): Promise<GithubAppActionState> {
   try {
     const r = updateGithubApp(id, input);
-    if (r.kind === 'updated') revalidatePath('/settings');
+    if (r.kind === 'updated') {
+      // 자격증명(키)이 바뀌었을 수 있으므로 캐시된 installation 토큰 클라이언트를 즉시 무효화 —
+      // 안 하면 옛 토큰 클라이언트가 만료 전까지 살아 키 로테이션이 즉시 반영 안 됨(보안).
+      clearOctokitCache();
+      revalidatePath('/settings');
+    }
     return r;
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
@@ -107,7 +113,11 @@ export async function updateGithubAppAction(
 export async function deleteGithubAppAction(id: number): Promise<GithubAppActionState> {
   try {
     const r = deleteGithubApp(id);
-    if (r.kind === 'deleted') revalidatePath('/settings');
+    if (r.kind === 'deleted') {
+      // 삭제된 App 의 캐시된 클라이언트가 계속 동작하지 않게 즉시 무효화.
+      clearOctokitCache();
+      revalidatePath('/settings');
+    }
     return r;
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };

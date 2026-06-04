@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { githubApps } from '@/db/schema';
+import { githubApps, projects } from '@/db/schema';
 import {
   allWebhookSecrets,
   createGithubApp,
@@ -19,6 +20,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  db.delete(projects).run(); // appConfigId FK → githubApps 전에 비움.
   db.delete(githubApps).run();
 });
 
@@ -112,6 +114,25 @@ describe('deleteGithubApp', () => {
     const id = created.kind === 'created' ? created.id : 0;
     expect(deleteGithubApp(id).kind).toBe('deleted');
     expect(deleteGithubApp(id).kind).toBe('not-found');
+  });
+
+  // 회귀(리뷰 발견): projects.appConfigId 가 참조하는 App 삭제 시 FK throw → import 후 영영
+  // 못 지웠다. 트랜잭션 안에서 참조 project 의 appConfigId 를 null 로 하고 삭제해야.
+  it('project 가 appConfigId 로 참조해도 FK throw 없이 삭제 + project 는 보존(링크 해제)', () => {
+    const created = createGithubApp({ name: 'a', appId: '1', privateKey: PEM });
+    const id = created.kind === 'created' ? created.id : 0;
+    const proj = db
+      .insert(projects)
+      .values({ slug: 'acme/web', name: 'web', appConfigId: id })
+      .returning({ id: projects.id })
+      .get();
+
+    expect(() => deleteGithubApp(id)).not.toThrow();
+    expect(deleteGithubApp(id).kind).toBe('not-found'); // 정말 삭제됨
+    // project 는 보존되되 appConfigId 만 null.
+    const after = db.select().from(projects).where(eq(projects.id, proj.id)).get();
+    expect(after).toBeDefined();
+    expect(after?.appConfigId).toBeNull();
   });
 });
 
