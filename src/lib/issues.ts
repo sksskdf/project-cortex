@@ -130,10 +130,14 @@ export function reconcileStaleRuns(maxAgeMs: number): { failed: number } {
 }
 
 // 세션 종료 시 호출 — 정상 종료(exit code 0)면 completed, 아니면 failed 로 마감.
+// **status 가드**: 이미 terminal(failed/completed)인 run 은 안 건드린다. 예전엔 무조건 덮어써,
+// reconcileStaleRuns 가 24h 후 'failed' 로 마감한 run 이 (실은 아직 살아있던 세션의) 늦은 exit
+// 으로 'completed' 로 되돌아가 sweep 감사 신호·completedAt 이 왜곡됐다(리뷰 발견). running/queued
+// 일 때만 마감 — 멱등(이미 terminal 이면 no-op).
 export function finishAgentRun(runId: number, ok: boolean): void {
   db.update(agentRuns)
     .set({ status: ok ? 'completed' : 'failed', completedAt: new Date() })
-    .where(eq(agentRuns.id, runId))
+    .where(and(eq(agentRuns.id, runId), inArray(agentRuns.status, ['running', 'queued'])))
     .run();
 }
 
@@ -146,24 +150,37 @@ export type CompleteDelegationResult =
   | { kind: 'not-found' };
 
 export function completeIssueDelegation(issueId: number): CompleteDelegationResult {
-  const issue = db.select({ id: issues.id }).from(issues).where(eq(issues.id, issueId)).get();
+  const issue = db
+    .select({ id: issues.id, status: issues.status })
+    .from(issues)
+    .where(eq(issues.id, issueId))
+    .get();
   if (!issue) return { kind: 'not-found' };
 
-  const running = db
-    .select({ id: agentRuns.id })
-    .from(agentRuns)
-    .where(and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, ['queued', 'running'])))
-    .all();
   const now = new Date();
-  for (const r of running) {
-    db.update(agentRuns)
-      .set({ status: 'completed', completedAt: now })
-      .where(eq(agentRuns.id, r.id))
-      .run();
-  }
-
-  db.update(issues).set({ status: 'done', updatedAt: now }).where(eq(issues.id, issueId)).run();
-  return { kind: 'completed', completedRuns: running.length };
+  // run 마감 + 이슈 status 전환을 단일 트랜잭션으로 — 중간 크래시로 run 은 completed 인데 이슈는
+  // in-progress 로 남는 비일관 상태 방지(roadmap/project-meta sync 와 동일 패턴).
+  const completedRuns = db.transaction((tx) => {
+    const running = tx
+      .select({ id: agentRuns.id })
+      .from(agentRuns)
+      .where(and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, ['queued', 'running'])))
+      .all();
+    for (const r of running) {
+      tx.update(agentRuns)
+        .set({ status: 'completed', completedAt: now })
+        .where(eq(agentRuns.id, r.id))
+        .run();
+    }
+    // 이슈 status 가드 — 이미 'closed'(사용자가 폐기)거나 'done' 이면 안 건드린다(run 만 정리).
+    // 예전엔 무조건 'done' 으로 덮어써, 닫은 이슈에 (stale 탭·재전송 POST 로) 이 액션이 다시
+    // 닿으면 'closed' → 'done' 으로 회귀했다(리뷰 발견). 진행 중인 것만 done 으로.
+    if (issue.status === 'open' || issue.status === 'in-progress') {
+      tx.update(issues).set({ status: 'done', updatedAt: now }).where(eq(issues.id, issueId)).run();
+    }
+    return running.length;
+  });
+  return { kind: 'completed', completedRuns };
 }
 
 export type IssueStatus = 'open' | 'in-progress' | 'done' | 'closed';
