@@ -40,7 +40,11 @@ export type MergeGate = {
 export function computeMergeGate(input: MergeGateInput): MergeGate {
   const blockedByState = input.mergeableState === 'dirty' || input.mergeableState === 'blocked';
   const ciOk = !input.hasInstall || ciSatisfied(input.testsPassed, input.mergeableState);
-  const mergeBlockedByCI = input.hasInstall && input.active && !ciOk;
+  // 'mergeBlockedByCI' 는 **지배적 사유가 CI 일 때만** true. 예전엔 CI 실패 + state=blocked 인 PR
+  // 에서 reasonKey='blocked' 인데 mergeBlockedByCI=true 라 UI 가 모순된 사유를 동시 표시했다(리뷰
+  // 발견 — canMerge 는 정확). state 차단(충돌·보호규칙)이 있으면 그게 사용자 조치 1순위라 CI 사유
+  // 는 숨김. reasonKey 의 우선순위와 일관.
+  const mergeBlockedByCI = input.hasInstall && input.active && !ciOk && !blockedByState;
   const canMerge = input.hasInstall && input.active && ciOk && !blockedByState;
 
   let reasonKey: MergeBlockReasonKey | null = null;

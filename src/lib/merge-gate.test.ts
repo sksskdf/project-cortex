@@ -51,6 +51,18 @@ describe('computeMergeGate', () => {
     expect(g.reasonKey).toBe('blocked');
   });
 
+  // 회귀(리뷰 발견): CI 실패 + state=blocked 인 PR 에서 예전엔 reasonKey='blocked' 인데
+  // mergeBlockedByCI=true 라 UI 가 두 사유를 동시 표시. state 차단이 1순위라 CI 사유는 숨김.
+  it('mergeBlockedByCI 는 dirty/blocked 가 있을 땐 false (reasonKey 와 일관)', () => {
+    const blocked = computeMergeGate({ ...base, testsPassed: false, mergeableState: 'blocked' });
+    expect(blocked.canMerge).toBe(false);
+    expect(blocked.reasonKey).toBe('blocked');
+    expect(blocked.mergeBlockedByCI).toBe(false); // 예전엔 true 였음
+    const dirty = computeMergeGate({ ...base, testsPassed: false, mergeableState: 'dirty' });
+    expect(dirty.reasonKey).toBe('conflict');
+    expect(dirty.mergeBlockedByCI).toBe(false);
+  });
+
   it('ciFailed when tests failed', () => {
     const g = computeMergeGate({ ...base, testsPassed: false, mergeableState: 'unstable' });
     expect(g.canMerge).toBe(false);
