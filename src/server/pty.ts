@@ -423,24 +423,42 @@ function createSession(
   params: URLSearchParams,
   initialPrompt?: string,
 ) {
+  // 이슈 위임 세션이면 agent_run id 동봉 — 종료 시 그 run 을 마감한다. 조기반환 경로(아래 한도
+  // 초과·잘못된 workspaceId·startPty 실패)에서도 누수 없이 마감하기 위해 검사 먼저 파싱한다.
+  // 예전엔 runId 가 한참 아래에서 파싱돼, 조기반환이 runId 를 모른 채 종료 → agent_run 이 영영
+  // 'running' 으로 남아 24h sweep 까지 잔류했다(리뷰 발견).
+  const runIdRaw = Number(params.get('runId'));
+  const runId = Number.isInteger(runIdRaw) && runIdRaw > 0 ? runIdRaw : null;
+  const failRun = () => {
+    if (runId !== null) {
+      try {
+        finishAgentRun(runId, false);
+      } catch {
+        // 마감 실패는 치명적이지 않음 — 24h sweep 가 결국 정리.
+      }
+    }
+  };
+
   if (sessions.size >= MAX_SESSIONS) {
+    failRun();
     sysClose(ws, '동시 실행 세션 한도를 초과했습니다.');
     return;
   }
   const workspaceId = Number(params.get('workspaceId'));
   if (!Number.isInteger(workspaceId) || workspaceId <= 0) {
+    failRun();
     sysClose(ws, '워크스페이스 ID 가 올바르지 않습니다.');
     return;
   }
   const cols = clampDim(params.get('cols'), DEFAULT_COLS);
   const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
   const name = sanitizeName(params.get('name')) || `세션 ${sessions.size + 1}`;
-  // 이슈 위임 세션이면 agent_run id 동봉 — 종료 시 그 run 을 마감한다.
-  const runIdRaw = Number(params.get('runId'));
-  const runId = Number.isInteger(runIdRaw) && runIdRaw > 0 ? runIdRaw : null;
 
   const proc = startPty(ws, sessionId, workspaceId, cols, rows, 'new');
-  if (!proc) return;
+  if (!proc) {
+    failRun();
+    return;
+  }
 
   const now = Date.now();
   const session: Session = {
@@ -523,6 +541,15 @@ function resumeDormant(session: Session, ws: WebSocket, params: URLSearchParams)
   const rows = clampDim(params.get('rows'), DEFAULT_ROWS);
   const proc = startPty(ws, session.id, session.workspaceId, cols, rows, 'resume');
   if (!proc) {
+    // 위임 세션이었으면 run 누수 방지 — 레지스트리에서 지우기 전에 마감(리뷰 발견:
+    // 예전엔 sessions.delete 만 하고 finishAgentRun 누락 → 24h sweep 까지 잔류).
+    if (session.runId !== null) {
+      try {
+        finishAgentRun(session.runId, false);
+      } catch {
+        // 24h sweep 가 결국 정리.
+      }
+    }
     sessions.delete(session.id);
     persistAll();
     return;
