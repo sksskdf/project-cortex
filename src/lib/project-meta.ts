@@ -5,9 +5,9 @@
 // - 임의 yaml/markdown 형식은 지원 안 함 (위 박제 컨벤션만).
 // - 같은 (project_id, key) 의 Phase 는 sync 시 갱신, 사용자가 source_override 한 행은 유지.
 
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, isNotNull } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { projects, roadmapItems, roadmapPhases } from '@/db/schema';
+import { issues, projects, roadmapItems, roadmapPhases } from '@/db/schema';
 import { getRepoFileContent, type RepoRef } from './github';
 
 // ============================================================================
@@ -378,22 +378,41 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
   }
   const meta = parsed.meta;
 
-  // 메타 upsert — 서술 메타만 git 에서 sync (자동화 토글은 로컬 DB 전용, 아래 함수 참조).
-  db.update(projects).set(descriptiveMetaFields(meta)).where(eq(projects.id, projectId)).run();
+  // roadmap.md 도 미리 fetch — DB 쓰기를 단일 트랜잭션으로 묶기 위해 모든 await 를 먼저 끝낸다.
+  // (drizzle better-sqlite3 transaction 은 동기 callback — await 불가.)
+  const mdFile = await getRepoFileContent(project.installationId, ref, '.cortex/roadmap.md');
+  const parsedPhases = mdFile ? parseRoadmapMd(mdFile.content) : null;
 
-  const metaUpdated = true;
+  // DB 쓰기 전부를 단일 트랜잭션으로. 예전엔 transaction 없이 project 메타 update → phase/item
+  // upsert → delete 가 차례로 돌아, issues.roadmap_item_id FK 가 가리키는 item 을 삭제하려 할 때
+  // SQLITE_CONSTRAINT_FOREIGNKEY 가 던져지면 그 앞의 부분 쓰기(메타·일부 phase·item)는 영속화된
+  // 채로 함수가 throw 했다(리뷰 발견 — 비원자적). 이제는 throw 시 트랜잭션 전체가 rollback.
+  // 부수로 issues 가 참조하는 item 은 삭제 대신 source='manual' 로 강등(기존 phase 강등 패턴과
+  // 일치) — 사용자가 만든 연결을 보존하면서 git 으로부터의 sync 영향력을 끊는다.
   let phasesAdded = 0;
   let phasesUpdated = 0;
   let itemsAdded = 0;
   let itemsUpdated = 0;
 
-  // roadmap.md fetch + 파싱.
-  const mdFile = await getRepoFileContent(project.installationId, ref, '.cortex/roadmap.md');
-  if (mdFile) {
-    const parsedPhases = parseRoadmapMd(mdFile.content);
+  db.transaction((tx) => {
+    // 메타 upsert — 서술 메타만 git 에서 sync (자동화 토글은 로컬 DB 전용).
+    tx.update(projects).set(descriptiveMetaFields(meta)).where(eq(projects.id, projectId)).run();
+
+    if (!parsedPhases) return; // roadmap.md 없으면 메타만 갱신.
+
+    // issues 가 참조 중인 roadmap_item id 집합 — 삭제 대신 강등할 항목을 식별.
+    const referencedItemIds = new Set(
+      tx
+        .select({ id: issues.roadmapItemId })
+        .from(issues)
+        .where(isNotNull(issues.roadmapItemId))
+        .all()
+        .map((r) => r.id)
+        .filter((id): id is number => id !== null),
+    );
 
     // 기존 git 행 한 번 모두 가져옴 (project 안의 phase + items).
-    const existingPhases = db
+    const existingPhases = tx
       .select()
       .from(roadmapPhases)
       .where(eq(roadmapPhases.projectId, projectId))
@@ -406,7 +425,7 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
 
       if (!existing) {
         // 새 phase 생성 (source='git').
-        const inserted = db
+        const inserted = tx
           .insert(roadmapPhases)
           .values({
             projectId,
@@ -420,7 +439,7 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
           .get();
         for (let j = 0; j < p.items.length; j++) {
           const it = p.items[j];
-          db.insert(roadmapItems)
+          tx.insert(roadmapItems)
             .values({
               phaseId: inserted.id,
               title: it.title,
@@ -434,7 +453,7 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
         phasesAdded++;
       } else if (existing.source === 'git' && existing.sourceOverrideAt === null) {
         // git source 이고 사용자 수정 없음 — 갱신.
-        db.update(roadmapPhases)
+        tx.update(roadmapPhases)
           .set({
             title: p.title,
             goal: p.goal,
@@ -445,8 +464,8 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
           .run();
         phasesUpdated++;
 
-        // items: title 매칭으로 갱신 / 없으면 추가 / git source 인 잉여는 삭제.
-        const existingItems = db
+        // items: title 매칭으로 갱신 / 없으면 추가 / git source 인 잉여는 삭제·강등.
+        const existingItems = tx
           .select()
           .from(roadmapItems)
           .where(eq(roadmapItems.phaseId, existing.id))
@@ -456,7 +475,7 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
           const it = p.items[j];
           const exItem = itemByTitle.get(it.title);
           if (!exItem) {
-            db.insert(roadmapItems)
+            tx.insert(roadmapItems)
               .values({
                 phaseId: existing.id,
                 title: it.title,
@@ -468,15 +487,14 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
             itemsAdded++;
           } else if (exItem.source === 'git' && exItem.sourceOverrideAt === null) {
             // git item 갱신 — 상태는 마크다운 우선(done/in-progress/planned 모두 반영). 단 PR 로
-            // done 처리된 기록(doneByPrId)은 마크다운이 체크 해제돼도 보존(자동 done 이 권위). 예전엔
-            // done 아니면 무조건 'planned' 로 박아 `[~]` in-progress 가 매 sync 마다 강등됐다(리뷰 발견).
+            // done 처리된 기록(doneByPrId)은 마크다운이 체크 해제돼도 보존(자동 done 이 권위).
             const nextStatus =
               it.status === 'done'
                 ? 'done'
                 : exItem.doneByPrId !== null
                   ? exItem.status
                   : it.status;
-            db.update(roadmapItems)
+            tx.update(roadmapItems)
               .set({
                 status: nextStatus,
                 sortOrder: j,
@@ -488,18 +506,32 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
           }
           // sourceOverride 있으면 안 건드림.
         }
-        // 마크다운에서 사라진 git item 제거 (manual 또는 override 는 보존).
+        // 마크다운에서 사라진 git item 처리: issues 가 참조하면 'manual' 로 강등(연결 보존),
+        // 아니면 삭제. 예전엔 무조건 삭제라 issues.roadmap_item_id FK 가 throw 했다(리뷰 발견).
         const incomingTitles = new Set(p.items.map((it) => it.title));
-        const toDelete = existingItems.filter(
+        const stale = existingItems.filter(
           (it) =>
             it.source === 'git' && it.sourceOverrideAt === null && !incomingTitles.has(it.title),
         );
-        if (toDelete.length > 0) {
-          db.delete(roadmapItems)
+        const staleReferenced = stale.filter((it) => referencedItemIds.has(it.id));
+        const staleDeletable = stale.filter((it) => !referencedItemIds.has(it.id));
+        if (staleDeletable.length > 0) {
+          tx.delete(roadmapItems)
             .where(
               inArray(
                 roadmapItems.id,
-                toDelete.map((it) => it.id),
+                staleDeletable.map((it) => it.id),
+              ),
+            )
+            .run();
+        }
+        if (staleReferenced.length > 0) {
+          tx.update(roadmapItems)
+            .set({ source: 'manual', updatedAt: new Date() })
+            .where(
+              inArray(
+                roadmapItems.id,
+                staleReferenced.map((it) => it.id),
               ),
             )
             .run();
@@ -508,44 +540,64 @@ export async function syncProjectFromGit(projectId: number): Promise<SyncResult>
       // existing 이 manual 또는 override 면 안 건드림.
     }
 
-    // 마크다운에서 사라진 git phase 제거 (manual / override 보존).
+    // 마크다운에서 사라진 git phase 처리.
     const incomingKeys = new Set(parsedPhases.map((p) => p.key));
     const phasesToDelete = existingPhases.filter(
       (p) => p.source === 'git' && p.sourceOverrideAt === null && !incomingKeys.has(p.key),
     );
     for (const p of phasesToDelete) {
-      // 해당 phase 의 git items (override 없는) 만 함께 제거. manual/override item 이 있으면
-      // phase 도 manual 로 강등 (FK 보존).
-      const childItems = db.select().from(roadmapItems).where(eq(roadmapItems.phaseId, p.id)).all();
+      // 해당 phase 의 git items 중 (override 없음 + issues 미참조)만 함께 제거. 나머지는 강등.
+      const childItems = tx.select().from(roadmapItems).where(eq(roadmapItems.phaseId, p.id)).all();
       const survivingItems = childItems.filter(
         (it) => it.source === 'manual' || it.sourceOverrideAt !== null,
       );
-      const ephemeralItems = childItems.filter(
+      const ephemeralAll = childItems.filter(
         (it) => it.source === 'git' && it.sourceOverrideAt === null,
       );
-      if (ephemeralItems.length > 0) {
-        db.delete(roadmapItems)
+      const ephemeralReferenced = ephemeralAll.filter((it) => referencedItemIds.has(it.id));
+      const ephemeralDeletable = ephemeralAll.filter((it) => !referencedItemIds.has(it.id));
+      if (ephemeralDeletable.length > 0) {
+        tx.delete(roadmapItems)
           .where(
             inArray(
               roadmapItems.id,
-              ephemeralItems.map((it) => it.id),
+              ephemeralDeletable.map((it) => it.id),
             ),
           )
           .run();
       }
-      if (survivingItems.length === 0) {
-        db.delete(roadmapPhases).where(eq(roadmapPhases.id, p.id)).run();
+      if (ephemeralReferenced.length > 0) {
+        tx.update(roadmapItems)
+          .set({ source: 'manual', updatedAt: new Date() })
+          .where(
+            inArray(
+              roadmapItems.id,
+              ephemeralReferenced.map((it) => it.id),
+            ),
+          )
+          .run();
+      }
+      // 강등된 ephemeral 도 surviving 으로 취급 — phase 는 manual 로 강등(연결 보존).
+      const remainingSurvivors = survivingItems.length + ephemeralReferenced.length;
+      if (remainingSurvivors === 0) {
+        tx.delete(roadmapPhases).where(eq(roadmapPhases.id, p.id)).run();
       } else {
-        // 사용자가 수정한 자식이 있으면 phase 는 manual 로 강등.
-        db.update(roadmapPhases)
+        tx.update(roadmapPhases)
           .set({ source: 'manual', updatedAt: new Date() })
           .where(eq(roadmapPhases.id, p.id))
           .run();
       }
     }
-  }
+  });
 
-  return { kind: 'synced', metaUpdated, phasesAdded, phasesUpdated, itemsAdded, itemsUpdated };
+  return {
+    kind: 'synced',
+    metaUpdated: true,
+    phasesAdded,
+    phasesUpdated,
+    itemsAdded,
+    itemsUpdated,
+  };
 }
 
 // Phase 10.2 — push webhook 자동 sync 진입점.
