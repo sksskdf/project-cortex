@@ -526,8 +526,9 @@ CLI claude 세션은 대화형·선형이라 길어지면 한눈에 파악하기
 
 - ✅ **(결정됨) 수신 모드** — 현행 웹훅 유지(폴링 미채택). (`docs/WEBHOOK-DELIVERY.md`)
 - ✅ **(결정됨) glanceability** — G1+G3 채택·구현. (`docs/GLANCEABILITY.md`)
-- ✅ **(결정됨) Phase 13.4 자동완료** — (a) idle 타임아웃 채택·구현(#213). (c) 결과 PR 연동은 outputPrId
-  배선(미구현) 선행 필요라 보류.
+- ✅ **(결정됨) Phase 13.4 자동완료** — (a) idle 타임아웃 채택·구현(#213). (c) 결과 PR 연동 —
+  **outputPrId 배선 완료(#255, 세션 3)**: 위임 결과 PR 본문의 `Cortex-Issue: #<id>` 마커로
+  agent_run↔PR 연결(cross-project 가드). result-PR 배지 + Phase 4.7 사전 리뷰 이슈 spec 주입 동작.
 - ⏸ **Phase 17 DB 중앙화** — **보류**. 단일 사용자 localhost 엔 SQLite 로 충분. **재개 트리거: 멀티 머신/환경
   공유 필요시.**
 - ⏸ **Phase 19 외부 노출 + 인증** — **보류**. 현재 외부 노출 안 함(웹훅 유지). **재개 트리거: 외부 노출 결정
@@ -553,3 +554,47 @@ CLI claude 세션은 대화형·선형이라 길어지면 한눈에 파악하기
 > 머신/claude 런타임 검증이 본질적으로 선행되어야 하는 항목 — 샌드박스에서 블라인드로 끝낼 수 없다.
 > **이 시점의 로드맵은 "자율 가능 범위 완주 + 나머지는 의식적 보류/런타임-게이트"로 resolved 상태.**
 > 보류 항목은 위 트리거가 발생하거나 사용자가 명시 지시하면 즉시 재개.
+
+---
+
+## 로드맵 상태 — 세션 3 (2026-06-04): 🔴 보안 게이트 + 코드 리뷰 하드닝 캠페인
+
+세션 2 의 resolved 이후, §1 의 "자율 가능 범위"를 **코드 품질·보안 하드닝**으로 확장. 새 기능이
+아니라 기존 구현의 실제 버그를 고-recall 코드 리뷰로 전수 발굴·수정. **#231~#259, tests 635 → 726.**
+
+### 완료 (전부 머지, 각 단일-commit PR + 회귀 테스트)
+
+- **🔴 보안 — author_association 권한 게이트(#231, migration 0028)**: authorKind(본문 마커·위조
+  가능) 대신 GitHub author_association(위조 불가)으로 외부 기여자의 자동 머지·claude 자동화
+  권한 상승 차단. triage + 자동화 3종 일관.
+- **자동 머지 무결성**: merged 오인(#229) · 미검증 SHA 자동머지(#241) · github check-runs
+  페이지네이션(>100 시 실패 CI 누락→자동머지)(#246) · readiness commits 페이지네이션(#246) ·
+  triage `blocked`↔merge-gate 일관(#247·#250) · **risk-flags auth-domain 미탐**(authentication/
+  authorization 무검토 자동머지)(#258) · diff-budget authz 우선순위(#259).
+- **데이터 무결성/생명주기**: 로드맵 Closes-매칭(단어경계·펜스·override·멱등)(#240) · roadmap
+  `[~]` in-progress 데이터 손실(#233) · project.yml `#`주석·숫자강제(#238) · syncProjectFromGit
+  트랜잭션+issues FK(#239) · roadmap/App delete FK(#242·#244) · 위임 status 무결성(#251) ·
+  startAgentRun 중복 running(#252) · diff-parser `--- `/`+++ ` content 오인(#257).
+- **보안/관측/알림**: App 삭제 토큰 캐시 무효화(키 로테이션)(#244) · headless 비용 누수(#243) ·
+  workspace 경로 정규화+동시 pull(#245) · 알림 dedupe(#253)·배지 stale(#254).
+- **자동화 토글 로컬 DB 전용(#228)** — git pull 마다 설정 풀림 수정(사용자 보고).
+- **Phase 4.7 outputPrId writer 복원(#255)** — 위 §2(c) 참조. result-PR 링크 + 사전 리뷰 이슈
+  spec 주입 dead 기능 되살림.
+- **CLI 활용 R3 2단계**(비용 영속+/reports)·R5 fallback·자동 머지 정확도 지표(#231·#243).
+- **검토 후 무변경(건전 확인)**: pr.ts 머지 핸들러 · reconcile · diff-budget splitFiles ·
+  format/confidence/queue/pr-read/live-status — 억지 변경 안 함.
+
+### 남은 작업 — 전부 게이트 (샌드박스 자율 완료 불가)
+
+위 §2(보류-트리거)·§3(런타임/데이터/시각) 그대로 유효. 우선순위·게이트 요약:
+
+| 항목 | 게이트 | 트리거 |
+|---|---|---|
+| Phase 13.5/13.6: stream-json·MCP·hooks·모델 escalation·R4 권한(allowedTools) | 런타임(claude CLI) | 사용자 머신 검증 |
+| Phase 21 G2 세션 요약 | stream-json(R6) 선행 | 위 후 |
+| Phase 4.7 리뷰 품질 튜닝·회귀셋 | 머지 결과 corpus | 데이터 축적 |
+| SSE 구독자 누수(events route)·pty 타이밍/누수 실효 | 서버 런타임 | 사용자 머신 |
+| Phase 15 반응형·UI/UX 패스 · 10.4 뷰 통합 | 시각 검증 | UI 스샷/화면 |
+| Phase 19 인증/Cloudflare(pty·세션 인증 포함) | 외부 노출 결정 | 외부 노출 시 |
+| Phase 17 DB 중앙화 · Phase 8 PAT/신규repo · Phase 6 클러스터링 전면삭제 | 결정 | 명시 요청 시 |
+| markAllNotificationsRead 상한 · live-status unread muted 제외 | 사양 판단(논쟁적) | 결정 시 |
