@@ -195,6 +195,40 @@ describe('handlePullRequestWebhook', () => {
     });
   });
 
+  // 회귀(리뷰 발견): 직전 SHA 의 CI 통과(testsPassed=true)가 새 SHA 로 push 후에도 남아
+  // 미검증 코드가 자동 머지되던 버그. 새 headSha 면 testsPassed 를 null 로 리셋해야.
+  it('synchronize 로 headSha 가 바뀌면 stale testsPassed 를 null 로 리셋', async () => {
+    await handlePullRequestWebhook(basePayload());
+    // 직전 SHA 의 CI 가 통과한 상태로 만든다.
+    db.update(prs).set({ testsPassed: true }).where(eq(prs.number, 999)).run();
+    expect(db.select().from(prs).where(eq(prs.number, 999)).get()?.testsPassed).toBe(true);
+
+    // 새 commit push (synchronize, 새 headSha).
+    await handlePullRequestWebhook({
+      ...basePayload({ headSha: 'sha-new' }),
+      action: 'synchronize',
+    });
+
+    const row = db.select().from(prs).where(eq(prs.number, 999)).get();
+    expect(row?.headSha).toBe('sha-new');
+    // 새 SHA 의 CI 결과는 미수신 — null 로 리셋돼 자동 머지 게이트가 대기.
+    expect(row?.testsPassed).toBeNull();
+  });
+
+  it('headSha 가 그대로면(edited 등) testsPassed 보존', async () => {
+    await handlePullRequestWebhook(basePayload());
+    db.update(prs).set({ testsPassed: true }).where(eq(prs.number, 999)).run();
+
+    // 같은 headSha 로 edited (제목만 변경).
+    await handlePullRequestWebhook({
+      ...basePayload({ title: 'Renamed', headSha: 'sha-init' }),
+      action: 'edited',
+    });
+
+    const row = db.select().from(prs).where(eq(prs.number, 999)).get();
+    expect(row?.testsPassed).toBe(true); // 보존
+  });
+
   it('transitions to merged when closed with merged=true', async () => {
     await handlePullRequestWebhook(basePayload());
 

@@ -294,6 +294,13 @@ export async function handlePullRequestWebhook(
       ? existing.status
       : computeStatus(payload.action, payload.pr.merged);
 
+  // head SHA 가 바뀌면(새 commit push) 직전 SHA 의 CI 결과(testsPassed)는 무효 — null 로 리셋해
+  // 새 SHA 의 check webhook 이 도착할 때까지 자동 머지 게이트가 대기하게 한다. 예전엔 testsPassed
+  // 를 그대로 둬, SHA-A 가 통과한 PR 에 SHA-B 를 push 하면 SHA-B 의 CI 가 끝나기도 전에 stale
+  // true 로 자동 머지될 수 있었다(리뷰 발견 — 미검증 코드 자동 머지). mergeableState 는 아래
+  // safeStoreMergeState 가 새 SHA 기준으로 재조회하므로 별도 리셋 불필요.
+  const headShaChanged = existing.headSha !== values.headSha;
+
   db.update(prs)
     .set({
       title: values.title,
@@ -304,6 +311,7 @@ export async function handlePullRequestWebhook(
       filesChanged: values.filesChanged,
       status: newStatus,
       updatedAt: values.updatedAt,
+      ...(headShaChanged ? { testsPassed: null } : {}),
     })
     .where(eq(prs.id, existing.id))
     .run();
