@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { projects, workspaces } from '@/db/schema';
@@ -112,9 +112,17 @@ export type RegisterWorkspaceResult =
   | { kind: 'invalid-path'; reason: string }
   | { kind: 'no-project' };
 
+// 등록 경로 정규화 — `.`·중복 구분자 해소 + 끝 구분자 제거. trailing slash(`/a/b/`) 나
+// `/a/./b` 같은 표기 차이로 같은 디렉토리가 다른 문자열이 되어 교차등록 가드·1프로젝트1워크스페이스
+// upsert 를 우회하던 문제 방지(리뷰 발견). 정규화 결과가 빈 문자열이면(방어) 원본 반환.
+export function normalizeWorkspacePath(p: string): string {
+  const n = normalize(p).replace(/[/\\]+$/, '');
+  return n.length > 0 ? n : p;
+}
+
 // 워크스페이스 등록 — path validation 후 upsert (한 프로젝트당 1개).
 // validation:
-// - 절대 경로 (Windows / POSIX 모두) + 부모 경로 traversal (`..`) 거부
+// - 절대 경로 (Windows / POSIX 모두) + 부모 경로 traversal (`..` 세그먼트) 거부
 // - 다음 중 하나면 허용:
 //   (a) .git 있는 기존 클론  (b) 비어있는 디렉토리 (clone 대상)  (c) 존재하지 않는 경로 (clone 이 생성)
 //   → 빈 디렉토리/없는 경로는 첫 git pull 이 git clone 으로 동작 (사용자가 직접 클론할 필요 없음).
@@ -130,11 +138,16 @@ export function registerWorkspace(input: {
     .get();
   if (!project) return { kind: 'no-project' };
 
-  const path = input.localPath.trim();
-  if (path.length === 0) return { kind: 'invalid-path', reason: '경로가 비어있습니다.' };
-  if (path.includes('..')) {
+  const raw = input.localPath.trim();
+  if (raw.length === 0) return { kind: 'invalid-path', reason: '경로가 비어있습니다.' };
+  // `..` 는 **세그먼트 단위**로 거부 — 정규화(아래)가 `..` 를 해소해버리기 전에 원본 기준으로
+  // 검사. 부분문자열(`includes('..')`)이 아니라 세그먼트라야 `/srv/foo..bar/repo` 같은 정상
+  // 경로를 오거부하지 않는다(리뷰 발견).
+  if (raw.split(/[/\\]+/).includes('..')) {
     return { kind: 'invalid-path', reason: '상위 경로 참조(..)는 허용되지 않습니다.' };
   }
+  // 정규화 — trailing slash·`.`·중복 구분자를 단일 canonical 형태로(교차등록 가드 우회 방지).
+  const path = normalizeWorkspacePath(raw);
   // 절대 경로 — POSIX (`/`) 또는 Windows (`C:\`).
   const isAbsolute = path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
   if (!isAbsolute) return { kind: 'invalid-path', reason: '절대 경로여야 합니다.' };
@@ -290,7 +303,14 @@ export type PullResult =
   | { kind: 'pulled'; output: string }
   | { kind: 'cloned'; output: string }
   | { kind: 'no-workspace' }
+  | { kind: 'skipped-in-flight' }
   | { kind: 'failed'; output: string };
+
+// 같은 localPath 에 대한 동시 pull/clone 직렬화 — 진행 중인 경로 집합. auto-merge 의 인플라이트
+// 락은 per-PR 라, 같은 repo 의 두 PR 이 거의 동시에 머지되면 같은 clone 에서 git fetch/pull 이
+// 동시에 돌아 .git/index.lock·FETCH_HEAD 충돌 + 허위 실패 알림이 났다(리뷰 발견). 이미 진행
+// 중이면 skip — best-effort 라 진행 중 pull 이 최신(방금 머지분 포함)을 가져오므로 재시도 불필요.
+const _pullsInFlight = new Set<string>();
 
 function recordResult(workspaceId: number, result: string): void {
   db.update(workspaces)
@@ -318,25 +338,32 @@ export async function pullWorkspace(projectId: number): Promise<PullResult> {
   const ws = getWorkspace(projectId);
   if (!ws) return { kind: 'no-workspace' };
 
-  // 아직 .git 이 없으면 (빈 디렉토리/없는 경로로 등록) clone 으로 동작.
-  if (!isGitRepo(ws.localPath)) {
-    return cloneWorkspace(ws);
-  }
+  // 같은 디렉토리에 동시 git 작업이 돌면 index.lock 충돌 — 이미 진행 중이면 skip(best-effort).
+  if (_pullsInFlight.has(ws.localPath)) return { kind: 'skipped-in-flight' };
+  _pullsInFlight.add(ws.localPath);
+  try {
+    // 아직 .git 이 없으면 (빈 디렉토리/없는 경로로 등록) clone 으로 동작.
+    if (!isGitRepo(ws.localPath)) {
+      return await cloneWorkspace(ws);
+    }
 
-  // git fetch 먼저 (안전), 그 다음 ff-only pull (충돌이면 reject).
-  const fetchRes = await runGit(ws.localPath, ['fetch', '--all', '--prune']);
-  if (fetchRes.code !== 0) {
-    const result = `fetch 실패: ${fetchRes.output}`;
+    // git fetch 먼저 (안전), 그 다음 ff-only pull (충돌이면 reject).
+    const fetchRes = await runGit(ws.localPath, ['fetch', '--all', '--prune']);
+    if (fetchRes.code !== 0) {
+      const result = `fetch 실패: ${fetchRes.output}`;
+      recordResult(ws.id, result);
+      return { kind: 'failed', output: result };
+    }
+
+    const pullRes = await runGit(ws.localPath, ['pull', '--ff-only']);
+    const ok = pullRes.code === 0;
+    const result = ok
+      ? `git pull 성공: ${pullRes.output || 'Already up to date.'}`
+      : `git pull 실패: ${pullRes.output}`;
+
     recordResult(ws.id, result);
-    return { kind: 'failed', output: result };
+    return ok ? { kind: 'pulled', output: result } : { kind: 'failed', output: result };
+  } finally {
+    _pullsInFlight.delete(ws.localPath);
   }
-
-  const pullRes = await runGit(ws.localPath, ['pull', '--ff-only']);
-  const ok = pullRes.code === 0;
-  const result = ok
-    ? `git pull 성공: ${pullRes.output || 'Already up to date.'}`
-    : `git pull 실패: ${pullRes.output}`;
-
-  recordResult(ws.id, result);
-  return ok ? { kind: 'pulled', output: result } : { kind: 'failed', output: result };
 }
