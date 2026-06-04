@@ -100,7 +100,7 @@
   background: transparent;
   border: none;
   color: var(--ds-color-text-02);
-  font-size: 14px;
+  font-size: var(--ds-typography-font-size-14);
   line-height: 1;
   cursor: pointer;
   padding: 2px 6px;

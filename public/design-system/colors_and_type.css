@@ -172,6 +172,9 @@
   --ds-typography-font-size-12: 12px;
   --ds-typography-font-size-13: 13px;
   --ds-typography-font-size-14: 14px;
+  /* Phase 15 — Cortex 가 8 컴포넌트에서 참조하던 미정의 토큰 #266 후속 정의. 13↔16 사이 14 와
+     16 사이 보조 단계. */
+  --ds-typography-font-size-15: 15px;
   --ds-typography-font-size-16: 16px;
   --ds-typography-font-size-18: 18px;
   --ds-typography-font-size-20: 20px;

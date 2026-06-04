@@ -212,7 +212,7 @@
   background: transparent;
   border: none;
   color: var(--ds-color-text-02);
-  font-size: 18px;
+  font-size: var(--ds-typography-font-size-18);
   line-height: 1;
   cursor: pointer;
   padding: 0 var(--ds-spacing-6);
@@ -228,7 +228,7 @@
   background: transparent;
   border: none;
   color: var(--ds-color-text-02);
-  font-size: 13px;
+  font-size: var(--ds-typography-font-size-13);
   line-height: 1;
   cursor: pointer;
   padding: 0 var(--ds-spacing-6);

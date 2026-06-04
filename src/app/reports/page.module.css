@@ -75,7 +75,7 @@
 
 .mergeRatePct {
   font-family: var(--ds-typography-font-family-number);
-  font-size: 40px;
+  font-size: var(--ds-typography-font-size-40);
   font-weight: var(--ds-typography-font-weight-bold);
   color: var(--ds-color-text-03-high);
   line-height: 1;
