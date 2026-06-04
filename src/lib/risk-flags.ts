@@ -11,18 +11,38 @@ export type RiskFlag =
   | 'low-coverage'
   | 'large-change';
 
-// 파일 경로 휴리스틱. 도메인 신호가 강하면 차단 플래그가 거의 확실.
-const PATH_PATTERNS: ReadonlyArray<{ pattern: RegExp; flag: RiskFlag }> = [
-  { pattern: /payment|billing|refund|invoice|checkout/i, flag: 'payment-domain' },
-  { pattern: /\bauth\b|\bauthn\b|\bauthz\b|login|session|jwt|oauth/i, flag: 'auth-domain' },
-  { pattern: /migrat(ion|e)|schema\.sql|drizzle\/migrations/i, flag: 'migration' },
-  { pattern: /password|secret|credential|\.env|crypto/i, flag: 'security-sensitive' },
+// 파일 경로 휴리스틱. 도메인 신호가 강하면 차단 플래그가 거의 확실. 한 flag 에 여러 패턴 —
+// 하나라도 매칭하면 flag. (auth 처럼 단일 정규식으론 정확히 잡기 어려운 경우 분리.)
+const PATH_PATTERNS: ReadonlyArray<{ patterns: ReadonlyArray<RegExp>; flag: RiskFlag }> = [
+  { patterns: [/payment|billing|refund|invoice|checkout|stripe|paypal/i], flag: 'payment-domain' },
+  {
+    // auth-domain: authentication/authorization/oauth/login/session/jwt 등. 예전 `\bauth\b` 는
+    // 'authentication'·'authorization'·'authGuard' 를 못 잡아 auth 변경이 무검토 자동 머지됐다
+    // (리뷰 발견). 동시에 'author'·'authorId'(이 코드베이스 도처) 오매칭은 피해야 한다.
+    patterns: [
+      // 충돌 없는 명시 토큰 (대소문자 무관).
+      /\b(?:authentication|authorization|authn|authz|oauth2?|login|logout|signin|session|jwt|sso|saml|oidc)\b/i,
+      // 경로 세그먼트 'auth' (`src/auth/`, `auth.ts`) — 'author.ts' 는 뒤가 'or' 라 제외.
+      /(?:^|[/\\._-])auth(?:[/\\._-]|$)/i,
+      // camelCase authGuard/authMiddleware — /i 없이(대문자 경계). 'author'(소문자 o)는 제외.
+      /auth[A-Z]/,
+    ],
+    flag: 'auth-domain',
+  },
+  // migration: 마이그레이션 파일 + drizzle schema 소스(이 레포의 DB 스키마 단일 소스). schema.ts
+  // 만 변경하고 .sql 미동반인 PR 도 잡도록 db/schema 추가(리뷰 발견).
+  { patterns: [/migrat(ion|e)|\.sql\b|db\/schema|drizzle\//i], flag: 'migration' },
+  { patterns: [/password|secret|credential|\.env|crypto/i], flag: 'security-sensitive' },
 ];
 
 // diff 본문 휴리스틱. 신규 외부 호출은 LLM이 더 정확하지만 1차 거르기용.
+// `^\+(?!\+)` — 추가된 content line 만(헤더 `+++ b/path` 제외). 예전엔 `^\+` 라 `+++` 헤더의
+// 경로에 든 client 이름(got/axios 등)을 코드 변경으로 오인해 false 차단했다(리뷰 발견).
+// 'got' 은 영어 단어 충돌이 심해 호출(`got(`)/import 형태만 인정.
 const DIFF_PATTERNS: ReadonlyArray<{ pattern: RegExp; flag: RiskFlag }> = [
   {
-    pattern: /^\+.*\b(fetch|axios|got|undici|http\.(get|post|request))\b/m,
+    pattern:
+      /^\+(?!\+).*(?:\b(?:fetch|axios|undici)\b|\bhttp\.(?:get|post|request)\b|\bgot\s*\(|(?:from |require\()['"]got['"])/m,
     flag: 'external-api-new',
   },
 ];
@@ -35,8 +55,8 @@ export const LOW_COVERAGE_THRESHOLD = 0.7;
 export function detectFlagsFromPaths(paths: ReadonlyArray<string>): Set<RiskFlag> {
   const flags = new Set<RiskFlag>();
   for (const path of paths) {
-    for (const { pattern, flag } of PATH_PATTERNS) {
-      if (pattern.test(path)) flags.add(flag);
+    for (const { patterns, flag } of PATH_PATTERNS) {
+      if (patterns.some((p) => p.test(path))) flags.add(flag);
     }
   }
   return flags;
