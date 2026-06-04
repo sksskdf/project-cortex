@@ -23,7 +23,11 @@ import {
 } from '@/lib/projects';
 import { reconcileProject, type ReconcileResult } from '@/lib/reconcile';
 import { reapplyRoadmapMatchesForProject } from '@/lib/roadmap';
-import { setAgentWorktreeEnabled, setHeadroomEnabled } from '@/lib/settings';
+import {
+  setAgentWorktreeEnabled,
+  setCliAllowedToolsEnabled,
+  setHeadroomEnabled,
+} from '@/lib/settings';
 
 // Phase 16 — 위임 세션 worktree 격리 토글 (기본 OFF, opt-in).
 export type WorktreeActionState =
@@ -52,6 +56,24 @@ export async function toggleHeadroomAction(enabled: boolean): Promise<HeadroomAc
     const row = setHeadroomEnabled(enabled);
     revalidatePath('/settings');
     return { kind: 'updated', enabled: row.headroomEnabled };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Phase 13.5 R4 — 좁은 도구 허용목록 사용 토글 (기본 OFF, opt-in).
+export type CliAllowedToolsActionState =
+  | { kind: 'idle' }
+  | { kind: 'updated'; enabled: boolean }
+  | { kind: 'error'; message: string };
+
+export async function toggleCliAllowedToolsAction(
+  enabled: boolean,
+): Promise<CliAllowedToolsActionState> {
+  try {
+    const row = setCliAllowedToolsEnabled(enabled);
+    revalidatePath('/settings');
+    return { kind: 'updated', enabled: row.cliAllowedToolsEnabled };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
   }

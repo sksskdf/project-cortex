@@ -1,6 +1,7 @@
 import { ko as t } from '@/copy/ko';
 import { WorktreeToggle } from '@/components/WorktreeToggle';
 import { HeadroomToggle } from '@/components/HeadroomToggle';
+import { CliAllowedToolsToggle } from '@/components/CliAllowedToolsToggle';
 import { GithubAppsManager } from '@/components/GithubAppsManager';
 import { InstallCortexSkillButton } from '@/components/InstallCortexSkillButton';
 import { listGithubApps } from '@/lib/github-apps';
@@ -48,6 +49,16 @@ export default async function SettingsPage() {
           </div>
         </div>
         <HeadroomToggle initial={settings.headroomEnabled} available={headroomAvailable} />
+      </section>
+
+      <section className={styles.card} aria-label={t.settings.cliAllowedTools.title}>
+        <div className={styles.cardHead}>
+          <div>
+            <div className={styles.cardTitle}>{t.settings.cliAllowedTools.title}</div>
+            <div className={styles.cardDesc}>{t.settings.cliAllowedTools.desc}</div>
+          </div>
+        </div>
+        <CliAllowedToolsToggle initial={settings.cliAllowedToolsEnabled} />
       </section>
 
       <section className={styles.card} aria-label={t.settings.skill.title}>

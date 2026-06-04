@@ -40,6 +40,12 @@ export type ClaudeRunOptions = {
   // 위험: cwd 안에서 임의 파일 수정/명령 실행이 가능 — 호출부가 cwd 화이트리스트(등록된
   // 워크스페이스)로 제한해야 함.
   dangerouslyAllowAllTools?: boolean;
+  // R4 (Phase 13.5) — 권한 정밀화. allowedTools 가 주어지면 `--dangerously-skip-permissions` 대신
+  // `--allowed-tools <list>` 로 명시 허용 목록만 사용. dangerouslyAllowAllTools 와 동시 설정 시
+  // allowedTools 가 우선(좁은 권한). 예: ['Edit','Bash(npm test)','Read'] — 자동 수정에 필요한
+  // 도구만. 미지원 CLI 는 무시되거나 에러로 실패 → spawnClaude 의 degrade-retry 가 플래그 없이
+  // 재시도(무회귀). 빈 배열은 "어떤 도구도 허용 안 함"으로 해석돼 의미 있을 수 있으므로 그대로 전달.
+  allowedTools?: ReadonlyArray<string>;
   // R1 (Phase 13.6) — JSON Schema 강제. 주면 `--json-schema` 로 전달하고, 응답 봉투의
   // `structured_output`(스키마 검증된 객체)을 result.structured 로 돌려준다. 모델이 산문/펜스를
   // 섞어도 파싱 취약점(parseJsonFromText)을 우회. 미지원 CLI 대비: 도구 미사용(분석) 호출은
@@ -92,7 +98,7 @@ async function spawnClaude(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
   // 1회 재시도 → 기존 동작으로 안전하게 degrade. 도구 사용(코딩 자동화)은 부분 편집
   // 재실행 위험이 있어 재시도하지 않는다.
   const usedEnhancements = Boolean(
-    opts.jsonSchema || opts.appendSystemPrompt || opts.fallbackModel,
+    opts.jsonSchema || opts.appendSystemPrompt || opts.fallbackModel || opts.allowedTools,
   );
   if (usedEnhancements && !opts.dangerouslyAllowAllTools) {
     const retry = await runOnce(claude.path, opts, false);
@@ -111,39 +117,55 @@ function strip(r: InternalResult): ClaudeRunResult {
 }
 
 // 1회 spawn. useEnhancements=false 면 --json-schema / --append-system-prompt-file 를 생략.
-function runOnce(
-  claudePath: string,
+// 헤드리스 argv 빌더 — 순수 함수(파일 I/O 없음). sysPromptFile 은 호출자가 미리 써둔 경로
+// (또는 null). useEnhancements=false 면 R1/R2/R4/R5 플래그를 모두 생략(미지원 CLI degrade).
+// instruction(positional)은 항상 마지막. 단위 테스트로 모든 분기 검증.
+export function buildHeadlessArgs(
   opts: ClaudeRunOptions,
   useEnhancements: boolean,
-): Promise<InternalResult> {
-  // -p: 비대화형 print 모드. --output-format json: result 봉투. stdin 으로 본문 전달 +
-  // argv 에 짧은 지시문. (--max-turns 는 한계 도달 시 에러 종료라 단일 응답 분석에서
-  // 정상 완료를 실패로 오인할 위험이 있어 사용 안 함 — 자기완결 프롬프트라 도구 루프 위험 낮음.)
+  sysPromptFile: string | null,
+): string[] {
   const cliArgs = ['-p', '--output-format', 'json'];
   if (opts.model) cliArgs.push('--model', opts.model);
   if (useEnhancements && opts.fallbackModel) {
     cliArgs.push('--fallback-model', opts.fallbackModel);
   }
-  // 충돌 해결 등 파일 수정이 필요한 작업만 도구 허용 + 권한 우회 (비대화형이라 프롬프트
-  // 로 멈추면 안 됨). 분석 전용(사전 리뷰)은 이 플래그 없이 순수 텍스트 응답.
-  if (opts.dangerouslyAllowAllTools) cliArgs.push('--dangerously-skip-permissions');
-
-  // 임시 파일(시스템 프롬프트) 경로 — finally 에서 정리.
-  let sysPromptFile: string | null = null;
+  // 권한 모델 — 좁은 → 넓은 순:
+  //   (1) allowedTools 명시  → `--allowed-tools <list>` (R4: 최소 권한, 추천)
+  //   (2) dangerouslyAllowAllTools → `--dangerously-skip-permissions` (전부 허용)
+  // useEnhancements=false 면 allowedTools 생략 → dangerously 만 폴백 유지(미지원 CLI degrade).
+  if (useEnhancements && opts.allowedTools) {
+    cliArgs.push('--allowed-tools', opts.allowedTools.join(','));
+  } else if (opts.dangerouslyAllowAllTools) {
+    cliArgs.push('--dangerously-skip-permissions');
+  }
   if (useEnhancements && opts.jsonSchema) {
     cliArgs.push('--json-schema', JSON.stringify(opts.jsonSchema));
   }
+  if (useEnhancements && sysPromptFile) {
+    cliArgs.push('--append-system-prompt-file', sysPromptFile);
+  }
+  cliArgs.push(opts.instruction);
+  return cliArgs;
+}
+
+function runOnce(
+  claudePath: string,
+  opts: ClaudeRunOptions,
+  useEnhancements: boolean,
+): Promise<InternalResult> {
+  // 임시 파일(시스템 프롬프트) — 빌더 호출 전에 쓰고 finally 에서 정리.
+  let sysPromptFile: string | null = null;
   if (useEnhancements && opts.appendSystemPrompt) {
     sysPromptFile = join(tmpdir(), `cortex-sysprompt-${randomBytes(8).toString('hex')}.md`);
     try {
       writeFileSync(sysPromptFile, opts.appendSystemPrompt, 'utf8');
-      cliArgs.push('--append-system-prompt-file', sysPromptFile);
     } catch {
       // 임시 파일 쓰기 실패 — 방법론 주입은 best-effort, 플래그 없이 진행.
       sysPromptFile = null;
     }
   }
-  cliArgs.push(opts.instruction);
+  const cliArgs = buildHeadlessArgs(opts, useEnhancements, sysPromptFile);
 
   // Headroom wrap 적용(opt-in 토글) — ON + binary 감지면 `headroom wrap claude <원본 args...>` 로
   // 감싸 토큰 절감(README "zero code changes" — stdin/stdout pass-through). OFF/미감지면 원본 그대로.

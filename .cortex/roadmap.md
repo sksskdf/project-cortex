@@ -233,7 +233,11 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] **R3 비용·토큰 관측(1단계)** — `--output-format json` 봉투의 `total_cost_usd`·`usage`
 - [x] **R5 `--fallback-model`** — 본 분석(Opus) 과부하·은퇴 시 Sonnet 자동 폴백(print 모드 전용).
 - [x] **R3 2단계 — 비용 영속 + /reports 집계** — `llm_usage` 테이블(migration 0026). wrapper 가
-- [x] 후속: R4 권한 정밀화(allowedTools/dontAsk).
+- [x] 후속: R4 권한 정밀화(allowedTools/dontAsk) — **완료**: `claude-cli.ts buildHeadlessArgs` 가
+      `--allowed-tools` 지원(`dangerouslyAllowAllTools` 보다 우선). `lib/cli-permissions.ts` 에
+      작업별 좁은 허용목록(test-fix/conflict-resolve/review-fix) 문서화. settings.cliAllowedToolsEnabled
+      토글(migration 0031, 기본 OFF) — 켜면 좁은 권한, OFF 면 기존 `--dangerously-skip-permissions`
+      폴백(무회귀). buildHeadlessArgs 단위 테스트 9건 + cli-permissions 4건.
 - [x] **Cortex 컨텍스트 스킬 + 스폰 주입** (#173) — 정적 방법론은 \`cortex\` 스킬(설정에서
 - [x] **`.cortex` 스킬·지침 항상 글로벌 적용** (사용자 시그널 2026-05-29) — 3축 모두 적용:
 - [x] 후속: hooks(SessionStart) 자동 주입 · MCP 도구 노출 · stream-json 진행 표시 · 모델 escalation 등.
