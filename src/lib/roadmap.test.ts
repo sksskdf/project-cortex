@@ -3,6 +3,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import {
+  issues,
   notifications,
   prs,
   projects,
@@ -33,6 +34,7 @@ beforeAll(() => {
 beforeEach(() => {
   db.delete(notifications).run();
   db.delete(triageDecisions).run();
+  db.delete(issues).run(); // roadmapItems·projects 참조 → 먼저 삭제.
   db.delete(roadmapItems).run();
   db.delete(roadmapPhases).run();
   db.delete(prs).run();
@@ -523,5 +525,53 @@ describe('deletePhase / deleteItem', () => {
     const items = db.select().from(roadmapItems).all();
     expect(phases).toHaveLength(1);
     expect(items).toHaveLength(0);
+  });
+
+  // 회귀(리뷰 발견): issues.roadmap_item_id 가 참조하는 item 삭제 시 FK throw + 부분 cascade.
+  function seedIssueLinkedToItem(projectId: number, itemId: number): number {
+    return db
+      .insert(issues)
+      .values({
+        repoId: projectId,
+        title: 'linked',
+        spec: 'spec',
+        assigneeKind: 'human',
+        assigneeId: 'me',
+        roadmapItemId: itemId,
+      })
+      .returning({ id: issues.id })
+      .get().id;
+  }
+
+  it('deleteItem — issue 가 참조해도 FK throw 없이 삭제 + 이슈 링크 해제(이슈 보존)', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '1', title: 'A' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const i = createItem({ phaseId: p.id, title: 'i1' });
+    if (i.kind !== 'created') throw new Error('setup');
+    const issueId = seedIssueLinkedToItem(projectId, i.id);
+
+    expect(() => deleteItem(i.id)).not.toThrow();
+    expect(db.select().from(roadmapItems).all()).toHaveLength(0);
+    // 이슈는 보존되되 링크만 끊김.
+    const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
+    expect(issue).toBeDefined();
+    expect(issue?.roadmapItemId).toBeNull();
+  });
+
+  it('deletePhase — child item 을 issue 가 참조해도 FK throw 없이 전부 삭제 + 링크 해제', () => {
+    const projectId = seedProject();
+    const p = createPhase({ projectId, key: '1', title: 'A' });
+    if (p.kind !== 'created') throw new Error('setup');
+    const i1 = createItem({ phaseId: p.id, title: 'i1' });
+    const i2 = createItem({ phaseId: p.id, title: 'i2' });
+    if (i1.kind !== 'created' || i2.kind !== 'created') throw new Error('setup');
+    const issueId = seedIssueLinkedToItem(projectId, i2.id);
+
+    expect(() => deletePhase(p.id)).not.toThrow();
+    expect(db.select().from(roadmapPhases).all()).toHaveLength(0);
+    expect(db.select().from(roadmapItems).all()).toHaveLength(0);
+    const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
+    expect(issue?.roadmapItemId).toBeNull();
   });
 });

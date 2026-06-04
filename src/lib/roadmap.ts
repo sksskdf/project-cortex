@@ -6,7 +6,14 @@
 
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { projects, prs, roadmapItems, roadmapPhases, type RoadmapItemRow } from '@/db/schema';
+import {
+  issues,
+  projects,
+  prs,
+  roadmapItems,
+  roadmapPhases,
+  type RoadmapItemRow,
+} from '@/db/schema';
 
 export type RoadmapStatus = 'planned' | 'in-progress' | 'done';
 export type RoadmapSource = 'git' | 'manual';
@@ -457,9 +464,26 @@ export function deletePhase(phaseId: number): { kind: 'deleted' } | { kind: 'not
     .where(eq(roadmapPhases.id, phaseId))
     .get();
   if (!existing) return { kind: 'not-found' };
-  // items 먼저 제거 (FK).
-  db.delete(roadmapItems).where(eq(roadmapItems.phaseId, phaseId)).run();
-  db.delete(roadmapPhases).where(eq(roadmapPhases.id, phaseId)).run();
+  // 트랜잭션 — issues.roadmap_item_id FK 처리 + items + phase 삭제를 원자적으로. 예전엔
+  // transaction 없이 items 를 바로 delete 해, issues 가 그 item 을 참조하면 (foreign_keys=ON)
+  // FK throw → 일부 item 만 지워진 부분 cascade 로 남았다(리뷰 발견). 참조 issue 는 링크만
+  // 끊고(roadmapItemId=null, 이슈 자체는 보존) item·phase 를 지운다.
+  db.transaction((tx) => {
+    const childIds = tx
+      .select({ id: roadmapItems.id })
+      .from(roadmapItems)
+      .where(eq(roadmapItems.phaseId, phaseId))
+      .all()
+      .map((r) => r.id);
+    if (childIds.length > 0) {
+      tx.update(issues)
+        .set({ roadmapItemId: null })
+        .where(inArray(issues.roadmapItemId, childIds))
+        .run();
+      tx.delete(roadmapItems).where(eq(roadmapItems.phaseId, phaseId)).run();
+    }
+    tx.delete(roadmapPhases).where(eq(roadmapPhases.id, phaseId)).run();
+  });
   return { kind: 'deleted' };
 }
 
@@ -546,7 +570,13 @@ export function deleteItem(itemId: number): { kind: 'deleted' } | { kind: 'not-f
     .where(eq(roadmapItems.id, itemId))
     .get();
   if (!existing) return { kind: 'not-found' };
-  db.delete(roadmapItems).where(eq(roadmapItems.id, itemId)).run();
+  // issues 가 이 item 을 참조하면 (foreign_keys=ON) 바로 delete 시 FK throw. 트랜잭션 안에서
+  // 참조 issue 의 링크를 먼저 끊고(이슈 보존) item 을 지운다(리뷰 발견 — UI '항목 삭제'가 issue
+  // 연결된 항목에서 크래시했다).
+  db.transaction((tx) => {
+    tx.update(issues).set({ roadmapItemId: null }).where(eq(issues.roadmapItemId, itemId)).run();
+    tx.delete(roadmapItems).where(eq(roadmapItems.id, itemId)).run();
+  });
   return { kind: 'deleted' };
 }
 
