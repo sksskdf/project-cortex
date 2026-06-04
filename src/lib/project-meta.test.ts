@@ -100,6 +100,68 @@ slug: 'o/x'`;
       expect(r.meta.slug).toBe('o/x');
     }
   });
+
+  // 회귀(리뷰 발견): 예전엔 `.replace(/#.*$/, '')` 가 URL fragment, hex 색, 따옴표 속 `#` 까지 잘라먹어
+  // homepage·name 등이 훼손됐다. 이제는 `#` 가 라인 시작/공백 직후일 때만 주석으로 본다.
+  it('preserves # inside URL fragment / hex color / unquoted value (공백 없는 #)', () => {
+    const yml = `schema: 1
+name: x
+slug: o/x
+links:
+  homepage: https://example.com/page#section`;
+    const r = parseProjectYml(yml);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.meta.links?.homepage).toBe('https://example.com/page#section');
+    }
+  });
+
+  it('preserves # inside quoted string (따옴표 안의 # 은 주석 아님)', () => {
+    const yml = `schema: 1
+name: "a # b"
+slug: o/x`;
+    const r = parseProjectYml(yml);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.meta.name).toBe('a # b'); // 예전: "a 로 깨졌음.
+    }
+  });
+
+  // 회귀(리뷰 발견): coerce 가 숫자 문자열을 Number 로 강제 변환해 `typeof !== 'string'` 검증에서
+  // 떨어지고 sync 가 통째로 실패했다. 이제는 boolean 만 coerce, 숫자형 문자열은 그대로 string.
+  it('numeric-looking name/slug 도 문자열로 받아 sync 실패하지 않음', () => {
+    const yml = `schema: 1
+name: 2024
+slug: 2024/release`;
+    const r = parseProjectYml(yml);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.meta.name).toBe('2024');
+      expect(r.meta.slug).toBe('2024/release');
+    }
+  });
+
+  it('automation boolean 토글은 여전히 coerce (회귀 확인)', () => {
+    const yml = `schema: 1
+name: x
+slug: o/x
+automation:
+  auto_merge: true
+  ai_review: false`;
+    const r = parseProjectYml(yml);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.meta.automation?.auto_merge).toBe(true);
+      expect(r.meta.automation?.ai_review).toBe(false);
+    }
+  });
+
+  it('schema: "1"(quoted) 도 schema: 1 도 동일하게 받아들임', () => {
+    const ymlQuoted = `schema: "1"\nname: x\nslug: o/x`;
+    const ymlUnquoted = `schema: 1\nname: x\nslug: o/x`;
+    expect(parseProjectYml(ymlQuoted).kind).toBe('ok');
+    expect(parseProjectYml(ymlUnquoted).kind).toBe('ok');
+  });
 });
 
 describe('parseRoadmapMd', () => {
