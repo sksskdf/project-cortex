@@ -434,8 +434,11 @@ describe('머지 후 자동 git pull (safeAutoPull)', () => {
     const { calls, dir } = registerClonedWorkspace(prId);
     try {
       await attemptAutoMerge(prId);
-      expect(calls.some((a) => a[0] === 'fetch')).toBe(true);
-      expect(calls.some((a) => a[0] === 'pull' && a.includes('--ff-only'))).toBe(true);
+      // safeAutoPull 은 fire-and-forget(첫 머지의 clone 이 webhook 을 막지 않게) — 기록될 때까지 대기.
+      await vi.waitFor(() => {
+        expect(calls.some((a) => a[0] === 'fetch')).toBe(true);
+        expect(calls.some((a) => a[0] === 'pull' && a.includes('--ff-only'))).toBe(true);
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -447,7 +450,9 @@ describe('머지 후 자동 git pull (safeAutoPull)', () => {
     const { calls, dir } = registerClonedWorkspace(prId);
     try {
       await attemptHumanMerge(prId);
-      expect(calls.some((a) => a[0] === 'pull')).toBe(true);
+      await vi.waitFor(() => {
+        expect(calls.some((a) => a[0] === 'pull')).toBe(true);
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -484,9 +489,10 @@ describe('머지 후 자동 git pull (safeAutoPull)', () => {
     try {
       const r = await attemptAutoMerge(prId);
       expect(r.kind).toBe('merged');
-      // 이제 clone 명령이 호출됨(이전엔 silent skip 이었음).
-      const cloned = calls.some((c) => c[0] === 'clone');
-      expect(cloned).toBe(true);
+      // 이제 clone 명령이 호출됨(이전엔 silent skip 이었음). fire-and-forget 라 기록될 때까지 대기.
+      await vi.waitFor(() => {
+        expect(calls.some((c) => c[0] === 'clone')).toBe(true);
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

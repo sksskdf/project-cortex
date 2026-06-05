@@ -43,11 +43,13 @@ export type AutoMergeResult =
 // modified" / "Base branch was modified" 류 응답. 새 commit 의 webhook 이 새 분석/머지를 다시
 // 트리거하므로 여기선 idle 로 복귀(human-review 로 안 떨어뜨림). base 이동도 재트라이지하면
 // 회복되므로 동일 처리(예전엔 base-modified 가 패턴에 없어 불필요하게 human-review 로 강등됐음).
+// GitHub 의 sha/branch 이동 race 응답만 좁게 매칭한다. 예전엔 `/head.*modified/i`·`/base.*modified/i`
+// 같은 광범위 패턴도 있었으나(리뷰 발견), 이는 race 와 무관한 실패 메시지("the head commit was
+// modified by..." 등)까지 삼켜 진짜 머지 실패 PR 을 영구 'auto-mergeable' 로 방치(reconcile 가 같은
+// 에러로 무한 재시도)할 위험이 있어 제거. 구체 문구 패턴만 신뢰.
 const SHA_MISMATCH_PATTERNS = [
   /Head branch was modified/i,
   /Base branch was modified/i,
-  /head.*modified/i,
-  /base.*modified/i,
   /sha.*does.*match/i,
   /expected.*sha/i,
 ];
@@ -174,8 +176,11 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
     await safeDeleteBranch(prId);
     // Phase 10 — PR 본문의 Closes #PHASE-N / Closes #ITEM-N 매칭해 자동 done.
     safeApplyRoadmap(prId);
-    await safeAutoPull(prId);
     safeNotify({ kind: 'auto-merged', prId });
+    // 자동 git pull 은 fire-and-forget — 첫 머지가 clone(최대 120s)을 트리거할 수 있어 await 하면
+    // webhook 응답(GitHub 10s 타임아웃)과 auto-merged 알림을 막고 in-flight lock 도 오래 잡는다.
+    // pull 은 best-effort 로컬 편의이고 자체 알림(workspace-pulled/failed)을 내므로 떼어 보낸다.
+    void safeAutoPull(prId);
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -192,7 +197,7 @@ async function runAutoMerge(pr: PRRecord): Promise<AutoMergeResult> {
       db.update(prs).set({ status: 'merged', updatedAt: new Date() }).where(eq(prs.id, prId)).run();
       await safeDeleteBranch(prId);
       safeApplyRoadmap(prId);
-      await safeAutoPull(prId);
+      void safeAutoPull(prId); // fire-and-forget (위 성공 경로와 동일 이유).
       // sha 정확히 모르면 빈 문자열 — UI 는 short sha 7자만 쓰므로 빈 문자열도 큰 문제 없음.
       return { kind: 'merged', sha: '' };
     }
@@ -350,7 +355,7 @@ export async function attemptHumanMerge(prId: number): Promise<HumanMergeResult>
     } else {
       db.insert(triageDecisions).values(values).run();
     }
-    await safeAutoPull(prId);
+    void safeAutoPull(prId); // fire-and-forget (자동 머지 경로와 동일 이유).
     return { kind: 'merged', sha: result.sha };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

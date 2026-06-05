@@ -31,6 +31,9 @@ export type TriageInput = {
   // GitHub author_association (위조 불가). 외부 기여자(NONE/CONTRIBUTOR 등)는 자동 머지 차단.
   // null 이면(legacy·PAT webhook) 게이트 미적용(무회귀). authorKind(본문 마커·위조 가능)와 독립.
   authorAssociation: string | null;
+  // 프로젝트의 충돌 자동 해결 토글. dirty(머지 충돌) PR 을 어떻게 다룰지 결정 —
+  // ON 이면 auto-merge 흐름의 conflict-resolve 가 처리하도록 통과, OFF 면 human-review.
+  autoResolveConflictsEnabled: boolean;
 };
 
 // 자동 머지 차단 플래그 (DOMAIN.md §4 룰 3).
@@ -98,6 +101,17 @@ export function decideTriage(input: TriageInput): TriageResult {
     return {
       decision: 'human-review',
       reason: '브랜치 보호·필수 리뷰 등으로 머지가 차단된 상태입니다.',
+    };
+  }
+
+  // mergeable_state='dirty' (머지 충돌). 충돌 자동 해결 토글이 켜져 있으면 auto-merge 흐름의
+  // conflict-resolve(claude CLI)가 처리하므로 통과시킨다. 꺼져 있으면 머지 시도가 GitHub 에서
+  // 거부되고(머지 불가) 매 재트라이지마다 '머지 실패' 알림이 반복 발사된다('blocked' 와 동일
+  // 문제 — merge-gate 는 dirty 를 conflict 로 차단하나 triage 가 안 봐서 불일치였음). human-review 로.
+  if (input.mergeableState === 'dirty' && !input.autoResolveConflictsEnabled) {
+    return {
+      decision: 'human-review',
+      reason: '머지 충돌 — 사람 검토가 필요합니다.',
     };
   }
 
@@ -207,6 +221,7 @@ export async function runTriage(prId: number): Promise<RunTriageResult> {
     isDraft,
     lastCommitReady,
     authorAssociation: pr.authorAssociation,
+    autoResolveConflictsEnabled: project.autoResolveConflictsEnabled,
   });
 
   const existing = db
