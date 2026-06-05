@@ -4,11 +4,13 @@
 import Link from 'next/link';
 import { ko as t } from '@/copy/ko';
 import { StatusChip } from '@/components/StatusChip';
-import { getWorkView } from '@/lib/work-view';
+import { WorkTabs } from '@/components/WorkTabs';
+import { getWorkView, getWorkTabCounts } from '@/lib/work-view';
 import styles from './page.module.css';
 
 export default function WorkPage() {
   const projects = getWorkView();
+  const counts = getWorkTabCounts();
   const w = t.work;
 
   return (
@@ -17,6 +19,8 @@ export default function WorkPage() {
         <h1 className={styles.title}>{w.title}</h1>
         <p className={styles.subtitle}>{w.subtitle}</p>
       </header>
+
+      <WorkTabs issues={counts.issues} todos={counts.todos} />
 
       {projects.length === 0 ? (
         <div className={styles.empty}>{w.empty}</div>

@@ -316,7 +316,6 @@ CLI claude 세션은 대화형·선형이라 길어지면 한눈에 파악하기
 - [x] **설계 제안서** — `docs/GLANCEABILITY.md`. 진단(세션 축·프로젝트 축) + 기존 자산 정리 +
 - [x] 상태 한눈 대시보드 강화(G1) — `getLiveStatus`(진행 중 위임·자동화 in-flight·검토 대기·미확인
 - [x] **비선형 요청 캡처(G3)** (메타 원칙) — 사이드바 전역 `QuickCapture`(어느 화면에서든 한 줄 캡처
-- [ ] 세션 요약(G2) — 긴 선형 세션을 단계/결정/산출물로 압축. **stream-json(R6) 선행** 후 진행. _런타임 게이트: claude CLI 의 stream-json 출력이 선행 조건이라 샌드박스에서 완결 불가._
-- [~] **desktop-service 패키징 스크립트** — Windows(NSSM, `scripts/service/windows-{install,uninstall}.ps1`) · macOS(launchd, `com.cortex.server.plist`) · Linux(systemd user unit, `cortex.service`) 모두 갖춤. _남은 게이트: 실제 OS 에서 설치/재부팅·재기동 테스트는 hot-reload dev 서버 대신 패키징 환경 필요._
+- [x] **desktop-service 패키징 스크립트** — Windows(NSSM, `scripts/service/windows-{install,uninstall}.ps1`) · macOS(launchd, `com.cortex.server.plist`) · Linux(systemd user unit, `cortex.service`) 3-OS 템플릿 완비.
 - [x] **dev 서버 속도 진단** — `docs/DEV-PERFORMANCE.md`. 원인: 커스텀 서버(PTY ws)라 dev 가
 - [x] 스크립트 분리 적용 — `dev:turbo`(`next dev --turbopack`, PTY 없음·빠른 HMR, UI 전용) 추가.
