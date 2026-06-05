@@ -248,3 +248,21 @@
   display: inline-flex;
   transform: rotate(180deg);
 }
+
+/* 반응형 — 모바일에선 좌우 패딩 축소(20→12), 가로 폭은 calc(100vw-16) 로 더 넓게.
+   카드 헤더/본문/푸터 모두 동시에 줄인다(시각 정렬 유지). */
+@media (max-width: 480px) {
+  .modal {
+    width: min(560px, calc(100vw - 16px));
+    max-height: calc(100vh - 32px);
+  }
+
+  .head,
+  .foot {
+    padding: var(--ds-spacing-12);
+  }
+
+  .body {
+    padding: var(--ds-spacing-12);
+  }
+}

@@ -174,3 +174,35 @@
 .prLink:hover {
   text-decoration: underline;
 }
+
+/* 반응형 — 좁은 화면에서 페이지 패딩과 제목 폰트를 줄여 한 줄에 더 들어가게.
+   titleRow 의 action 영역은 폭이 좁으면 자동으로 줄 바꿈(flex-wrap 이미 적용). */
+@media (max-width: 768px) {
+  .page {
+    padding: var(--ds-spacing-16);
+    gap: var(--ds-spacing-16);
+  }
+
+  .title {
+    font-size: var(--ds-typography-font-size-18);
+  }
+
+  .meta {
+    gap: var(--ds-spacing-12);
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: var(--ds-spacing-12);
+  }
+
+  .titleRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .titleActions {
+    justify-content: flex-start;
+  }
+}

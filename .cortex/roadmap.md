@@ -258,7 +258,7 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] 뮤트(Cortex 관리 OFF) 시 하위 자동화 토글 비활성 + OFF 표시 — #185
 - [x] 최근 머지 목록에 #PR번호 노출 — #187
 - [~] 디자인 시스템 미준수 / 어색한 부분 점진 교정 — **하드코딩 색상 토큰화 패스 완료**: 컴포넌트
-- [ ] 반응형 디자인 — 좁은 화면·모바일·태블릿·세로 모니터에서 레이아웃 적응 (사이드바 collapse,
+- [x] 반응형 디자인 — 좁은 화면·모바일·태블릿·세로 모니터에서 레이아웃 적응 (사이드바 collapse,
 - [x] (1) 7개 토글 컴포넌트 복붙 → `useOptimisticToggle` 훅 + `ProjectAutomationToggle` 제네릭 (−187줄) — #189
 - [x] (2) `listProjectsWithStats` N+1(1+3N) → 배치 3쿼리 — #190
 - [x] (3) 핫 컬럼 인덱스(`prs(repo_id,status)`·`projects(installation_id)`, migration 0023) — #190
@@ -316,7 +316,7 @@ CLI claude 세션은 대화형·선형이라 길어지면 한눈에 파악하기
 - [x] **설계 제안서** — `docs/GLANCEABILITY.md`. 진단(세션 축·프로젝트 축) + 기존 자산 정리 +
 - [x] 상태 한눈 대시보드 강화(G1) — `getLiveStatus`(진행 중 위임·자동화 in-flight·검토 대기·미확인
 - [x] **비선형 요청 캡처(G3)** (메타 원칙) — 사이드바 전역 `QuickCapture`(어느 화면에서든 한 줄 캡처
-- [ ] 세션 요약(G2) — 긴 선형 세션을 단계/결정/산출물로 압축. **stream-json(R6) 선행** 후 진행.
-- [ ] **desktop-service 패키징 테스트** — hot-reload dev 서버로 돌리고 있어 NSSM/launchd 패키징을
+- [ ] 세션 요약(G2) — 긴 선형 세션을 단계/결정/산출물로 압축. **stream-json(R6) 선행** 후 진행. _런타임 게이트: claude CLI 의 stream-json 출력이 선행 조건이라 샌드박스에서 완결 불가._
+- [~] **desktop-service 패키징 스크립트** — Windows(NSSM, `scripts/service/windows-{install,uninstall}.ps1`) · macOS(launchd, `com.cortex.server.plist`) · Linux(systemd user unit, `cortex.service`) 모두 갖춤. _남은 게이트: 실제 OS 에서 설치/재부팅·재기동 테스트는 hot-reload dev 서버 대신 패키징 환경 필요._
 - [x] **dev 서버 속도 진단** — `docs/DEV-PERFORMANCE.md`. 원인: 커스텀 서버(PTY ws)라 dev 가
 - [x] 스크립트 분리 적용 — `dev:turbo`(`next dev --turbopack`, PTY 없음·빠른 HMR, UI 전용) 추가.

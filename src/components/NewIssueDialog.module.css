@@ -235,3 +235,19 @@
   max-height: 220px;
   overflow-y: auto;
 }
+
+/* 반응형 — 모바일에선 가로 폭 calc(100vw-16) + 좌우 패딩 축소(20→12). */
+@media (max-width: 480px) {
+  .modal {
+    width: min(480px, calc(100vw - 16px));
+    max-height: calc(100vh - 32px);
+  }
+
+  .head {
+    padding: var(--ds-spacing-12);
+  }
+
+  .body {
+    padding: var(--ds-spacing-12) var(--ds-spacing-12) var(--ds-spacing-16);
+  }
+}
