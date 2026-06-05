@@ -3,6 +3,7 @@ import {
   buildHeadlessArgs,
   extractResult,
   extractUsageFromStdout,
+  formatExitReason,
   parseJsonFromText,
 } from './claude-cli';
 import type { ClaudeRunOptions } from './claude-cli';
@@ -235,5 +236,43 @@ describe('buildHeadlessArgs — argv 빌더(R1/R2/R4/R5 + degrade + priority)', 
       '/tmp/sys.md',
     );
     expect(a[a.length - 1]).toBe('do it');
+  });
+});
+
+describe('formatExitReason — 비정상 종료 진단(사용자 보고 회귀)', () => {
+  it('stderr 우선', () => {
+    const r = formatExitReason(1, 'oauth 실패', '', '/usr/bin/claude', ['-p']);
+    expect(r).toBe('claude CLI 비정상 종료 (code 1): oauth 실패');
+  });
+  it('stderr 비어있으면 stdout tail', () => {
+    const r = formatExitReason(1, '', 'fatal: something', '/usr/bin/claude', ['-p']);
+    expect(r).toContain('fatal: something');
+  });
+  // 회귀: 사용자 보고 — code 1 + 빈 stderr/stdout 시 'code 1): ' 만 보였다.
+  it('둘 다 비어있으면 spawn 파일·플래그 요약 노출 (진단 가능)', () => {
+    const r = formatExitReason(1, '', '', 'C:\\claude.cmd', [
+      '/c',
+      'claude.cmd',
+      '-p',
+      '--output-format',
+      'json',
+      'analyze',
+    ]);
+    expect(r).toMatch(/code 1\)/);
+    expect(r).toContain('empty stderr/stdout');
+    expect(r).toContain('claude.cmd');
+    expect(r).toContain('-p');
+    expect(r).toContain('--output-format');
+    // instruction(positional) 같은 비-플래그는 노출 안 함(노이즈 방지).
+    expect(r).not.toContain('analyze');
+  });
+  it('stderr 300자 초과 시 끝 300자만 사용', () => {
+    const long = 'x'.repeat(500) + 'TAIL';
+    const r = formatExitReason(2, long, '', '/c', []);
+    expect(r).toContain('TAIL');
+    expect(r.length).toBeLessThan(600);
+  });
+  it('code=null(SIGTERM 등) 도 그대로 노출', () => {
+    expect(formatExitReason(null, 'sig', '', '/c', [])).toContain('code null');
   });
 });

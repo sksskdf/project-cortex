@@ -117,6 +117,27 @@ function strip(r: InternalResult): ClaudeRunResult {
 }
 
 // 1회 spawn. useEnhancements=false 면 --json-schema / --append-system-prompt-file 를 생략.
+// 비정상 종료 시 진단 메시지 빌더 — stderr 가 비어도 진단 가능하도록 stdout 의 tail 과 spawn 명령
+// 요약을 폴백으로 노출. 일부 환경(특히 Windows)에선 claude CLI 가 에러를 stdout 으로 보내거나
+// 둘 다 침묵하기도 한다(사용자 보고 2026-06-05: code 1 + 빈 stderr). 무회귀: 성공 경로 영향 0,
+// 실패 메시지의 진단성만 향상. 순수 함수 — 단위 테스트.
+export function formatExitReason(
+  code: number | null,
+  stderr: string,
+  stdout: string,
+  file: string,
+  args: ReadonlyArray<string>,
+): string {
+  const errTail = stderr.slice(-300).trim();
+  const outTail = stdout.slice(-200).trim();
+  const flagSummary = args
+    .filter((a) => a.startsWith('-'))
+    .slice(0, 12)
+    .join(' ');
+  const diagnostic = errTail || outTail || `(empty stderr/stdout; ${file} ${flagSummary})`;
+  return `claude CLI 비정상 종료 (code ${code}): ${diagnostic}`;
+}
+
 // 헤드리스 argv 빌더 — 순수 함수(파일 I/O 없음). sysPromptFile 은 호출자가 미리 써둔 경로
 // (또는 null). useEnhancements=false 면 R1/R2/R4/R5 플래그를 모두 생략(미지원 CLI degrade).
 // instruction(positional)은 항상 마지막. 단위 테스트로 모든 분기 검증.
@@ -249,7 +270,7 @@ function runOnce(
       if (code !== 0) {
         done({
           ok: false,
-          reason: `claude CLI 비정상 종료 (code ${code}): ${stderr.slice(-300).trim()}`,
+          reason: formatExitReason(code, stderr, stdout, file, args),
           nonZeroExit: true,
         });
         return;
