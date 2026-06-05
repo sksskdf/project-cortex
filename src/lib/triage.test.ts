@@ -19,6 +19,8 @@ function base(overrides: Partial<TriageInput> = {}): TriageInput {
     lastCommitReady: false,
     // 권한 게이트 기본은 통과(null = 미적용). 보안 테스트만 외부 association 으로.
     authorAssociation: null,
+    // 충돌 자동 해결 기본 OFF (프로젝트 디폴트와 동일).
+    autoResolveConflictsEnabled: false,
     ...overrides,
   };
 }
@@ -102,6 +104,24 @@ describe('decideTriage', () => {
     const r = decideTriage(base({ testsPassed: true, mergeableState: 'blocked' }));
     expect(r.decision).toBe('human-review');
     expect(r.reason).toMatch(/차단|보호/);
+  });
+
+  // 회귀(검수 발견): triage 가 mergeable_state='dirty'(머지 충돌)를 안 봐서 auto-merge 결정 →
+  // 머지 거부 → 매 재트라이지마다 알림 루프. 충돌 자동 해결 OFF 면 human-review.
+  it('human-review when mergeable_state=dirty + 충돌 자동 해결 OFF (알림 루프 차단)', () => {
+    const r = decideTriage(
+      base({ testsPassed: true, mergeableState: 'dirty', autoResolveConflictsEnabled: false }),
+    );
+    expect(r.decision).toBe('human-review');
+    expect(r.reason).toContain('충돌');
+  });
+
+  // 충돌 자동 해결 ON 이면 dirty 라도 auto-merge 흐름으로 통과(conflict-resolve 가 처리).
+  it('auto-merge when mergeable_state=dirty + 충돌 자동 해결 ON (conflict-resolve 가 처리)', () => {
+    const r = decideTriage(
+      base({ testsPassed: true, mergeableState: 'dirty', autoResolveConflictsEnabled: true }),
+    );
+    expect(r.decision).toBe('auto-merge');
   });
 
   it('auto-merge regardless of confidence — 신뢰점수 게이트 제거 (위험 아니면 자동 머지)', () => {
