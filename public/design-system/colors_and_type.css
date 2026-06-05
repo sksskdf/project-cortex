@@ -104,7 +104,15 @@
   --ds-color-state-error-strong: #ee4c54;
   --ds-color-state-error-bg-soft: #ffb9b9;
   --ds-color-state-warning-base: #ffc60a;
+  --ds-color-state-warning-accent: #ffc60a;
+  --ds-color-state-warning-strong: #B16D00;
   --ds-color-state-warning-text-dark: #B16D00;
+  /* info(파랑) state — '열림/진행/자동' 신호. 컴포넌트 다수가 참조하지만 미정의라 fallback
+     없는 곳(자동화 in-flight 점·아웃라인)이 무효/투명으로 렌더되던 버그 수정. 시맨틱 파랑에 정렬. */
+  --ds-color-state-info-base: #628cf5;
+  --ds-color-state-info-accent: #4978eb;
+  --ds-color-state-info-strong: #342F9B;
+  --ds-color-state-info-text-dark: #342F9B;
 
   /* ========== COLOR — Semantic BG ========== */
   --ds-color-bg-00: #ffffff;
@@ -148,6 +156,10 @@
   --ds-color-text-success: var(--ds-color-state-success-accent);
   --ds-color-text-error: var(--ds-color-state-error-accent);
   --ds-color-text-warning: var(--ds-color-state-warning-text-dark);
+  /* accent 배경 위 텍스트(흰색) — 배지·알림 칩에서 #fff 리터럴 폴백에 의존하던 것을 토큰화. */
+  --ds-color-text-on-accent: #ffffff;
+  /* 보라 — 알림 종류 점. DS 팔레트의 보라(text-07-tertiary)에 정렬(임의 #8b5cf6 폴백 제거). */
+  --ds-color-palette-purple-default: var(--ds-color-text-07-tertiary);
 
   /* ========== COLOR — Shadow bases ========== */
   --ds-color-shadow-black: #0F0F0F;
@@ -160,6 +172,8 @@
   --ds-typography-font-family-text: 'Pretendard', system-ui, sans-serif;
   --ds-typography-font-family-number: 'Spoqa Han Sans Neo', 'Pretendard', system-ui, sans-serif;
   --ds-typography-font-family-digital: 'DS-Digital', 'Spoqa Han Sans Neo', monospace;
+  /* 코드 블록·인라인 코드용 일반 monospace — Markdown 이 참조하던 리터럴 폴백을 토큰화. */
+  --ds-typography-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --ds-typography-font-weight-regular: 400;
   --ds-typography-font-weight-medium: 500;
@@ -178,6 +192,9 @@
   --ds-typography-font-size-16: 16px;
   --ds-typography-font-size-18: 18px;
   --ds-typography-font-size-20: 20px;
+  /* 페이지 제목(이슈·TODO·프로젝트·메모·클러스터·로드맵·이슈 상세) 다수가 참조하던 미정의
+     토큰 — 20↔24 사이 단계. 미정의라 제목이 inherit 으로 폴백되던 것을 정의해 정렬. */
+  --ds-typography-font-size-22: 22px;
   --ds-typography-font-size-24: 24px;
   --ds-typography-font-size-28: 28px;
   --ds-typography-font-size-32: 32px;
