@@ -306,11 +306,47 @@ export type PullResult =
   | { kind: 'skipped-in-flight' }
   | { kind: 'failed'; output: string };
 
-// 같은 localPath 에 대한 동시 pull/clone 직렬화 — 진행 중인 경로 집합. auto-merge 의 인플라이트
-// 락은 per-PR 라, 같은 repo 의 두 PR 이 거의 동시에 머지되면 같은 clone 에서 git fetch/pull 이
-// 동시에 돌아 .git/index.lock·FETCH_HEAD 충돌 + 허위 실패 알림이 났다(리뷰 발견). 이미 진행
-// 중이면 skip — best-effort 라 진행 중 pull 이 최신(방금 머지분 포함)을 가져오므로 재시도 불필요.
-const _pullsInFlight = new Set<string>();
+// 같은 워크스페이스(localPath)에 대한 모든 변경 작업 — pull/clone · conflict-resolve · test-fix ·
+// review-fix — 을 직렬화하는 per-path async 뮤텍스. 이들은 같은 클론에서 reset --hard · clean -fd ·
+// checkout · commit · push 를 수행하므로 동시에 돌면 .git/index.lock 충돌과 서로의 미커밋 편집
+// 덮어쓰기로 반쯤 머지된 트리를 push 할 수 있다(검수 발견). 큐잉 뮤텍스로 한 번에 하나만 실행한다.
+// (예전엔 pull 만 막는 Set 이었으나 모듈 간 동시성은 못 막았음.)
+const _workspaceLocks = new Map<string, Promise<unknown>>();
+
+// 락을 잡고 fn 을 실행 — 이미 잡혀 있으면 차례를 기다린다(큐잉). conflict-resolve/test-fix/
+// review-fix 처럼 반드시 완료해야 하는 작업용.
+export async function withWorkspaceLock<T>(localPath: string, fn: () => Promise<T>): Promise<T> {
+  const prev = _workspaceLocks.get(localPath) ?? Promise.resolve();
+  // prev 가 성공/실패하든 우리 차례엔 fn 을 실행.
+  const next = prev.then(
+    () => fn(),
+    () => fn(),
+  );
+  // 뒤 호출이 우리 뒤에 줄 서도록, 에러를 삼킨 promise 를 tail 로 저장(큐가 깨지지 않게).
+  const guarded = next.then(
+    () => {},
+    () => {},
+  );
+  _workspaceLocks.set(localPath, guarded);
+  try {
+    return await next;
+  } finally {
+    // 우리가 큐의 마지막이면 맵에서 제거(누수 방지).
+    if (_workspaceLocks.get(localPath) === guarded) _workspaceLocks.delete(localPath);
+  }
+}
+
+// 락이 비어 있을 때만 fn 을 실행, 잡혀 있으면 건너뛴다(큐잉 안 함). best-effort pull 용 —
+// 진행 중인 작업이 이미 워크스페이스를 최신화하므로 줄 서서 기다릴 필요가 없다.
+export async function tryWithWorkspaceLock<T>(
+  localPath: string,
+  fn: () => Promise<T>,
+): Promise<{ ran: true; value: T } | { ran: false }> {
+  // has-check 와 withWorkspaceLock 의 맵 set 사이에 await 가 없어 원자적(단일 스레드).
+  if (_workspaceLocks.has(localPath)) return { ran: false };
+  const value = await withWorkspaceLock(localPath, fn);
+  return { ran: true, value };
+}
 
 function recordResult(workspaceId: number, result: string): void {
   db.update(workspaces)
@@ -338,10 +374,10 @@ export async function pullWorkspace(projectId: number): Promise<PullResult> {
   const ws = getWorkspace(projectId);
   if (!ws) return { kind: 'no-workspace' };
 
-  // 같은 디렉토리에 동시 git 작업이 돌면 index.lock 충돌 — 이미 진행 중이면 skip(best-effort).
-  if (_pullsInFlight.has(ws.localPath)) return { kind: 'skipped-in-flight' };
-  _pullsInFlight.add(ws.localPath);
-  try {
+  // 워크스페이스 락 — conflict-resolve/test-fix/review-fix 가 같은 클론을 만지는 중이면 pull 이
+  // 그 reset/checkout/commit 과 겹쳐 트리를 깨뜨린다. best-effort 라 잡혀 있으면 skip(큐잉 X) —
+  // 진행 중인 작업이 어차피 워크스페이스를 최신화한다.
+  const outcome = await tryWithWorkspaceLock(ws.localPath, async (): Promise<PullResult> => {
     // 아직 .git 이 없으면 (빈 디렉토리/없는 경로로 등록) clone 으로 동작.
     if (!isGitRepo(ws.localPath)) {
       return await cloneWorkspace(ws);
@@ -366,7 +402,6 @@ export async function pullWorkspace(projectId: number): Promise<PullResult> {
 
     recordResult(ws.id, result);
     return ok ? { kind: 'pulled', output: result } : { kind: 'failed', output: result };
-  } finally {
-    _pullsInFlight.delete(ws.localPath);
-  }
+  });
+  return outcome.ran ? outcome.value : { kind: 'skipped-in-flight' };
 }

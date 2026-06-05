@@ -28,7 +28,7 @@ import { setAutomationInFlight, clearAutomationInFlight } from './automation-sta
 import { addPRComment, getPRMergeStatus, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
-import { getWorkspace } from './workspace';
+import { getWorkspace, withWorkspaceLock } from './workspace';
 
 const GIT_TIMEOUT_MS = 60_000;
 // 테스트 실행 + 수정 + 재실행이라 충돌 해결(300s)보다 넉넉히.
@@ -115,6 +115,9 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
   if (!project) return { kind: 'skipped', reason: 'no-project' };
   if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
   if (!project.autoFixTestsEnabled) return { kind: 'skipped', reason: 'disabled' };
+  // 아래 워크스페이스 락 클로저 안에서는 project.installationId 의 non-null 내로잉이 풀리므로
+  // number 로 한 번 잡아 둔다.
+  const installationId = project.installationId;
 
   // 작성자 무관 — 단일 사용자 가정상 사람 PR 도 내 PR. 외부 기여(fork)는 아래 가드로 차단.
   const workspace = getWorkspace(project.id);
@@ -122,142 +125,149 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
   if (!existsSync(workspace.localPath)) return { kind: 'skipped', reason: 'workspace-missing' };
 
   const [owner, repo] = project.slug.split('/');
-  const status = await getPRMergeStatus(project.installationId, { owner, repo }, pr.number);
+  const status = await getPRMergeStatus(installationId, { owner, repo }, pr.number);
 
   // fork/cross-repo 는 head 브랜치를 base 레포 클론에서 직접 push 못 함.
   if (status.headRepoFullName !== `${owner}/${repo}`) {
     return { kind: 'skipped', reason: 'fork-or-cross-repo' };
   }
 
-  const attempts = fixAttempts.get(prId) ?? 0;
-  if (attempts >= MAX_FIX_ATTEMPTS) {
-    await comment(
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `자동 테스트 수정을 ${MAX_FIX_ATTEMPTS}회 시도했지만 CI 가 계속 실패합니다 — 사람 검토가 필요합니다.`,
-    );
-    safeNotify(prId, '자동 테스트 수정 최대 시도 초과.');
-    return { kind: 'skipped', reason: 'max-attempts' };
-  }
-  fixAttempts.set(prId, attempts + 1);
-
   const cwd = workspace.localPath;
   const { headRef } = status;
 
-  // 1) 최신화 + head 브랜치를 원격 head 로 정렬 + 이전 시도 잔재 정리.
-  const fetched = await git(cwd, ['fetch', 'origin', '--prune']);
-  if (fetched.code !== 0) {
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git fetch 실패: ${tail(fetched.stderr)}`,
-    );
-  }
-  const checkedOut = await git(cwd, ['checkout', '-B', headRef, `origin/${headRef}`]);
-  if (checkedOut.code !== 0) {
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git checkout 실패: ${tail(checkedOut.stderr)}`,
-    );
-  }
-  await git(cwd, ['reset', '--hard', `origin/${headRef}`]);
-  await git(cwd, ['clean', '-fd']);
+  // 같은 워크스페이스를 만지는 다른 자동화(conflict-resolve/review-fix/pull)와 직렬화 —
+  // reset --hard·checkout·commit 이 겹쳐 트리가 깨지거나 반쯤 머지된 채 push 되지 않게(검수 발견).
+  return withWorkspaceLock(cwd, async (): Promise<TestFixResult> => {
+    const attempts = fixAttempts.get(prId) ?? 0;
+    if (attempts >= MAX_FIX_ATTEMPTS) {
+      await comment(
+        installationId,
+        { owner, repo },
+        pr.number,
+        `자동 테스트 수정을 ${MAX_FIX_ATTEMPTS}회 시도했지만 CI 가 계속 실패합니다 — 사람 검토가 필요합니다.`,
+      );
+      safeNotify(prId, '자동 테스트 수정 최대 시도 초과.');
+      return { kind: 'skipped', reason: 'max-attempts' };
+    }
 
-  // 2) 테스트 실행·수정을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
-  // in-flight 표시 시작 — 종료는 성공 return/ fail(터미널)에서 clear.
-  setAutomationInFlight(prId, 'fixing-tests');
-  const fixed = await runClaudeHeadless({
-    input: testFixPrompt(project.slug, headRef),
-    instruction:
-      '현재 작업 디렉토리에서 테스트를 실행해 실패를 파악하고 수정하세요. 테스트가 통과할 때까지 고치되, 커밋·푸시는 하지 말고 변경만 남기세요.',
-    model: TEST_FIX_MODEL,
-    cwd,
-    // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
-    allowedTools: allowedToolsFor('test-fix', getSettings().cliAllowedToolsEnabled),
-    dangerouslyAllowAllTools: true,
-    appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
-    timeoutMs: CLAUDE_TIMEOUT_MS,
-  });
-  if (!fixed.ok) {
-    await restore(cwd, headRef);
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `claude 테스트 수정 실패: ${fixed.reason}`,
-    );
-  }
+    // 1) 최신화 + head 브랜치를 원격 head 로 정렬 + 이전 시도 잔재 정리.
+    const fetched = await git(cwd, ['fetch', 'origin', '--prune']);
+    if (fetched.code !== 0) {
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git fetch 실패: ${tail(fetched.stderr)}`,
+      );
+    }
+    const checkedOut = await git(cwd, ['checkout', '-B', headRef, `origin/${headRef}`]);
+    if (checkedOut.code !== 0) {
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git checkout 실패: ${tail(checkedOut.stderr)}`,
+      );
+    }
+    await git(cwd, ['reset', '--hard', `origin/${headRef}`]);
+    await git(cwd, ['clean', '-fd']);
 
-  // 3) claude 가 실제로 변경을 남겼는지 — 없으면 고치지 못한 것으로 본다.
-  const changes = await git(cwd, ['status', '--porcelain']);
-  if (changes.stdout.trim() === '') {
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      'claude 가 테스트를 수정하지 못했습니다 (변경 없음).',
-    );
-  }
+    // 실제 수정 시도 카운트 — fetch/checkout 같은 인프라 실패는 claude 가 돌기 전이라 시도로 치지
+    // 않는다(검수 발견: 인프라 일시 오류가 멀쩡한 PR 을 영구 max-attempts 로 잠그던 버그). claude 직전 증가.
+    fixAttempts.set(prId, attempts + 1);
 
-  // 4) 커밋 + push. push 가 새 CI 를 발사 → 재트라이아지+머지 흐름으로 이어짐.
-  await git(cwd, ['add', '-A']);
-  const committed = await git(cwd, [
-    '-c',
-    'core.editor=true',
-    'commit',
-    '-m',
-    'fix: 자동 테스트 수정 (Cortex)',
-  ]);
-  if (committed.code !== 0) {
-    await restore(cwd, headRef);
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `테스트 수정 커밋 실패: ${tail(committed.stderr)}`,
-    );
-  }
-  // 긴 테스트 수정(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. webhook 으로 DB
-  // status 가 갱신됐으면 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
-  // 'tests-fixed' 알림 방지(conflict-resolve 와 동일 가드, push 직전 재확인).
-  const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, prId)).get();
-  if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
-    await restore(cwd, headRef);
+    // 2) 테스트 실행·수정을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
+    // in-flight 표시 시작 — 종료는 성공 return/ fail(터미널)에서 clear.
+    setAutomationInFlight(prId, 'fixing-tests');
+    const fixed = await runClaudeHeadless({
+      input: testFixPrompt(project.slug, headRef),
+      instruction:
+        '현재 작업 디렉토리에서 테스트를 실행해 실패를 파악하고 수정하세요. 테스트가 통과할 때까지 고치되, 커밋·푸시는 하지 말고 변경만 남기세요.',
+      model: TEST_FIX_MODEL,
+      cwd,
+      // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
+      allowedTools: allowedToolsFor('test-fix', getSettings().cliAllowedToolsEnabled),
+      dangerouslyAllowAllTools: true,
+      appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
+      timeoutMs: CLAUDE_TIMEOUT_MS,
+    });
+    if (!fixed.ok) {
+      await restore(cwd, headRef);
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `claude 테스트 수정 실패: ${fixed.reason}`,
+      );
+    }
+
+    // 3) claude 가 실제로 변경을 남겼는지 — 없으면 고치지 못한 것으로 본다.
+    const changes = await git(cwd, ['status', '--porcelain']);
+    if (changes.stdout.trim() === '') {
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        'claude 가 테스트를 수정하지 못했습니다 (변경 없음).',
+      );
+    }
+
+    // 4) 커밋 + push. push 가 새 CI 를 발사 → 재트라이아지+머지 흐름으로 이어짐.
+    await git(cwd, ['add', '-A']);
+    const committed = await git(cwd, [
+      '-c',
+      'core.editor=true',
+      'commit',
+      '-m',
+      'fix: 자동 테스트 수정 (Cortex)',
+    ]);
+    if (committed.code !== 0) {
+      await restore(cwd, headRef);
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `테스트 수정 커밋 실패: ${tail(committed.stderr)}`,
+      );
+    }
+    // 긴 테스트 수정(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. webhook 으로 DB
+    // status 가 갱신됐으면 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
+    // 'tests-fixed' 알림 방지(conflict-resolve 와 동일 가드, push 직전 재확인).
+    const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, prId)).get();
+    if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
+      await restore(cwd, headRef);
+      clearAutomationInFlight(prId);
+      logger.info(
+        { source: 'test-fix', prId, status: cur.status },
+        'PR 이 수정 중 머지/닫힘 — push 생략',
+      );
+      return { kind: 'skipped', reason: 'pr-closed' };
+    }
+    const pushed = await git(cwd, ['push', 'origin', headRef]);
+    if (pushed.code !== 0) {
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git push 실패: ${tail(pushed.stderr)}`,
+      );
+    }
+
+    logger.info({ source: 'test-fix', prId, headRef }, 'tests auto-fixed and pushed');
     clearAutomationInFlight(prId);
-    logger.info(
-      { source: 'test-fix', prId, status: cur.status },
-      'PR 이 수정 중 머지/닫힘 — push 생략',
-    );
-    return { kind: 'skipped', reason: 'pr-closed' };
-  }
-  const pushed = await git(cwd, ['push', 'origin', headRef]);
-  if (pushed.code !== 0) {
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git push 실패: ${tail(pushed.stderr)}`,
-    );
-  }
-
-  logger.info({ source: 'test-fix', prId, headRef }, 'tests auto-fixed and pushed');
-  clearAutomationInFlight(prId);
-  try {
-    createNotification({ kind: 'tests-fixed', prId });
-  } catch (err) {
-    logger.error({ source: 'test-fix', prId, err }, 'createNotification(success) failed');
-  }
-  return { kind: 'fixed' };
+    try {
+      createNotification({ kind: 'tests-fixed', prId });
+    } catch (err) {
+      logger.error({ source: 'test-fix', prId, err }, 'createNotification(success) failed');
+    }
+    return { kind: 'fixed' };
+  });
 }
 
 function testFixPrompt(slug: string, headRef: string): string {

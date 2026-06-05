@@ -30,7 +30,7 @@ import { setAutomationInFlight, clearAutomationInFlight } from './automation-sta
 import { addPRComment, getPRMergeStatus, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
-import { getWorkspace } from './workspace';
+import { getWorkspace, withWorkspaceLock } from './workspace';
 
 const GIT_TIMEOUT_MS = 60_000;
 const CLAUDE_TIMEOUT_MS = 600_000;
@@ -111,6 +111,8 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
   if (!project) return { kind: 'skipped', reason: 'no-project' };
   if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
   if (!project.autoResolveChangesEnabled) return { kind: 'skipped', reason: 'disabled' };
+  // 워크스페이스 락 클로저 안에서 non-null 내로잉이 풀리므로 number 로 한 번 잡아 둔다.
+  const installationId = project.installationId;
 
   const pr = db
     .select()
@@ -138,145 +140,155 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
   if (!existsSync(workspace.localPath)) return { kind: 'skipped', reason: 'workspace-missing' };
 
   const [owner, repo] = project.slug.split('/');
-  const status = await getPRMergeStatus(project.installationId, { owner, repo }, pr.number);
+  const status = await getPRMergeStatus(installationId, { owner, repo }, pr.number);
 
   // fork/cross-repo 는 head 브랜치를 base 레포 클론에서 직접 push 못 함.
   if (status.headRepoFullName !== `${owner}/${repo}`) {
     return { kind: 'skipped', reason: 'fork-or-cross-repo' };
   }
 
-  const attempts = fixAttempts.get(pr.id) ?? 0;
-  if (attempts >= MAX_FIX_ATTEMPTS) {
-    await comment(
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `변경 요청을 ${MAX_FIX_ATTEMPTS}회 자동 반영했지만 리뷰가 계속 변경을 요청합니다 — 사람 검토가 필요합니다.`,
-    );
-    safeNotify(pr.id, '자동 변경 반영 최대 시도 초과.');
-    return { kind: 'skipped', reason: 'max-attempts' };
-  }
-  fixAttempts.set(pr.id, attempts + 1);
-
   const cwd = workspace.localPath;
   const { headRef } = status;
 
-  // 1) 최신화 + head 브랜치를 원격 head 로 정렬 + 이전 시도 잔재 정리.
-  const fetched = await git(cwd, ['fetch', 'origin', '--prune']);
-  if (fetched.code !== 0) {
-    return fail(
-      pr.id,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git fetch 실패: ${tail(fetched.stderr)}`,
-    );
-  }
-  const checkedOut = await git(cwd, ['checkout', '-B', headRef, `origin/${headRef}`]);
-  if (checkedOut.code !== 0) {
-    return fail(
-      pr.id,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git checkout 실패: ${tail(checkedOut.stderr)}`,
-    );
-  }
-  await git(cwd, ['reset', '--hard', `origin/${headRef}`]);
-  await git(cwd, ['clean', '-fd']);
+  // 같은 워크스페이스를 만지는 다른 자동화(conflict-resolve/test-fix/pull)와 직렬화 —
+  // reset --hard·checkout·commit 이 겹쳐 트리가 깨지거나 반쯤 머지된 채 push 되지 않게(검수 발견).
+  return withWorkspaceLock(cwd, async (): Promise<ReviewFixResult> => {
+    const attempts = fixAttempts.get(pr.id) ?? 0;
+    if (attempts >= MAX_FIX_ATTEMPTS) {
+      await comment(
+        installationId,
+        { owner, repo },
+        pr.number,
+        `변경 요청을 ${MAX_FIX_ATTEMPTS}회 자동 반영했지만 리뷰가 계속 변경을 요청합니다 — 사람 검토가 필요합니다.`,
+      );
+      safeNotify(pr.id, '자동 변경 반영 최대 시도 초과.');
+      return { kind: 'skipped', reason: 'max-attempts' };
+    }
 
-  // 2) 리뷰 피드백 반영을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
-  // in-flight 표시 시작 — 종료는 성공 return / fail(터미널)에서 clear.
-  setAutomationInFlight(pr.id, 'addressing-review');
-  const fixed = await runClaudeHeadless({
-    input: reviewFixPrompt(project.slug, headRef, feedback),
-    instruction:
-      '현재 작업 디렉토리에서 아래 리뷰 피드백이 요청한 변경만 반영하세요. 커밋·푸시는 하지 말고 변경만 남기세요.',
-    model: REVIEW_FIX_MODEL,
-    cwd,
-    // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
-    allowedTools: allowedToolsFor('review-fix', getSettings().cliAllowedToolsEnabled),
-    dangerouslyAllowAllTools: true,
-    appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
-    timeoutMs: CLAUDE_TIMEOUT_MS,
-  });
-  if (!fixed.ok) {
-    await restore(cwd, headRef);
-    return fail(
-      pr.id,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `claude 변경 반영 실패: ${fixed.reason}`,
-    );
-  }
+    // 1) 최신화 + head 브랜치를 원격 head 로 정렬 + 이전 시도 잔재 정리.
+    const fetched = await git(cwd, ['fetch', 'origin', '--prune']);
+    if (fetched.code !== 0) {
+      return fail(
+        pr.id,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git fetch 실패: ${tail(fetched.stderr)}`,
+      );
+    }
+    const checkedOut = await git(cwd, ['checkout', '-B', headRef, `origin/${headRef}`]);
+    if (checkedOut.code !== 0) {
+      return fail(
+        pr.id,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git checkout 실패: ${tail(checkedOut.stderr)}`,
+      );
+    }
+    await git(cwd, ['reset', '--hard', `origin/${headRef}`]);
+    await git(cwd, ['clean', '-fd']);
 
-  // 3) claude 가 실제로 변경을 남겼는지 — 없으면 반영 못 한 것으로 본다.
-  const changes = await git(cwd, ['status', '--porcelain']);
-  if (changes.stdout.trim() === '') {
-    return fail(
-      pr.id,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      'claude 가 리뷰 변경 요청을 반영하지 못했습니다 (변경 없음).',
-    );
-  }
+    // 실제 반영 시도 카운트 — fetch/checkout 같은 인프라 실패는 claude 가 돌기 전이라 시도로 치지
+    // 않는다(검수 발견: 인프라 일시 오류가 멀쩡한 PR 을 영구 max-attempts 로 잠그던 버그). claude 직전 증가.
+    fixAttempts.set(pr.id, attempts + 1);
 
-  // 4) 커밋 + push. push 가 새 CI/재트라이아지를 발사.
-  await git(cwd, ['add', '-A']);
-  const committed = await git(cwd, [
-    '-c',
-    'core.editor=true',
-    'commit',
-    '-m',
-    'fix: 리뷰 변경 요청 반영 (Cortex)',
-  ]);
-  if (committed.code !== 0) {
-    await restore(cwd, headRef);
-    return fail(
-      pr.id,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `변경 반영 커밋 실패: ${tail(committed.stderr)}`,
-    );
-  }
-  // 긴 변경 반영(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. webhook 으로 DB
-  // status 가 갱신됐으면 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
-  // 'review-addressed' 알림 방지(conflict-resolve·test-fix 와 동일 가드).
-  const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, pr.id)).get();
-  if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
-    await restore(cwd, headRef);
-    clearAutomationInFlight(pr.id);
+    // 2) 리뷰 피드백 반영을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
+    // in-flight 표시 시작 — 종료는 성공 return / fail(터미널)에서 clear.
+    setAutomationInFlight(pr.id, 'addressing-review');
+    const fixed = await runClaudeHeadless({
+      input: reviewFixPrompt(project.slug, headRef, feedback),
+      instruction:
+        '현재 작업 디렉토리에서 아래 리뷰 피드백이 요청한 변경만 반영하세요. 커밋·푸시는 하지 말고 변경만 남기세요.',
+      model: REVIEW_FIX_MODEL,
+      cwd,
+      // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
+      allowedTools: allowedToolsFor('review-fix', getSettings().cliAllowedToolsEnabled),
+      dangerouslyAllowAllTools: true,
+      appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
+      timeoutMs: CLAUDE_TIMEOUT_MS,
+    });
+    if (!fixed.ok) {
+      await restore(cwd, headRef);
+      return fail(
+        pr.id,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `claude 변경 반영 실패: ${fixed.reason}`,
+      );
+    }
+
+    // 3) claude 가 실제로 변경을 남겼는지 — 없으면 반영 못 한 것으로 본다.
+    const changes = await git(cwd, ['status', '--porcelain']);
+    if (changes.stdout.trim() === '') {
+      return fail(
+        pr.id,
+        installationId,
+        { owner, repo },
+        pr.number,
+        'claude 가 리뷰 변경 요청을 반영하지 못했습니다 (변경 없음).',
+      );
+    }
+
+    // 4) 커밋 + push. push 가 새 CI/재트라이아지를 발사.
+    await git(cwd, ['add', '-A']);
+    const committed = await git(cwd, [
+      '-c',
+      'core.editor=true',
+      'commit',
+      '-m',
+      'fix: 리뷰 변경 요청 반영 (Cortex)',
+    ]);
+    if (committed.code !== 0) {
+      await restore(cwd, headRef);
+      return fail(
+        pr.id,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `변경 반영 커밋 실패: ${tail(committed.stderr)}`,
+      );
+    }
+    // 긴 변경 반영(수 분, claude CLI) 동안 사람이 PR 을 머지/닫았을 수 있다. webhook 으로 DB
+    // status 가 갱신됐으면 끝난 PR 의 브랜치에 push 하지 않는다 — 죽은 브랜치 부활·잘못된
+    // 'review-addressed' 알림 방지(conflict-resolve·test-fix 와 동일 가드).
+    const cur = db.select({ status: prs.status }).from(prs).where(eq(prs.id, pr.id)).get();
+    if (cur && (cur.status === 'merged' || cur.status === 'closed')) {
+      await restore(cwd, headRef);
+      clearAutomationInFlight(pr.id);
+      logger.info(
+        { source: 'review-fix', prId: pr.id, status: cur.status },
+        'PR 이 반영 중 머지/닫힘 — push 생략',
+      );
+      return { kind: 'skipped', reason: 'pr-closed' };
+    }
+    const pushed = await git(cwd, ['push', 'origin', headRef]);
+    if (pushed.code !== 0) {
+      return fail(
+        pr.id,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git push 실패: ${tail(pushed.stderr)}`,
+      );
+    }
+
     logger.info(
-      { source: 'review-fix', prId: pr.id, status: cur.status },
-      'PR 이 반영 중 머지/닫힘 — push 생략',
+      { source: 'review-fix', prId: pr.id, headRef },
+      'review changes auto-addressed and pushed',
     );
-    return { kind: 'skipped', reason: 'pr-closed' };
-  }
-  const pushed = await git(cwd, ['push', 'origin', headRef]);
-  if (pushed.code !== 0) {
-    return fail(
-      pr.id,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git push 실패: ${tail(pushed.stderr)}`,
-    );
-  }
-
-  logger.info(
-    { source: 'review-fix', prId: pr.id, headRef },
-    'review changes auto-addressed and pushed',
-  );
-  clearAutomationInFlight(pr.id);
-  try {
-    createNotification({ kind: 'review-addressed', prId: pr.id });
-  } catch (err) {
-    logger.error({ source: 'review-fix', prId: pr.id, err }, 'createNotification(success) failed');
-  }
-  return { kind: 'addressed' };
+    clearAutomationInFlight(pr.id);
+    try {
+      createNotification({ kind: 'review-addressed', prId: pr.id });
+    } catch (err) {
+      logger.error(
+        { source: 'review-fix', prId: pr.id, err },
+        'createNotification(success) failed',
+      );
+    }
+    return { kind: 'addressed' };
+  });
 }
 
 function reviewFixPrompt(slug: string, headRef: string, feedback: string): string {

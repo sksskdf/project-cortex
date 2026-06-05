@@ -29,7 +29,7 @@ import { setAutomationInFlight, clearAutomationInFlight } from './automation-sta
 import { addPRComment, getPRMergeStatus, isUntrustedAuthorAssociation } from './github';
 import { logger } from './logger';
 import { createNotification } from './notifications';
-import { getWorkspace } from './workspace';
+import { getWorkspace, withWorkspaceLock } from './workspace';
 
 // 충돌 파일이 이 수를 넘으면 자동 해결 안 함 (의도 충돌 가능성 ↑ → 사람 검토).
 const MAX_CONFLICT_FILES = 10;
@@ -109,6 +109,8 @@ export async function attemptConflictResolution(prId: number): Promise<ConflictR
   if (!project) return { kind: 'skipped', reason: 'no-project' };
   if (project.installationId === null) return { kind: 'skipped', reason: 'no-installation' };
   if (!project.autoResolveConflictsEnabled) return { kind: 'skipped', reason: 'disabled' };
+  // 워크스페이스 락 클로저 안에서 non-null 내로잉이 풀리므로 number 로 한 번 잡아 둔다.
+  const installationId = project.installationId;
 
   // 작성자 무관 — 단일 사용자 가정상 사람 PR 도 내 PR. 외부 기여(fork)는 아래 가드로 차단.
   const workspace = getWorkspace(project.id);
@@ -116,7 +118,7 @@ export async function attemptConflictResolution(prId: number): Promise<ConflictR
   if (!existsSync(workspace.localPath)) return { kind: 'skipped', reason: 'workspace-missing' };
 
   const [owner, repo] = project.slug.split('/');
-  const status = await getPRMergeStatus(project.installationId, { owner, repo }, pr.number);
+  const status = await getPRMergeStatus(installationId, { owner, repo }, pr.number);
 
   // fork/cross-repo 는 base 레포 클론에서 head 브랜치를 직접 push 못 함.
   if (status.headRepoFullName !== `${owner}/${repo}`) {
@@ -128,131 +130,135 @@ export async function attemptConflictResolution(prId: number): Promise<ConflictR
   const cwd = workspace.localPath;
   const { headRef, baseRef } = status;
 
-  // 1) 최신화 + head 브랜치를 원격 head 로 정렬.
-  const fetched = await git(cwd, ['fetch', 'origin', '--prune']);
-  if (fetched.code !== 0) {
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git fetch 실패: ${tail(fetched.stderr)}`,
-    );
-  }
-  const checkedOut = await git(cwd, ['checkout', '-B', headRef, `origin/${headRef}`]);
-  if (checkedOut.code !== 0) {
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git checkout 실패: ${tail(checkedOut.stderr)}`,
-    );
-  }
+  // 같은 워크스페이스를 만지는 다른 자동화(test-fix/review-fix/pull)와 직렬화 — fetch·checkout·
+  // merge·commit·push 가 겹쳐 트리가 깨지거나 반쯤 머지된 채 push 되지 않게(검수 발견).
+  return withWorkspaceLock(cwd, async (): Promise<ConflictResolveResult> => {
+    // 1) 최신화 + head 브랜치를 원격 head 로 정렬.
+    const fetched = await git(cwd, ['fetch', 'origin', '--prune']);
+    if (fetched.code !== 0) {
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git fetch 실패: ${tail(fetched.stderr)}`,
+      );
+    }
+    const checkedOut = await git(cwd, ['checkout', '-B', headRef, `origin/${headRef}`]);
+    if (checkedOut.code !== 0) {
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git checkout 실패: ${tail(checkedOut.stderr)}`,
+      );
+    }
 
-  // 2) base 를 head 에 merge (core.editor=true 로 머지 메시지 에디터 진입 방지).
-  const merged = await git(cwd, [
-    '-c',
-    'core.editor=true',
-    'merge',
-    '--no-edit',
-    `origin/${baseRef}`,
-  ]);
+    // 2) base 를 head 에 merge (core.editor=true 로 머지 메시지 에디터 진입 방지).
+    const merged = await git(cwd, [
+      '-c',
+      'core.editor=true',
+      'merge',
+      '--no-edit',
+      `origin/${baseRef}`,
+    ]);
 
-  // 충돌 없이 머지된 경우 — 바로 push.
-  if (merged.code === 0) {
-    return pushHead(prId, project.installationId, { owner, repo }, pr.number, cwd, headRef);
-  }
+    // 충돌 없이 머지된 경우 — 바로 push.
+    if (merged.code === 0) {
+      return pushHead(prId, installationId, { owner, repo }, pr.number, cwd, headRef);
+    }
 
-  // 3) 충돌 파일 수집 + 한계 검사.
-  const unmerged = await git(cwd, ['diff', '--name-only', '--diff-filter=U']);
-  const conflictFiles = unmerged.stdout
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (conflictFiles.length === 0) {
-    // merge 가 비정상 종료했지만 충돌 목록이 비어있음 — 알 수 없는 상태. 원복.
-    await git(cwd, ['merge', '--abort']);
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `git merge 실패(충돌 목록 없음): ${tail(merged.stderr)}`,
-    );
-  }
-  if (conflictFiles.length > MAX_CONFLICT_FILES) {
-    await git(cwd, ['merge', '--abort']);
-    await comment(
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `자동 충돌 해결을 건너뜁니다 — 충돌 파일이 ${conflictFiles.length}개로 한계(${MAX_CONFLICT_FILES})를 초과했습니다. 사람 검토가 필요합니다.`,
-    );
-    safeNotify(prId, '충돌 파일 과다 — 사람 검토 필요.');
-    return { kind: 'skipped', reason: 'too-large' };
-  }
+    // 3) 충돌 파일 수집 + 한계 검사.
+    const unmerged = await git(cwd, ['diff', '--name-only', '--diff-filter=U']);
+    const conflictFiles = unmerged.stdout
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (conflictFiles.length === 0) {
+      // merge 가 비정상 종료했지만 충돌 목록이 비어있음 — 알 수 없는 상태. 원복.
+      await git(cwd, ['merge', '--abort']);
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `git merge 실패(충돌 목록 없음): ${tail(merged.stderr)}`,
+      );
+    }
+    if (conflictFiles.length > MAX_CONFLICT_FILES) {
+      await git(cwd, ['merge', '--abort']);
+      await comment(
+        installationId,
+        { owner, repo },
+        pr.number,
+        `자동 충돌 해결을 건너뜁니다 — 충돌 파일이 ${conflictFiles.length}개로 한계(${MAX_CONFLICT_FILES})를 초과했습니다. 사람 검토가 필요합니다.`,
+      );
+      safeNotify(prId, '충돌 파일 과다 — 사람 검토 필요.');
+      return { kind: 'skipped', reason: 'too-large' };
+    }
 
-  // 4) 충돌 파일 마커 해소를 claude 에 위임 (cwd 안에서 파일 편집).
-  // in-flight 표시 시작 — 종료는 pushHead/fail(터미널 헬퍼)에서 clear.
-  setAutomationInFlight(prId, 'resolving-conflict');
-  const resolved = await runClaudeHeadless({
-    input: conflictPrompt(project.slug, baseRef, headRef, conflictFiles),
-    instruction:
-      '현재 작업 디렉토리의 머지 충돌을 해결하세요. 충돌 마커가 있는 파일을 편집해 양쪽 의도를 모두 보존하고 모든 충돌 마커를 제거하세요. 커밋·푸시는 하지 마세요.',
-    model: CONFLICT_RESOLVE_MODEL,
-    cwd,
-    // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
-    allowedTools: allowedToolsFor('conflict-resolve', getSettings().cliAllowedToolsEnabled),
-    dangerouslyAllowAllTools: true,
-    appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
-    timeoutMs: CLAUDE_TIMEOUT_MS,
+    // 4) 충돌 파일 마커 해소를 claude 에 위임 (cwd 안에서 파일 편집).
+    // in-flight 표시 시작 — 종료는 pushHead/fail(터미널 헬퍼)에서 clear.
+    setAutomationInFlight(prId, 'resolving-conflict');
+    const resolved = await runClaudeHeadless({
+      input: conflictPrompt(project.slug, baseRef, headRef, conflictFiles),
+      instruction:
+        '현재 작업 디렉토리의 머지 충돌을 해결하세요. 충돌 마커가 있는 파일을 편집해 양쪽 의도를 모두 보존하고 모든 충돌 마커를 제거하세요. 커밋·푸시는 하지 마세요.',
+      model: CONFLICT_RESOLVE_MODEL,
+      cwd,
+      // R4 권한 정밀화 — 토글 ON 이면 작업별 좁은 허용목록만, OFF 면 기존 dangerously 폴백(무회귀).
+      allowedTools: allowedToolsFor('conflict-resolve', getSettings().cliAllowedToolsEnabled),
+      dangerouslyAllowAllTools: true,
+      appendSystemPrompt: CORTEX_HEADLESS_GUIDANCE,
+      timeoutMs: CLAUDE_TIMEOUT_MS,
+    });
+    if (!resolved.ok) {
+      await git(cwd, ['merge', '--abort']);
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `claude 충돌 해결 실패: ${resolved.reason}`,
+      );
+    }
+
+    // 5) 해소 검증 — 스테이징 후 잔존 충돌 마커 검사. 남아 있으면 실패 + 원복.
+    // `git diff --cached --check` 는 충돌 마커뿐 아니라 공백 오류(trailing whitespace,
+    // blank-line-at-EOF, space-before-tab)도 nonzero 로 같이 보고한다. 그래서 exit code 로만 판단하면
+    // 정상 해결됐는데 흔한 공백 오류가 한 줄만 있어도 false-fail → merge --abort 로 해결 작업이 날아가
+    // 자동 해결이 결코 성공할 수 없는 PR(공백 오류 있는 레포)이 생긴다(리뷰 발견). stdout 의 "leftover
+    // conflict marker" 문구(git 영문 고정 — i18n 안 됨)로 마커만 콕 찝어 검사한다. nonzero+마커문구
+    // 부재 = 공백 오류뿐 → 통과.
+    await git(cwd, ['add', '-A']);
+    const markerCheck = await git(cwd, ['diff', '--cached', '--check']);
+    if (markerCheck.code !== 0 && /leftover conflict marker/i.test(markerCheck.stdout)) {
+      await git(cwd, ['merge', '--abort']);
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        '충돌 마커가 남아 있어 머지를 중단했습니다.',
+      );
+    }
+
+    // 6) 머지 커밋 완료.
+    const committed = await git(cwd, ['-c', 'core.editor=true', 'commit', '--no-edit']);
+    if (committed.code !== 0) {
+      await git(cwd, ['merge', '--abort']);
+      return fail(
+        prId,
+        installationId,
+        { owner, repo },
+        pr.number,
+        `머지 커밋 실패: ${tail(committed.stderr)}`,
+      );
+    }
+
+    return pushHead(prId, installationId, { owner, repo }, pr.number, cwd, headRef);
   });
-  if (!resolved.ok) {
-    await git(cwd, ['merge', '--abort']);
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `claude 충돌 해결 실패: ${resolved.reason}`,
-    );
-  }
-
-  // 5) 해소 검증 — 스테이징 후 잔존 충돌 마커 검사. 남아 있으면 실패 + 원복.
-  // `git diff --cached --check` 는 충돌 마커뿐 아니라 공백 오류(trailing whitespace,
-  // blank-line-at-EOF, space-before-tab)도 nonzero 로 같이 보고한다. 그래서 exit code 로만 판단하면
-  // 정상 해결됐는데 흔한 공백 오류가 한 줄만 있어도 false-fail → merge --abort 로 해결 작업이 날아가
-  // 자동 해결이 결코 성공할 수 없는 PR(공백 오류 있는 레포)이 생긴다(리뷰 발견). stdout 의 "leftover
-  // conflict marker" 문구(git 영문 고정 — i18n 안 됨)로 마커만 콕 찝어 검사한다. nonzero+마커문구
-  // 부재 = 공백 오류뿐 → 통과.
-  await git(cwd, ['add', '-A']);
-  const markerCheck = await git(cwd, ['diff', '--cached', '--check']);
-  if (markerCheck.code !== 0 && /leftover conflict marker/i.test(markerCheck.stdout)) {
-    await git(cwd, ['merge', '--abort']);
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      '충돌 마커가 남아 있어 머지를 중단했습니다.',
-    );
-  }
-
-  // 6) 머지 커밋 완료.
-  const committed = await git(cwd, ['-c', 'core.editor=true', 'commit', '--no-edit']);
-  if (committed.code !== 0) {
-    await git(cwd, ['merge', '--abort']);
-    return fail(
-      prId,
-      project.installationId,
-      { owner, repo },
-      pr.number,
-      `머지 커밋 실패: ${tail(committed.stderr)}`,
-    );
-  }
-
-  return pushHead(prId, project.installationId, { owner, repo }, pr.number, cwd, headRef);
 }
 
 // head 브랜치 push (force 아님 — origin/head 기반이라 fast-forward). push 후 GitHub 가
