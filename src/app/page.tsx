@@ -16,6 +16,7 @@ import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
 import { DashboardTodosWidget } from '@/components/DashboardTodosWidget';
 import { RecentMergesFeed } from '@/components/RecentMergesFeed';
 import { MarkAllReadButton } from '@/components/MarkAllReadButton';
+import { OpenAgentDrawerButton } from '@/components/OpenAgentDrawerButton';
 import { TodayRows } from '@/components/TodayRows';
 import { LiveStatusStrip } from '@/components/LiveStatusStrip';
 import { getLiveStatus } from '@/lib/live-status';
@@ -371,15 +372,11 @@ export default async function DashboardPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{t.dashboard.section.workload}</h2>
-              {/* /agents 라우트는 Phase 13 (Claude CLI 통합) 진입 시 활성화. 사유를 title/aria 로 안내. */}
-              <span
-                className={styles.sectionMoreDisabled}
-                role="note"
-                title={t.dashboard.section.workloadMoreHint}
-                aria-label={t.dashboard.section.workloadMoreHint}
-              >
-                {t.nav.comingSoon}
-              </span>
+              {/* 에이전트는 전역 드로어로 제공 — '전체 보기'가 드로어를 연다(사이드바 '에이전트'와 동일). */}
+              <OpenAgentDrawerButton
+                className={styles.sectionMoreButton}
+                label={t.dashboard.section.workloadMore}
+              />
             </div>
             <WorkloadCard rows={agentWorkloads} />
           </section>

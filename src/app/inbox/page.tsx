@@ -350,9 +350,22 @@ export default async function InboxPage({
           </Link>
         )}
 
-        <div className={styles.queue}>
-          <InboxRows rows={inboxQueue} />
-        </div>
+        {inboxQueue.length === 0 ? (
+          <div className={styles.empty}>
+            {activeCategory !== 'all' || searchQuery || activeProject ? (
+              <span>{t.inbox.empty.filtered}</span>
+            ) : (
+              <>
+                <span className={styles.emptyStrong}>{t.inbox.empty.title}</span>
+                <span>{t.inbox.empty.desc}</span>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className={styles.queue}>
+            <InboxRows rows={inboxQueue} />
+          </div>
+        )}
       </main>
     </div>
   );

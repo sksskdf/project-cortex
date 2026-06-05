@@ -258,3 +258,24 @@
   border-radius: var(--ds-border-radius-card);
   overflow: hidden;
 }
+
+/* 빈 인박스 — 정상 상태(검토할 게 없음). 다른 목록과 동일한 empty 패턴. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ds-spacing-6);
+  padding: var(--ds-spacing-32) var(--ds-spacing-20);
+  background: var(--ds-color-bg-00);
+  border: var(--ds-border-width-1) solid var(--ds-color-line-02);
+  border-radius: var(--ds-border-radius-card);
+  font-size: var(--ds-typography-font-size-13);
+  color: var(--ds-color-text-02);
+  text-align: center;
+}
+
+.emptyStrong {
+  font-size: var(--ds-typography-font-size-15);
+  font-weight: var(--ds-typography-font-weight-semibold);
+  color: var(--ds-color-text-03-high);
+}

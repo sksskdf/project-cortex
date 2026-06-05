@@ -257,7 +257,7 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] /projects 카드 자동화 토글 **스위치화 + 액션 버튼 분리** (ds-btn 알약 6개 난잡 → '자동화'
 - [x] 뮤트(Cortex 관리 OFF) 시 하위 자동화 토글 비활성 + OFF 표시 — #185
 - [x] 최근 머지 목록에 #PR번호 노출 — #187
-- [~] 디자인 시스템 미준수 / 어색한 부분 점진 교정 — **하드코딩 색상 토큰화 패스 완료**: 컴포넌트
+- [~] 디자인 시스템 미준수 / 어색한 부분 점진 교정 — 하드코딩 색상 토큰화 패스 완료. **미정의 토큰 정의 패스 완료**: state-info/warning-accent·strong, font-size-22, font-family-monospace, text-on-accent, palette-purple-default 등 앱 전역 참조되나 미정의라 폴백 없이 무효/투명 렌더되던 토큰 정의(자동화 in-flight 점·열림 칩·메모 핀·페이지 제목). text-03 오타 교정.
 - [x] 반응형 디자인 — 좁은 화면·모바일·태블릿·세로 모니터에서 레이아웃 적응 (사이드바 collapse,
 - [x] (1) 7개 토글 컴포넌트 복붙 → `useOptimisticToggle` 훅 + `ProjectAutomationToggle` 제네릭 (−187줄) — #189
 - [x] (2) `listProjectsWithStats` N+1(1+3N) → 배치 3쿼리 — #190

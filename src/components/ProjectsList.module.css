@@ -62,7 +62,7 @@
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
   font-size: var(--ds-typography-font-size-11);
   font-weight: var(--ds-typography-font-weight-medium);
-  color: var(--ds-color-text-03);
+  color: var(--ds-color-text-03-high);
   letter-spacing: var(--ds-typography-letter-spacing-wide);
   vertical-align: middle;
   cursor: help;

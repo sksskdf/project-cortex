@@ -262,6 +262,15 @@
   text-decoration: underline;
 }
 
+/* 더보기를 버튼으로 렌더할 때(라우트 아닌 액션 — 에이전트 드로어 열기). 링크와 동일 외형. */
+.sectionMoreButton {
+  composes: sectionMore;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
 /* dead-link 표시 — 라우트 없는 더보기는 텍스트로만 (Phase 6·8 진입 시 활성). */
 .sectionMoreDisabled {
   font-size: var(--ds-typography-font-size-12);
