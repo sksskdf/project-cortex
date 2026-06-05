@@ -57,16 +57,17 @@ describe('wrapClaudeSpawn', () => {
     });
   });
 
-  it('토글 ON + headroom 있음 → `headroom wrap claude <원본 args>` 변환', () => {
+  it('토글 ON + headroom 있음 → `headroom wrap claude -- <원본 args>` 변환 (옵션 종결자)', () => {
     const r = wrapClaudeSpawn({
       claudePath: '/usr/bin/claude',
       claudeArgs: ['-p', '--output-format', 'json', '--model', 'opus', 'hello'],
       enabled: true,
       headroomPath: '/usr/bin/headroom',
     });
+    // `--` 가 있어야 headroom 이 -p 를 자기 --port 로 오해하지 않는다(사용자 보고 회귀).
     expect(r).toEqual({
       command: '/usr/bin/headroom',
-      args: ['wrap', 'claude', '-p', '--output-format', 'json', '--model', 'opus', 'hello'],
+      args: ['wrap', 'claude', '--', '-p', '--output-format', 'json', '--model', 'opus', 'hello'],
     });
   });
 
@@ -96,8 +97,8 @@ describe('wrapClaudeSpawn', () => {
       headroomPath: '/x/headroom',
     });
     expect(r.command).toBe('/x/headroom');
-    expect(r.args.slice(0, 2)).toEqual(['wrap', 'claude']);
-    expect(r.args.slice(2)).toEqual(original);
+    expect(r.args.slice(0, 3)).toEqual(['wrap', 'claude', '--']);
+    expect(r.args.slice(3)).toEqual(original);
   });
 
   it('빈 args 도 안전하게 wrap', () => {
@@ -107,6 +108,6 @@ describe('wrapClaudeSpawn', () => {
       enabled: true,
       headroomPath: '/h',
     });
-    expect(r).toEqual({ command: '/h', args: ['wrap', 'claude'] });
+    expect(r).toEqual({ command: '/h', args: ['wrap', 'claude', '--'] });
   });
 });
