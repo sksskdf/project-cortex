@@ -190,7 +190,6 @@
 - [x] 세션 비용·토큰 측정 — `recordLlmUsage`(R3, llm_usage 테이블 + /reports 집계).
 - [x] CLI 버전 추적 — `getClaudeCliVersion`(`claude --version` 첫 토큰, 미설치 시 null,
 - [x] **도구 권한 정책 (R4) — 완료(#267)**: `--allowed-tools` + 작업별 좁은 허용목록
-- [~] **`--continue` 폴백 / MCP 서버 연결** — 둘 다 **런타임 게이트**(샌드박스 자율 완료 불가):
 
 ## Phase 13.6 — claude CLI 최신 활용 방법론·스킬 적용 (리서치·고도화) ⚠️ 중요
 
@@ -259,7 +258,6 @@ skill 로 추출했을 때 일관성·재사용·평가 가능성 향상.
 - [x] 뮤트(Cortex 관리 OFF) 시 하위 자동화 토글 비활성 + OFF 표시 — #185
 - [x] 최근 머지 목록에 #PR번호 노출 — #187
 - [~] 디자인 시스템 미준수 / 어색한 부분 점진 교정 — **하드코딩 색상 토큰화 패스 완료**: 컴포넌트
-- [ ] 패키징 전 전체 UI/UX 검토 패스 **[게이트: 시각 검증 필요]**
 - [ ] 반응형 디자인 — 좁은 화면·모바일·태블릿·세로 모니터에서 레이아웃 적응 (사이드바 collapse,
 - [x] (1) 7개 토글 컴포넌트 복붙 → `useOptimisticToggle` 훅 + `ProjectAutomationToggle` 제네릭 (−187줄) — #189
 - [x] (2) `listProjectsWithStats` N+1(1+3N) → 배치 3쿼리 — #190
