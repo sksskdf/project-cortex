@@ -304,30 +304,46 @@ function runOnce(
 // `--output-format json` 봉투에서 모델 텍스트(result) + 구조화 출력(structured_output) +
 // 비용·토큰 사용량을 꺼낸다. is_error 면 null. result·structured_output 둘 다 없으면 파싱 실패(null).
 // 테스트 위해 export (실 spawn 없이 봉투 파싱만 검증).
+// 회귀(사용자 보고): headroom wrap 이 claude 실행 전 stdout 에 ANSI 박스 배너를 출력해 봉투가
+// "<배너>\n{...}" 형태가 됐다 → JSON.parse 가 첫 자에서 throw → "응답 파싱 실패". stdout 앞에
+// 잡음이 끼어도 안에서 첫 균형 잡힌 JSON 객체를 회수하도록 폴백을 둔다(extractFirstJsonObject —
+// parseJsonFromText 가 이미 쓰는 함수, 문자열 리터럴 안의 중괄호 정확히 처리).
+function parseEnvelope(stdout: string): unknown | null {
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    const obj = extractFirstJsonObject(stdout);
+    if (obj === null) return null;
+    try {
+      return JSON.parse(obj);
+    } catch {
+      return null;
+    }
+  }
+}
+
 export function extractResult(
   stdout: string,
 ): { text: string; structured?: unknown; usage?: ClaudeUsage } | null {
-  try {
-    const envelope = JSON.parse(stdout) as {
-      result?: unknown;
-      structured_output?: unknown;
-      is_error?: unknown;
-      total_cost_usd?: unknown;
-      usage?: { input_tokens?: unknown; output_tokens?: unknown };
-    };
-    if (envelope.is_error === true) return null;
-    const text = typeof envelope.result === 'string' ? envelope.result : '';
-    const structured = envelope.structured_output;
-    if (text === '' && structured === undefined) return null;
-    const usage = extractUsage(envelope);
-    return {
-      text,
-      ...(structured === undefined ? {} : { structured }),
-      ...(usage === null ? {} : { usage }),
-    };
-  } catch {
-    return null;
-  }
+  const parsed = parseEnvelope(stdout);
+  if (parsed === null || typeof parsed !== 'object') return null;
+  const envelope = parsed as {
+    result?: unknown;
+    structured_output?: unknown;
+    is_error?: unknown;
+    total_cost_usd?: unknown;
+    usage?: { input_tokens?: unknown; output_tokens?: unknown };
+  };
+  if (envelope.is_error === true) return null;
+  const text = typeof envelope.result === 'string' ? envelope.result : '';
+  const structured = envelope.structured_output;
+  if (text === '' && structured === undefined) return null;
+  const usage = extractUsage(envelope);
+  return {
+    text,
+    ...(structured === undefined ? {} : { structured }),
+    ...(usage === null ? {} : { usage }),
+  };
 }
 
 function num(v: unknown): number | null {
@@ -348,14 +364,18 @@ function extractUsage(envelope: {
 
 // stdout 봉투에서 비용·토큰만 추출 — is_error·result 유무와 무관(extractResult 와 달리 항상 시도).
 // 구독 과금은 error 응답에도 발생하므로 성공/실패 가리지 않고 관측해야 /reports 비용이 정확.
-// stdout 이 JSON 봉투가 아니면(프로세스 크래시 등) null. 순수 함수 — 테스트 가능.
+// stdout 이 JSON 봉투가 아니면(프로세스 크래시 등) null. headroom 배너처럼 앞에 잡음이 끼어도
+// 안에서 균형 잡힌 객체를 회수해 비용 관측이 끊기지 않게 한다. 순수 함수 — 테스트 가능.
 export function extractUsageFromStdout(stdout: string): ClaudeUsage | null {
+  const parsed = parseEnvelope(stdout);
+  if (parsed === null || typeof parsed !== 'object') return null;
   try {
-    const envelope = JSON.parse(stdout) as {
-      total_cost_usd?: unknown;
-      usage?: { input_tokens?: unknown; output_tokens?: unknown };
-    };
-    return extractUsage(envelope);
+    return extractUsage(
+      parsed as {
+        total_cost_usd?: unknown;
+        usage?: { input_tokens?: unknown; output_tokens?: unknown };
+      },
+    );
   } catch {
     return null;
   }
