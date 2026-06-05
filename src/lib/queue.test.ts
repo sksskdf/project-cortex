@@ -48,6 +48,17 @@ describe('orderInbox', () => {
     expect(result.map((p) => p.id)).toEqual(['b', 'c', 'a']);
   });
 
+  it('activityMs 가 있으면 그것으로 정렬 (오래된 것 위로) — ageText 파싱보다 정확', () => {
+    const now = Date.now();
+    const result = orderInbox([
+      makePR({ id: 'recent', activityMs: now - 5 * 60_000, ageText: '방금' }),
+      makePR({ id: 'old', activityMs: now - 3 * 24 * 60 * 60_000, ageText: '방금' }),
+      makePR({ id: 'mid', activityMs: now - 2 * 60 * 60_000, ageText: '방금' }),
+    ]);
+    // ageText 가 모두 "방금"(파싱 시 0)이라도 activityMs 로 오래된 순.
+    expect(result.map((p) => p.id)).toEqual(['old', 'mid', 'recent']);
+  });
+
   it('tone dominates gauge (alert+high-confidence beats info+low-confidence)', () => {
     const result = orderInbox([
       makePR({

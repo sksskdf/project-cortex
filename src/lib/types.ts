@@ -64,6 +64,10 @@ export type PR = {
   deletions: number;
   fileCount?: number;
   ageText: string;
+  // 정렬용 활동 시각(epoch ms) — ageText 는 사람용 문자열이라 파싱 정렬이 부정확("방금"·"1개월"
+  // 등에서 0 으로 붕괴)했다. 인박스 빌더가 실제 timestamp 를 넣어 orderInbox 가 이 값으로 정렬.
+  // 미지정(fixture 등)이면 orderInbox 가 ageText 파싱으로 폴백.
+  activityMs?: number;
   gauge: PRGauge;
   // 인박스 / 대시보드 행에서 인라인 액션 노출. 없으면 (e.g. fixture 데이터) 액션 없음.
   actions?: PRRowActionState;
