@@ -190,7 +190,6 @@
 - [x] 세션 비용·토큰 측정 — `recordLlmUsage`(R3, llm_usage 테이블 + /reports 집계).
 - [x] CLI 버전 추적 — `getClaudeCliVersion`(`claude --version` 첫 토큰, 미설치 시 null,
 - [x] **도구 권한 정책 (R4) — 완료(#267)**: `--allowed-tools` + 작업별 좁은 허용목록
-- [~] **`--continue` 폴백 / MCP 서버 연결** — 둘 다 **런타임 게이트**(샌드박스 자율 완료 불가):
 
 ## Phase 13.6 — claude CLI 최신 활용 방법론·스킬 적용 (리서치·고도화) ⚠️ 중요
 
