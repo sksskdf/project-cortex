@@ -466,7 +466,10 @@ describe('머지 후 자동 git pull (safeAutoPull)', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('아직 clone 안 된(빈 디렉토리) 워크스페이스는 머지 이벤트에서 clone 트리거 안 함', async () => {
+  // 회귀(사용자 보고 2026-06-05): 자동 git pull 이 동작 안 함. 원인은 워크스페이스를 빈 디렉토리로
+  // 등록한 경우(needsClone=true) safeAutoPull 이 조기 return 해 clone 도 안 했던 것 — 사용자가
+  // "등록만 하면 첫 머지에서 받아짐" 기대를 깼다. 이제는 needsClone 도 clone 으로 살려준다.
+  it('빈 디렉토리(needsClone) 워크스페이스는 머지 시 clone 트리거 (사용자 보고 회귀)', async () => {
     setOctokit(mockOctokit(vi.fn().mockResolvedValue({ data: { merged: true, sha: 's' } })));
     const prId = setupPR({ decision: 'auto-merge' });
     const repoId = db.select({ repoId: prs.repoId }).from(prs).where(eq(prs.id, prId)).get()!
@@ -481,7 +484,9 @@ describe('머지 후 자동 git pull (safeAutoPull)', () => {
     try {
       const r = await attemptAutoMerge(prId);
       expect(r.kind).toBe('merged');
-      expect(calls).toHaveLength(0); // clone 도 pull 도 호출 안 됨
+      // 이제 clone 명령이 호출됨(이전엔 silent skip 이었음).
+      const cloned = calls.some((c) => c[0] === 'clone');
+      expect(cloned).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

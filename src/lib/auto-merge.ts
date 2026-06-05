@@ -246,7 +246,19 @@ async function safeAutoPull(prId: number): Promise<void> {
     const pr = db.select({ repoId: prs.repoId }).from(prs).where(eq(prs.id, prId)).get();
     if (!pr) return;
     const ws = getWorkspace(pr.repoId);
-    if (!ws || ws.needsClone) return;
+    // 워크스페이스 미등록은 사용자가 의식적으로 안 한 경우라 알림 안 함(스팸 방지). 디버그용 로그만.
+    if (!ws) {
+      logger.debug(
+        { source: 'auto-merge', op: 'safeAutoPull', prId, projectId: pr.repoId },
+        '자동 git pull 스킵 — 등록된 워크스페이스 없음',
+      );
+      return;
+    }
+    // 사용자 보고(2026-06-05): 자동 git pull 이 제대로 동작 안 함. 원인 1 — 워크스페이스가 빈
+    // 디렉토리/없는 경로로 등록된 경우(needsClone=true) safeAutoPull 이 조기 return 했다. 첫
+    // 머지 시 clone 으로 살려야 할 케이스(워크스페이스 등록의 본래 의도: 첫 pull 이 clone)를
+    // 막아 사용자가 "동작 안 함"으로 인지했음. pullWorkspace 가 이미 isGitRepo 분기로 clone 을
+    // 처리하므로, 여기선 더 이상 needsClone 으로 거르지 않는다.
     // 결과를 알림으로 표면화 — 이전엔 조용히 돌아 성공/실패를 알 수 없었다(특히 워크스페이스가
     // 다른 브랜치에 있어 ff-only 가 거부되는 케이스가 보이지 않았음). 실패 사유까지 노출.
     const result = await pullWorkspace(pr.repoId);
@@ -254,9 +266,19 @@ async function safeAutoPull(prId: number): Promise<void> {
       safeNotify({ kind: 'workspace-pulled', prId });
     } else if (result.kind === 'failed') {
       safeNotify({ kind: 'workspace-pull-failed', prId, reason: result.output });
+    } else if (result.kind === 'skipped-in-flight') {
+      // 같은 repo 의 동시 머지 — 진행 중 pull 이 방금 머지분을 자연히 가져오므로 알림 불요(스팸 방지).
+      logger.debug(
+        { source: 'auto-merge', op: 'safeAutoPull', prId },
+        '자동 git pull 스킵 — 같은 워크스페이스의 다른 pull 진행 중(in-flight)',
+      );
     }
+    // result.kind === 'no-workspace' 는 위 ws 가드에서 이미 걸러져 도달 불가.
   } catch (err) {
-    console.error(`머지 후 자동 git pull 실패 (PR ${prId}):`, err);
+    logger.error(
+      { source: 'auto-merge', op: 'safeAutoPull', prId, err },
+      '머지 후 자동 git pull 실패',
+    );
   }
 }
 

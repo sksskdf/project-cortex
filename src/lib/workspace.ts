@@ -350,16 +350,19 @@ export async function pullWorkspace(projectId: number): Promise<PullResult> {
     // git fetch 먼저 (안전), 그 다음 ff-only pull (충돌이면 reject).
     const fetchRes = await runGit(ws.localPath, ['fetch', '--all', '--prune']);
     if (fetchRes.code !== 0) {
-      const result = `fetch 실패: ${fetchRes.output}`;
+      // 빈 output 폴백 — Windows 일부 환경에서 git 이 stdout/stderr 모두 침묵하는 경우 진단을
+      // 위해 exit code 라도 노출(사용자 보고 패턴과 일치).
+      const detail = fetchRes.output || `(no output; exit ${fetchRes.code})`;
+      const result = `git fetch 실패: ${detail}`;
       recordResult(ws.id, result);
       return { kind: 'failed', output: result };
     }
 
     const pullRes = await runGit(ws.localPath, ['pull', '--ff-only']);
     const ok = pullRes.code === 0;
-    const result = ok
-      ? `git pull 성공: ${pullRes.output || 'Already up to date.'}`
-      : `git pull 실패: ${pullRes.output}`;
+    const detail =
+      pullRes.output || (ok ? 'Already up to date.' : `(no output; exit ${pullRes.code})`);
+    const result = ok ? `git pull 성공: ${detail}` : `git pull --ff-only 실패: ${detail}`;
 
     recordResult(ws.id, result);
     return ok ? { kind: 'pulled', output: result } : { kind: 'failed', output: result };
