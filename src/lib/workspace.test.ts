@@ -236,6 +236,44 @@ describe('pullWorkspace clone vs pull branching', () => {
     expect((await pullWorkspace(projectId)).kind).toBe('no-workspace');
   });
 
+  // 회귀(사용자 보고 2026-06-05): Windows 일부 환경에서 git 이 exit code 만 주고 output 이 비어
+  // 'git pull --ff-only 실패: ' 만 보였다. exit code 라도 노출되어야 진단 가능.
+  it('git 이 빈 output 으로 실패해도 exit code 를 메시지에 포함', async () => {
+    const projectId = seedProject();
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    registerWorkspace({ projectId, localPath: dir });
+
+    let call = 0;
+    setGitRunner(async () => {
+      call += 1;
+      // fetch 성공, pull --ff-only 실패(빈 output) — 사용자 보고 패턴.
+      return call === 1 ? { code: 0, output: '' } : { code: 1, output: '' };
+    });
+
+    const res = await pullWorkspace(projectId);
+    expect(res.kind).toBe('failed');
+    if (res.kind === 'failed') {
+      expect(res.output).toContain('git pull --ff-only 실패');
+      expect(res.output).toContain('exit 1'); // 빈 output 폴백
+    }
+  });
+
+  it('fetch 가 빈 output 으로 실패해도 exit code 노출', async () => {
+    const projectId = seedProject();
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.git'));
+    registerWorkspace({ projectId, localPath: dir });
+
+    setGitRunner(async () => ({ code: 128, output: '' }));
+    const res = await pullWorkspace(projectId);
+    expect(res.kind).toBe('failed');
+    if (res.kind === 'failed') {
+      expect(res.output).toContain('git fetch 실패');
+      expect(res.output).toContain('exit 128');
+    }
+  });
+
   // 회귀(리뷰 발견): 같은 localPath 에 동시 pull 이 돌면 git index.lock 충돌. 두 번째 동시
   // 호출은 skipped-in-flight 로 빠져 같은 clone 에서 git 이 겹쳐 돌지 않게.
   it('serializes concurrent pulls on the same workspace (second skips in-flight)', async () => {
