@@ -2,21 +2,25 @@
 
 import { ko as t } from '@/copy/ko';
 import { TodoList } from '@/components/TodoList';
+import { WorkTabs } from '@/components/WorkTabs';
 import { listTodos } from '@/lib/todos';
 import { listIssueOptions } from '@/lib/issues';
 import { listProjectsWithStats } from '@/lib/projects';
+import { getWorkTabCounts } from '@/lib/work-view';
 import styles from './page.module.css';
 
 export default function TodosPage() {
   const todos = listTodos('all');
   const projects = listProjectsWithStats().map((p) => ({ id: p.id, slug: p.slug }));
   const issues = listIssueOptions();
+  const counts = getWorkTabCounts();
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>{t.todos.title}</h1>
         <p className={styles.subtitle}>{t.todos.subtitle}</p>
       </header>
+      <WorkTabs issues={counts.issues} todos={counts.todos} />
       <TodoList todos={todos} projects={projects} issues={issues} />
     </div>
   );

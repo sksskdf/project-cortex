@@ -76,35 +76,6 @@ const projectsIcon = (
   </svg>
 );
 
-const issuesIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx={12} cy={12} r={9} />
-    <line x1={12} y1={8} x2={12} y2={12} />
-    <line x1={12} y1={16} x2={12.01} y2={16} />
-  </svg>
-);
-
-const todosIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polyline points="9 11 12 14 22 4" />
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
-);
-
 const notesIcon = (
   <svg
     viewBox="0 0 24 24"
@@ -246,18 +217,8 @@ export function Sidebar({ counts, user }: { counts: SidebarCounts; user: Current
       count: counts.projects,
       comingSoon: false,
     },
-    {
-      href: '/issues',
-      label: t.nav.issues,
-      icon: issuesIcon,
-      count: counts.issues,
-    },
-    {
-      href: '/todos',
-      label: t.nav.todos,
-      icon: todosIcon,
-      count: counts.todos,
-    },
+    // 이슈·TODO 는 더 이상 최상위 항목이 아니다 — '작업' 허브(/work)의 하위 탭으로 통합.
+    // (사용자 신호: "작업 탭이 생겼는데 이슈/TODO 탭이 잔존") 라우트·데이터는 보존.
     {
       href: '/notes',
       label: t.nav.notes,

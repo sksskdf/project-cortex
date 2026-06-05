@@ -2,7 +2,7 @@
 // 화면에. 이슈(roadmapItemId)·TODO(issueId)·결과 PR(agent_run.outputPrId) 링크를 종합한다.
 // 활성 작업에 집중: open/in-progress 이슈 + 미완 TODO 만. 읽기 전용.
 
-import { desc, inArray } from 'drizzle-orm';
+import { count, desc, inArray, or, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { agentRuns, issues, prs, projects, roadmapItems, todos } from '@/db/schema';
 import type { IssueStatus, SessionStatus } from '@/lib/issues';
@@ -146,4 +146,19 @@ export function getWorkView(): WorkProject[] {
   }
   result.sort((a, b) => a.projectSlug.localeCompare(b.projectSlug));
   return result;
+}
+
+// 작업 허브 하위 탭 카운트 — 사이드바와 동일하게 open + in-progress 만 센다.
+export function getWorkTabCounts(): { issues: number; todos: number } {
+  const issuesCount = db
+    .select({ n: count() })
+    .from(issues)
+    .where(or(eq(issues.status, 'open'), eq(issues.status, 'in-progress')))
+    .get();
+  const todosCount = db
+    .select({ n: count() })
+    .from(todos)
+    .where(or(eq(todos.status, 'open'), eq(todos.status, 'in-progress')))
+    .get();
+  return { issues: issuesCount?.n ?? 0, todos: todosCount?.n ?? 0 };
 }

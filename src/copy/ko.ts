@@ -932,6 +932,14 @@ export const ko = {
     subtitle: '로드맵 산출물 ▸ 연결된 이슈 ▸ 그 이슈의 할 일·결과 PR 을 한 화면에. 활성 작업만.',
     empty: '진행 중인 이슈가 없습니다. 대시보드에서 새 이슈를 작성하면 여기에 묶여 보입니다.',
     unlinked: '로드맵 미연결',
+    // 작업 허브 하위 탭 — '작업'(통합 흐름) ▸ '이슈' ▸ 'TODO'. 사이드바에서 이슈/TODO 를
+    // 별도 최상위 항목으로 두지 않고 작업 허브 안으로 합친다(통합 IA).
+    tabs: {
+      flow: '흐름',
+      issues: '이슈',
+      todos: 'TODO',
+      ariaLabel: '작업 하위 메뉴',
+    },
     session: (s: 'queued' | 'running' | 'completed' | 'failed') =>
       ({
         queued: '세션 대기',
@@ -1181,8 +1189,9 @@ export const ko = {
       dashboard: '자동 머지 현황과 오늘 볼 일을 요약합니다.',
       inbox: '검토가 필요한 PR을 우선순위 순으로 봅니다.',
       projects: '연결한 레포와 로드맵을 관리합니다.',
-      issues: '작성한 이슈와 위임한 Claude 세션 상태를 봅니다.',
-      todos: '프로젝트별 할 일과 개인 메모를 둡니다.',
+      work: '로드맵 산출물 ▸ 이슈 ▸ 할 일을 한곳에서. 상단 탭으로 흐름·이슈·TODO 를 전환합니다.',
+      issues: '작성한 이슈와 위임한 Claude 세션 상태를 봅니다. (작업 ▸ 이슈)',
+      todos: '프로젝트별 할 일과 개인 메모를 둡니다. (작업 ▸ TODO)',
       notes: '자유 메모를 두고 핀으로 고정합니다.',
       agents: 'Claude Code 세션을 어디서든 엽니다.',
       clusters: '비슷한 PR을 묶어 한 번에 처리합니다.',
