@@ -1,0 +1,40 @@
+# cortex.service — systemd user unit template for running Cortex at login on Linux.
+#
+# This is a TEMPLATE. Replace the placeholders before installing:
+#   __REPO_ROOT__   absolute path to the cloned repo (e.g. /home/you/project-cortex)
+#   __NPM_PATH__    absolute path to npm           (run: which npm)
+#   __NODE_BIN__    directory holding node/npm     (run: dirname "$(which node)")
+#
+# Install (per-user unit — no sudo needed; runs as you):
+#   mkdir -p ~/.config/systemd/user
+#   sed -e "s#__REPO_ROOT__#$PWD#g" \
+#       -e "s#__NPM_PATH__#$(which npm)#g" \
+#       -e "s#__NODE_BIN__#$(dirname "$(which node)")#g" \
+#       scripts/service/cortex.service \
+#       > ~/.config/systemd/user/cortex.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cortex.service
+#   # 로그인 세션 닫혀도 살아있게: loginctl enable-linger $USER
+#
+# Status / logs / restart / uninstall:
+#   systemctl --user status cortex.service
+#   journalctl --user -u cortex.service -f
+#   systemctl --user restart cortex.service
+#   systemctl --user disable --now cortex.service && rm ~/.config/systemd/user/cortex.service
+
+[Unit]
+Description=Cortex local server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_ROOT__
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=PATH=__NODE_BIN__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__NPM_PATH__ run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

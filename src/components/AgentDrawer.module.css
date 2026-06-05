@@ -181,3 +181,34 @@
 .empty p {
   margin: 0;
 }
+
+/* 반응형 — 좁은 화면에서는 사이드 패널이 사실상 전체 폭이 되므로(min(480px,100vw))
+   resize 핸들이 의미가 없고, 더 깊은 본문 패딩이 콘텐츠를 누른다. 패딩 축소 + 핸들
+   숨김 + 헤더 액션 간격 축소. */
+@media (max-width: 768px) {
+  .launcher {
+    bottom: var(--ds-spacing-16);
+    right: var(--ds-spacing-16);
+    width: 44px;
+    height: 44px;
+  }
+
+  .dockRight,
+  .dockBottom {
+    /* 768 이하에선 우측 도킹도 사실상 전체 폭이 되므로 그림자를 줄여 시각 부담 완화. */
+    box-shadow: 0 -2px 12px var(--ds-color-shadow-black);
+  }
+
+  /* 좁은 화면에서 가로 resize 는 손가락으로 잡기 어렵고 폭이 100vw 라 의미가 없음. */
+  .dockRight .resizeHandle {
+    display: none;
+  }
+
+  .body {
+    padding: var(--ds-spacing-12);
+  }
+
+  .head {
+    padding: var(--ds-spacing-10) var(--ds-spacing-12);
+  }
+}
