@@ -97,9 +97,13 @@ export function wrapClaudeSpawn(input: WrapInput): SpawnTarget {
     // OFF 거나 binary 미감지 — 원본 claude 직접 spawn(무회귀).
     return { command: input.claudePath, args: [...input.claudeArgs] };
   }
-  // ON + binary 감지 — `headroom wrap claude <원본 args...>`.
+  // ON + binary 감지 — `headroom wrap claude -- <원본 args...>`.
+  // `--` 옵션 종결자가 **필수**: headroom 의 `wrap claude` 는 자체 옵션(-p/--port 등)을 먼저
+  // 파싱하는데, claude 의 `-p`(headless) 가 headroom 의 `-p/--port` 와 충돌해 "Invalid value
+  // for '--port'" (code 2) 로 죽었다(사용자 보고). `--` 뒤는 옵션 파싱을 멈추고 모두 CLAUDE_ARGS
+  // 위치 인자로 전달되므로 claude 가 -p --output-format json … 을 그대로 받는다.
   // claude 자체는 PATH 에서 headroom 이 다시 찾는다(절대경로 전달 불필요 — headroom 의 wrap
   // 책임). 만약 claude 가 PATH 에 없는 환경이면 headroom 이 실패 → spawn 에러로 자연 종료
   // → 사전 리뷰 1회 실패 → 다음 분석 시 재시도. (정상 환경에선 둘 다 PATH 에 있음.)
-  return { command: input.headroomPath, args: ['wrap', 'claude', ...input.claudeArgs] };
+  return { command: input.headroomPath, args: ['wrap', 'claude', '--', ...input.claudeArgs] };
 }
