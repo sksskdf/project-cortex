@@ -147,6 +147,14 @@ export function buildHeadlessArgs(
   sysPromptFile: string | null,
 ): string[] {
   const cliArgs = ['-p', '--output-format', 'json'];
+  // 사용자 환경의 MCP 서버(Serena 등) 비활성화 — Cortex 의 헤드리스 호출은 자체 allowedTools 만
+  // 쓰고 짧은 단발성이라 매 분석마다 사용자 MCP 가 spawn 되면 (a) 시작 지연·자원 낭비, (b) stdout
+  // 핸드셰이크 잡음(사용자 보고 회귀), (c) 의도 외 도구 노출. `--strict-mcp-config` + 빈 `{}` 로
+  // 사용자 `.mcp.json`/글로벌 설정을 무시. interactive PTY 세션(드로어)은 이 빌더 안 거치므로 영향 X.
+  // useEnhancements=false(미지원 CLI degrade) 인 환경에선 flag 도 없을 수 있어 생략(무회귀).
+  if (useEnhancements) {
+    cliArgs.push('--strict-mcp-config', '--mcp-config', '{}');
+  }
   if (opts.model) cliArgs.push('--model', opts.model);
   if (useEnhancements && opts.fallbackModel) {
     cliArgs.push('--fallback-model', opts.fallbackModel);
