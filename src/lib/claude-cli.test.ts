@@ -219,6 +219,21 @@ describe('buildHeadlessArgs — argv 빌더(R1/R2/R4/R5 + degrade + priority)', 
     expect(a[a.length - 1]).toBe('do it');
   });
 
+  // 사용자 보고: 분석할 때마다 Serena MCP 가 함께 spawn 돼서 지연 + stdout 잡음.
+  // 헤드리스는 Cortex 자체 allowedTools 만 쓰니 사용자 MCP 전부 무시. interactive 세션은 영향 X.
+  it('헤드리스에선 사용자 MCP(Serena 등) 비활성화 — --strict-mcp-config + 빈 {}', () => {
+    const a = buildHeadlessArgs(base, true, null);
+    expect(a).toContain('--strict-mcp-config');
+    expect(a).toContain('--mcp-config');
+    expect(a[a.indexOf('--mcp-config') + 1]).toBe('{}');
+  });
+
+  it('degrade(useEnhancements=false) 일 땐 MCP 플래그도 생략(미지원 CLI 무회귀)', () => {
+    const a = buildHeadlessArgs(base, false, null);
+    expect(a).not.toContain('--strict-mcp-config');
+    expect(a).not.toContain('--mcp-config');
+  });
+
   it('--model + R5 --fallback-model', () => {
     const a = buildHeadlessArgs({ ...base, model: 'opus', fallbackModel: 'sonnet' }, true, null);
     expect(a).toContain('--model');
