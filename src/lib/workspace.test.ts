@@ -6,7 +6,14 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { projects, workspaces } from '@/db/schema';
-import { getWorkspace, pullWorkspace, registerWorkspace, setGitRunner } from './workspace';
+import {
+  getWorkspace,
+  pullWorkspace,
+  registerWorkspace,
+  setGitRunner,
+  tryWithWorkspaceLock,
+  withWorkspaceLock,
+} from './workspace';
 
 beforeAll(() => {
   migrate(db, { migrationsFolder: 'src/db/migrations' });
@@ -307,5 +314,67 @@ describe('pullWorkspace clone vs pull branching', () => {
     expect((await first).kind).toBe('pulled');
     // 같은 경로에서 git 이 동시에 두 번 돈 적 없음.
     expect(maxConcurrent).toBe(1);
+  });
+});
+
+describe('withWorkspaceLock / tryWithWorkspaceLock', () => {
+  it('같은 경로의 작업을 직렬화 — 겹쳐 실행되지 않음', async () => {
+    let active = 0;
+    let maxConcurrent = 0;
+    const order: number[] = [];
+    const task = (id: number) => async () => {
+      active += 1;
+      maxConcurrent = Math.max(maxConcurrent, active);
+      await new Promise((r) => setTimeout(r, 10));
+      order.push(id);
+      active -= 1;
+      return id;
+    };
+    const results = await Promise.all([
+      withWorkspaceLock('/ws/a', task(1)),
+      withWorkspaceLock('/ws/a', task(2)),
+      withWorkspaceLock('/ws/a', task(3)),
+    ]);
+    expect(maxConcurrent).toBe(1); // 동시 실행 0
+    expect(order).toEqual([1, 2, 3]); // FIFO 순서 보존
+    expect(results).toEqual([1, 2, 3]);
+  });
+
+  it('다른 경로는 병렬 실행 허용', async () => {
+    let active = 0;
+    let maxConcurrent = 0;
+    const task = () => async () => {
+      active += 1;
+      maxConcurrent = Math.max(maxConcurrent, active);
+      await new Promise((r) => setTimeout(r, 10));
+      active -= 1;
+    };
+    await Promise.all([withWorkspaceLock('/ws/a', task()), withWorkspaceLock('/ws/b', task())]);
+    expect(maxConcurrent).toBe(2); // 서로 다른 경로 → 동시 가능
+  });
+
+  it('작업이 throw 해도 다음 대기자가 진행(큐가 깨지지 않음)', async () => {
+    const first = withWorkspaceLock('/ws/a', async () => {
+      throw new Error('boom');
+    });
+    const second = withWorkspaceLock('/ws/a', async () => 'ok');
+    await expect(first).rejects.toThrow('boom');
+    await expect(second).resolves.toBe('ok');
+  });
+
+  it('tryWithWorkspaceLock — 비어 있으면 실행, 잡혀 있으면 건너뜀', async () => {
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const held = withWorkspaceLock('/ws/a', async () => {
+      await gate;
+    });
+    // 잡혀 있는 동안 try → ran:false.
+    const skipped = await tryWithWorkspaceLock('/ws/a', async () => 'should-not-run');
+    expect(skipped).toEqual({ ran: false });
+    release();
+    await held;
+    // 풀린 뒤 try → 실행.
+    const ran = await tryWithWorkspaceLock('/ws/a', async () => 'ran');
+    expect(ran).toEqual({ ran: true, value: 'ran' });
   });
 });
