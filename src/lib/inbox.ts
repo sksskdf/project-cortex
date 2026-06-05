@@ -243,6 +243,7 @@ export async function listInboxQueue(
       deletions: row.pr.linesRemoved,
       fileCount: row.pr.filesChanged,
       ageText: formatRelativeAge(activityMs),
+      activityMs,
       gauge: {
         value: confidence,
         tier: gaugeTierFromConfidence(confidence),

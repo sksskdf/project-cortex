@@ -10,10 +10,10 @@ const TONE_RANK: Record<PR['reason']['tone'], number> = {
 };
 
 function ageMs(pr: PR, now: number): number {
-  // PR.ageText는 사람용. 비교는 createdAt 필요하지만 view 모델에 없음.
-  // 우선 fallback: ageText 문자열에서 숫자 추출. 정확도 < createdAt 직접 비교.
-  // Phase 5.2(integration)에서 lib/inbox가 createdAt을 PR view에 노출하면 그걸 사용.
-  void now;
+  // 정확한 정렬은 activityMs(실제 활동 시각) — 나이 = now - activityMs. 인박스 빌더가 채운다.
+  if (typeof pr.activityMs === 'number') return now - pr.activityMs;
+  // 폴백(fixture 등 activityMs 미지정): 사람용 ageText 문자열에서 숫자 추출. "방금"·"1개월 전"·
+  // "1주 전" 등 비매칭 형식은 0 으로 처리돼 정렬이 부정확할 수 있음(그래서 activityMs 우선).
   const m = pr.ageText.match(/(\d+)\s*(분|시간|일)\s*전/);
   if (!m) return 0;
   const n = Number(m[1]);
