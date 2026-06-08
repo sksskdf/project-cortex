@@ -55,7 +55,7 @@
   background: var(--ds-color-bg-00);
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
   border-radius: var(--ds-border-radius-card);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--ds-shadow-elevation-dropdown);
   display: flex;
   flex-direction: column;
   z-index: 50;
@@ -257,7 +257,7 @@
   border-radius: 50%;
   /* knob 색은 canonical ToggleSwitch 와 동일한 DS 토큰 (하드코딩 #ffffff → 토큰). */
   background: var(--ds-color-bg-00);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--ds-shadow-elevation-knob);
   transition: transform 0.18s ease;
 }
 

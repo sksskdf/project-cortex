@@ -312,6 +312,20 @@
     -1px 2px 2px 0px rgba(98, 140, 245, 0.03),
     -1px 4px 10px 0px rgba(98, 140, 245, 0.06);
 
+  /* ========== SHADOW — elevation (floating surfaces) ==========
+     scale-* 토큰들은 카드/버튼 등 resting elevation 용으로 alpha 가 매우 옅다(0.01~0.04).
+     떠 있는 표면(모달·드롭다운·툴팁 등)은 그 위에서 강한 대비가 필요해 컴포넌트마다 동일한
+     rgba 리터럴을 17곳에서 반복하던 것을 시맨틱 토큰으로 정리. 값은 기존 그대로(시각 회귀 0). */
+  --ds-shadow-elevation-modal: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --ds-shadow-elevation-dropdown: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --ds-shadow-elevation-tooltip: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --ds-shadow-elevation-toast: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --ds-shadow-elevation-drawer-left: -12px 0 32px rgba(0, 0, 0, 0.3);
+  --ds-shadow-elevation-card-float: 0 4px 12px rgba(0, 0, 0, 0.2);
+  /* 토글 knob 등 컨트롤 표면의 micro-shadow. 두 변형 — 1px-2px(slim), 1px-3px(정상). */
+  --ds-shadow-elevation-knob: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --ds-shadow-elevation-knob-tight: 0 1px 2px rgba(0, 0, 0, 0.25);
+
   /* ========== SHADOW — semantic aliases ========== */
   --ds-shadow-component-btn-outlined-blue: var(--ds-shadow-scale-blue-02);
   --ds-shadow-component-btn-outlined-black:

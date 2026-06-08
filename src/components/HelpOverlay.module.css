@@ -1,7 +1,7 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ds-color-bg-04-dark);
   z-index: 70;
   animation: fadeIn 0.15s ease-out;
 }
@@ -16,7 +16,7 @@
   background: var(--ds-color-bg-00);
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
   border-radius: var(--ds-border-radius-card);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--ds-shadow-elevation-modal);
   z-index: 71;
   display: flex;
   flex-direction: column;

@@ -22,7 +22,7 @@
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
   border-left-width: 3px;
   border-radius: var(--ds-border-radius-card);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--ds-shadow-elevation-toast);
   animation: toast-in 160ms ease-out;
 }
 

@@ -7,7 +7,7 @@
   border: var(--ds-border-width-1) solid var(--ds-color-line-02);
   border-radius: var(--ds-border-radius-input);
   padding: var(--ds-spacing-8) var(--ds-spacing-10);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--ds-shadow-elevation-card-float);
   display: flex;
   flex-direction: column;
   gap: 4px;
