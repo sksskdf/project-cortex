@@ -225,6 +225,13 @@
       "when": 1781500000000,
       "tag": "0031_app_settings_cli_allowed_tools",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1781600000000,
+      "tag": "0032_pr_automation_state",
+      "breakpoints": true
     }
   ]
 }

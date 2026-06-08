@@ -33,6 +33,7 @@ import { isPromptReady } from './prompt-ready';
 import { logger } from '@/lib/logger';
 import { finishAgentRun, reconcileOrphanedRuns, reconcileStaleRuns } from '@/lib/issues';
 import { reconcileStuckAutoMerges } from '@/lib/auto-merge';
+import { reconcileStaleAutomationInFlight } from '@/lib/automation-state';
 import {
   defaultSessionStorePath,
   loadPersistedSessions,
@@ -134,6 +135,16 @@ for (const meta of loadPersistedSessions(STORE_PATH).slice(0, MAX_SESSIONS)) {
   } catch (err) {
     // DB 미초기화 등 — best-effort, 서버 기동을 막지 않음.
     console.error('orphan agent_run 정리 실패:', err);
+  }
+  // 검수 P1-3 — 자동화 in-flight 마커는 이전 프로세스가 종료될 때 죽은 작업의 잔재이므로
+  // 부팅 시 일괄 청소(인메모리 시절 자연 소멸과 동일 의도). agent_runs orphan 정리와 짝.
+  try {
+    const cleared = reconcileStaleAutomationInFlight();
+    if (cleared > 0) {
+      console.error(`stale automation in-flight 마커 ${cleared}건 청소(부팅 reconcile)`);
+    }
+  } catch (err) {
+    console.error('stale automation in-flight 정리 실패:', err);
   }
 }
 

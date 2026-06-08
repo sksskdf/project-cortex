@@ -89,12 +89,24 @@ function realGit(cwd: string, args: ReadonlyArray<string>): Promise<GitResult> {
   });
 }
 
-// PR 당 자동 수정 시도 횟수 (in-process). 프로세스 재시작 시 리셋 — 안전망 성격.
-const fixAttempts = new Map<number, number>();
+// PR 당 자동 수정 시도 횟수 — 검수 P1-3 영속화. 재시작 후에도 유지(이전엔 in-process Map
+// 이라 인프라 일시 오류로 멀쩡한 PR 의 카운터가 reset 되어 무한 루프 방어가 약했음). PR 이
+// merged/closed 되면 더 이상 attemptTestFix 가 호출되지 않으므로 자연 무관.
 
-// 테스트용 — 시도 카운터 리셋.
+function getFixAttempts(prId: number): number {
+  return db.select({ n: prs.testFixAttempts }).from(prs).where(eq(prs.id, prId)).get()?.n ?? 0;
+}
+
+function incFixAttempts(prId: number, current: number): void {
+  db.update(prs)
+    .set({ testFixAttempts: current + 1 })
+    .where(eq(prs.id, prId))
+    .run();
+}
+
+// 테스트용 — 모든 PR 의 시도 카운터 0 으로(in-memory 시절 clear() 동치).
 export function resetFixAttempts(): void {
-  fixAttempts.clear();
+  db.update(prs).set({ testFixAttempts: 0 }).run();
 }
 
 export async function attemptTestFix(prId: number): Promise<TestFixResult> {
@@ -138,7 +150,7 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
   // 같은 워크스페이스를 만지는 다른 자동화(conflict-resolve/review-fix/pull)와 직렬화 —
   // reset --hard·checkout·commit 이 겹쳐 트리가 깨지거나 반쯤 머지된 채 push 되지 않게(검수 발견).
   return withWorkspaceLock(cwd, async (): Promise<TestFixResult> => {
-    const attempts = fixAttempts.get(prId) ?? 0;
+    const attempts = getFixAttempts(prId);
     if (attempts >= MAX_FIX_ATTEMPTS) {
       await comment(
         installationId,
@@ -176,7 +188,7 @@ export async function attemptTestFix(prId: number): Promise<TestFixResult> {
 
     // 실제 수정 시도 카운트 — fetch/checkout 같은 인프라 실패는 claude 가 돌기 전이라 시도로 치지
     // 않는다(검수 발견: 인프라 일시 오류가 멀쩡한 PR 을 영구 max-attempts 로 잠그던 버그). claude 직전 증가.
-    fixAttempts.set(prId, attempts + 1);
+    incFixAttempts(prId, attempts);
 
     // 2) 테스트 실행·수정을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
     // in-flight 표시 시작 — 종료는 성공 return/ fail(터미널)에서 clear.

@@ -18,12 +18,7 @@ beforeEach(() => {
   db.delete(issues).run();
   db.delete(prs).run();
   db.delete(projects).run();
-  // 인메모리 자동화 레지스트리 초기화.
-  for (let i = 0; i < 50; i++) clearAutomationInFlight(i);
-});
-
-afterEach(() => {
-  for (let i = 0; i < 50; i++) clearAutomationInFlight(i);
+  // automation in-flight 은 prs 컬럼이라 위 prs delete 로 자연 청소(영속화 P1-3).
 });
 
 let slugSeq = 0;
@@ -97,12 +92,21 @@ describe('getLiveStatus', () => {
     expect(getLiveStatus().unreadMerges).toBe(1);
   });
 
-  it('자동화 in-flight = 레지스트리 크기', () => {
-    setAutomationInFlight(1, 'fixing-tests');
-    setAutomationInFlight(2, 'resolving-conflict');
+  it('자동화 in-flight = prs.automation_in_flight NOT NULL 카운트', () => {
+    // DB 영속(검수 P1-3): set/clear 가 prs 행에 쓰므로 PR 이 실제로 있어야 보인다.
+    const repoId = project();
+    pr(repoId, 1, 'review-needed', null);
+    pr(repoId, 2, 'review-needed', null);
+    const ids = db
+      .select({ id: prs.id })
+      .from(prs)
+      .all()
+      .map((r) => r.id);
+    setAutomationInFlight(ids[0], 'fixing-tests');
+    setAutomationInFlight(ids[1], 'resolving-conflict');
     expect(countAutomationInFlight()).toBe(2);
     expect(getLiveStatus().automationInFlight).toBe(2);
-    clearAutomationInFlight(1);
+    clearAutomationInFlight(ids[0]);
     expect(getLiveStatus().automationInFlight).toBe(1);
   });
 });

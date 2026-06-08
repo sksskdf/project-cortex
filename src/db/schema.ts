@@ -147,6 +147,15 @@ export const prs = sqliteTable(
     // Phase 20 — 사용자가 이 PR 을 확인했는지. null = 미확인. 자동 머지가 늘면서 "이미 머지됐지만
     // 내가 아직 안 본" PR 을 추적(특히 최근 머지). notifications.readAt 과 동일 패턴.
     readAt: integer('read_at', { mode: 'timestamp' }),
+    // 자동 수정 시도 카운터 — 검수 P1-3 영속화(이전엔 in-process Map 이라 재시작 시 소실).
+    // claude 가 못 고친 채 push 가 반복되는 루프 차단. PR 이 merged/closed 되면 자연 무관(다음
+    // PR 은 카운터 0 부터). 무한 루프 방어가 부팅에 의존하지 않게.
+    testFixAttempts: integer('test_fix_attempts').notNull().default(0),
+    reviewFixAttempts: integer('review_fix_attempts').notNull().default(0),
+    // 현재 진행 중 자동화 (UI 표시용). 'resolving-conflict'·'fixing-tests'·'addressing-review'
+    // | null. **부팅 시 모두 NULL 로 청소된다** — 죽은 프로세스 작업이 영구 in-flight 박제되는
+    // 사고를 막기 위해(in-memory 시절 자연 소멸과 동일 의도). agent_runs 부팅 reconcile 패턴.
+    automationInFlight: text('automation_in_flight'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
