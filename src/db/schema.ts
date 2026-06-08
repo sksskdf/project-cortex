@@ -133,8 +133,8 @@ export const prs = sqliteTable(
     // 버튼이 두 번째 진입 시에도 비활성화될 수 있도록 영속 기록.
     branchDeletedAt: integer('branch_deleted_at', { mode: 'timestamp' }),
     // 마지막으로 클러스터에서 해체된 시점. null 이면 한 번도 해체된 적 없음.
-    // tryClusterPR 가 cooldown 기간 안에 있는 PR 은 자동 클러스터링에서 제외 — 사용자가
-    // 의도적으로 해체한 PR 이 곧바로 다시 묶이지 않게.
+    // 과거 자동 클러스터링 cooldown 가드. 자동 트리거(tryClusterPR)는 검수 P2-9 에서 삭제됨 —
+    // 컬럼은 감사 흔적(언제 사람이 해체했는지)으로 보존.
     clusterDissolvedAt: integer('cluster_dissolved_at', { mode: 'timestamp' }),
     // GitHub CI 결과 (Check Runs API 집계). null 이면 미수신/CI 미설정 — AI 분석 여부와
     // 무관 (preReview 없어도 채워질 수 있게 PR 에 직접 묶음). handleCheckWebhook 가
@@ -252,7 +252,7 @@ export const triageDecisions = sqliteTable('triage_decisions', {
 // 운영 토글 (예: AI 분석 on/off) 을 UI 에서 즉시 반영하기 위함.
 export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey(),
-  // false 면 analyzePR · tryClusterPR · 자동 머지가 모두 skip — Anthropic 호출 0.
+  // false 면 analyzePR · 자동 머지가 모두 skip — claude CLI 호출 0.
   aiEnabled: integer('ai_enabled', { mode: 'boolean' }).notNull().default(true),
   // Phase 16 — 위임 세션을 별도 git worktree 에서 spawn(메인 체크아웃 브랜치 보호). 기본 OFF
   // (opt-in) — 런타임 검증 후 사용. OFF 면 기존처럼 워크스페이스 cwd 에서 spawn(무회귀).

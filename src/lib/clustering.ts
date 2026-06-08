@@ -1,175 +1,22 @@
-// Phase 6.1 — 새 PR 이 들어오면 비슷한 최근 PR 과 자카드 유사도를 비교해
-// 3건 이상 매칭되면 자동으로 클러스터를 생성/조인한다.
-// 임베딩 기반 의미 유사도는 Phase 6 후속.
+// 클러스터 관리 — 활성 클러스터 해체(`dissolveCluster`)와 일괄 머지(`mergeCluster`).
+//
+// 자동 클러스터링(자카드 유사도 기반 `tryClusterPR`, 임계값 상수들)은 검수 P2-9 에서 삭제:
+// 사용자 시그널 누적상 자동 묶임이 가치 대비 컨텍스트 부담 컸음(설명 X 데이터 X 통계 0). 단,
+// 기존에 만들어진 클러스터의 **수동 조회/해체/머지** 는 그대로 유지(사이드바 외부 라우트 유지).
+// 자동화 트리거가 없어 새 클러스터는 안 생기고, 기존 것만 자연 소진된다.
 
-import { and, eq, gte, inArray, isNull, ne } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { clusters, preReviews, projects, prs } from '@/db/schema';
+import { clusters, projects, prs } from '@/db/schema';
 import { deletePRHeadBranch, mergePR } from './github';
 import { createNotification } from './notifications';
-
-// 클러스터링에서 제외해야 하는 차단 플래그 — DOMAIN §4 와 동일.
-// payment-domain 등 강한 위험이 있는 PR 은 개별 검토.
-const NON_CLUSTERABLE_FLAGS = new Set([
-  'payment-domain',
-  'auth-domain',
-  'migration',
-  'security-sensitive',
-  'external-api-new',
-]);
-
-// 자카드 유사도 임계치 — ROADMAP DoD.
-export const SIMILARITY_THRESHOLD = 0.85;
-// 클러스터 형성 최소 PR 수 — ROADMAP DoD.
-export const MIN_CLUSTER_SIZE = 3;
-// 후보 검색 시간 윈도우 (밀리초) — ROADMAP DoD: 24시간.
-export const CLUSTER_WINDOW_MS = 24 * 60 * 60 * 1000;
-// 해체된 PR 의 재클러스터링 cooldown — dissolveCluster 후 같은 PR 들이 곧바로 다시
-// 자동 묶이지 않도록. 사용자 의도 ('해체') 존중. 사용자가 명시적으로 다시 묶고 싶으면
-// cooldown 기간 후 새 webhook (synchronize) 도착 시 다시 검사됨.
-export const RECLUSTER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-
-export function jaccardSimilarity(a: ReadonlyArray<string>, b: ReadonlyArray<string>): number {
-  if (a.length === 0 && b.length === 0) return 0;
-  const sa = new Set(a);
-  const sb = new Set(b);
-  let intersect = 0;
-  for (const x of sa) if (sb.has(x)) intersect++;
-  const union = sa.size + sb.size - intersect;
-  return union === 0 ? 0 : intersect / union;
-}
-
-function hasBlockingFlag(flags: ReadonlyArray<string>): boolean {
-  return flags.some((f) => NON_CLUSTERABLE_FLAGS.has(f));
-}
-
-export type TryClusterResult =
-  | { kind: 'clustered'; clusterId: number; size: number }
-  | { kind: 'joined'; clusterId: number; size: number }
-  | {
-      kind: 'skipped';
-      reason:
-        | 'no-pr'
-        | 'no-pre-review'
-        | 'blocking-flag'
-        | 'already-clustered'
-        | 'no-similar-prs'
-        | 'recently-dissolved';
-    };
-
-// PR 1건에 대해 클러스터 자동 시도. 멱등 — 이미 클러스터된 PR 은 skip.
-// 호출 시점: sync.ts 의 runTriage 후, human-review 결정일 때.
-export async function tryClusterPR(prId: number): Promise<TryClusterResult> {
-  const pr = db.select().from(prs).where(eq(prs.id, prId)).get();
-  if (!pr) return { kind: 'skipped', reason: 'no-pr' };
-  if (pr.clusterId !== null) return { kind: 'skipped', reason: 'already-clustered' };
-
-  // 해체 cooldown — 사용자가 의도적으로 해체한 PR 은 일정 기간 자동 재클러스터링 금지.
-  if (pr.clusterDissolvedAt !== null) {
-    const dissolvedMs =
-      pr.clusterDissolvedAt instanceof Date
-        ? pr.clusterDissolvedAt.getTime()
-        : Number(pr.clusterDissolvedAt) * 1000;
-    if (Date.now() - dissolvedMs < RECLUSTER_COOLDOWN_MS) {
-      return { kind: 'skipped', reason: 'recently-dissolved' };
-    }
-  }
-
-  const preReview = db
-    .select()
-    .from(preReviews)
-    .where(and(eq(preReviews.prId, prId), eq(preReviews.headSha, pr.headSha)))
-    .get();
-  if (!preReview) return { kind: 'skipped', reason: 'no-pre-review' };
-
-  if (hasBlockingFlag(preReview.flags)) {
-    return { kind: 'skipped', reason: 'blocking-flag' };
-  }
-
-  // 후보: 같은 레포 · 같은 작성자 · 24시간 이내 · 미클러스터 · open 또는 review-needed.
-  const windowStart = new Date(Date.now() - CLUSTER_WINDOW_MS);
-  const candidates = db
-    .select({ pr: prs, preReview: preReviews })
-    .from(prs)
-    .innerJoin(preReviews, and(eq(preReviews.prId, prs.id), eq(preReviews.headSha, prs.headSha)))
-    .where(
-      and(
-        eq(prs.repoId, pr.repoId),
-        eq(prs.authorId, pr.authorId),
-        ne(prs.id, prId),
-        gte(prs.createdAt, windowStart),
-        inArray(prs.status, ['open', 'review-needed']),
-        isNull(prs.clusterId),
-      ),
-    )
-    .all();
-
-  const similar = candidates.filter((c) => {
-    if (hasBlockingFlag(c.preReview.flags)) return false;
-    return (
-      jaccardSimilarity(preReview.changedPaths, c.preReview.changedPaths) >= SIMILARITY_THRESHOLD
-    );
-  });
-
-  // 자기 자신 + 유사한 후보 = 총 클러스터 크기.
-  const totalSize = similar.length + 1;
-  if (totalSize < MIN_CLUSTER_SIZE) {
-    return { kind: 'skipped', reason: 'no-similar-prs' };
-  }
-
-  // 후보 중 이미 클러스터에 속한 PR 이 있는지 다시 확인 (race 방어).
-  // 후보 쿼리는 isNull(clusterId) 라서 거의 발생 안 함 — 멱등 안전망.
-  const existingCluster = similar.find((c) => c.pr.clusterId !== null)?.pr.clusterId ?? null;
-
-  if (existingCluster !== null) {
-    db.update(prs)
-      .set({ clusterId: existingCluster, updatedAt: new Date() })
-      .where(eq(prs.id, prId))
-      .run();
-    return { kind: 'joined', clusterId: existingCluster, size: totalSize };
-  }
-
-  // 새 클러스터 생성. 평균 신뢰도 + 대표 path 로 title 구성.
-  const allConfidences = [preReview.confidence, ...similar.map((c) => c.preReview.confidence)];
-  const avgConfidence = Math.round(
-    allConfidences.reduce((a, b) => a + b, 0) / allConfidences.length,
-  );
-  const representativePath = preReview.changedPaths[0] ?? 'changes';
-  const pattern = `auto-${pr.repoId}-${Date.now()}`;
-  const title = `${representativePath} 외 ${totalSize - 1}건 유사 변경`;
-
-  const newCluster = db
-    .insert(clusters)
-    .values({
-      pattern,
-      title,
-      avgConfidence,
-      status: 'open',
-    })
-    .returning({ id: clusters.id })
-    .get();
-
-  const idsToAssign = [prId, ...similar.map((c) => c.pr.id)];
-  db.update(prs)
-    .set({ clusterId: newCluster.id, updatedAt: new Date() })
-    .where(inArray(prs.id, idsToAssign))
-    .run();
-
-  // 새 클러스터가 생긴 시점에만 알림. join 은 기존 클러스터에 추가됐을 뿐이라 노출 X.
-  try {
-    createNotification({ kind: 'cluster-created', clusterId: newCluster.id, size: totalSize });
-  } catch (err) {
-    console.error('알림 생성 실패:', err);
-  }
-
-  return { kind: 'clustered', clusterId: newCluster.id, size: totalSize };
-}
 
 // 클러스터 해체 — 활성 PR (open/review-needed/auto-mergeable) 만 clusterId/status 를
 // 인박스로 되돌리고, merged/closed PR 은 그대로 둔다 (해체로 인해 되살아나면 안 됨).
 // 사람이 cluster 화면에서 "해체" 버튼 눌렀을 때.
 export function dissolveCluster(clusterId: number): { released: number } {
-  // 해체 시점 박제 — tryClusterPR 가 RECLUSTER_COOLDOWN_MS 동안 재클러스터링 금지.
+  // 해체 시점 박제 — 과거엔 자동 재클러스터링 cooldown 가드였음. 자동 트리거가 사라진 지금은
+  // 단순 감사 흔적(언제 사람이 해체했는지). 컬럼은 보존(스키마 변경 회피 + 후속 부활 시 활용).
   const dissolvedAt = new Date();
   const released = db
     .update(prs)
