@@ -64,12 +64,22 @@ if ($existing) {
 
 # Point the service at node running the npm CLI's start script. Using node +
 # npm-cli.js avoids relying on the npm.cmd batch shim under the SYSTEM account.
+#
+# 경로에 공백(`C:\Program Files\...`)이 있으면 NSSM 이 그대로 저장한 AppParameters 를
+# node 가 받을 때 첫 토큰을 스크립트 경로로 잘라 `Cannot find module 'C:\Program'` 으로
+# 죽는다(사용자 보고 2026-06-05). NSSM 의 nssm.exe install <name> <app> 은 app 만 받고,
+# parameters 는 따로 set 으로 넘기는 게 인용 처리가 명확하다.
 $npmCliJs = Join-Path (Split-Path $npmCli -Parent) 'node_modules\npm\bin\npm-cli.js'
 if (-not (Test-Path $npmCliJs)) {
-    # Fallback: let nssm call the npm shim directly.
-    & $nssm install $ServiceName $npmCli 'run' 'start'
+    # Fallback: npm shim 직접 호출. shim 은 .cmd 라 자기 안에서 공백을 처리하지만,
+    # AppParameters 의 `run start` 는 단순 토큰이라 인용 불요.
+    & $nssm install $ServiceName $npmCli
+    & $nssm set $ServiceName AppParameters 'run start'
 } else {
-    & $nssm install $ServiceName $node $npmCliJs 'run' 'start'
+    # Application 은 node, parameters 는 `"<npm-cli.js>" run start` — 스크립트 경로를
+    # 따옴표로 감싸 공백 안전.
+    & $nssm install $ServiceName $node
+    & $nssm set $ServiceName AppParameters ('"{0}" run start' -f $npmCliJs)
 }
 
 & $nssm set $ServiceName AppDirectory $RepoRoot
