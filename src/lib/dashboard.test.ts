@@ -1,8 +1,8 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { preReviews, prs, projects, triageDecisions } from '@/db/schema';
-import { getDashboardStats, getTodayRows } from './dashboard';
+import { agentRuns, issues, preReviews, prs, projects, triageDecisions } from '@/db/schema';
+import { getAgentWorkloads, getDashboardStats, getTodayRows } from './dashboard';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -11,6 +11,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  db.delete(agentRuns).run();
+  db.delete(issues).run();
   db.delete(triageDecisions).run();
   db.delete(preReviews).run();
   db.delete(prs).run();
@@ -438,5 +440,70 @@ describe('getTodayRows — 지금 처리할 것 위젯', () => {
 
     const rows = await getTodayRows(10);
     expect(rows.map((r) => Number(r.id.replace('pr-', '')))).toEqual([visible]);
+  });
+});
+
+describe('getAgentWorkloads', () => {
+  // 진행 중 agent_runs 가 0 이면 빈 배열 — UI 가 빈 상태 안내를 렌더.
+  it('진행 중 runs 없으면 빈 배열', () => {
+    expect(getAgentWorkloads()).toEqual([]);
+  });
+
+  it('에이전트별로 running/queued 카운트 + running desc 정렬', () => {
+    const repoId = setupProject();
+    const issueId = db
+      .insert(issues)
+      .values({ repoId, title: 't', spec: 's', assigneeKind: 'agent', assigneeId: 'devin' })
+      .returning({ id: issues.id })
+      .get().id;
+    // devin: running 2, queued 1. codex: running 1.
+    db.insert(agentRuns).values({ issueId, agent: 'devin', status: 'running' }).run();
+    db.insert(agentRuns).values({ issueId, agent: 'devin', status: 'running' }).run();
+    db.insert(agentRuns).values({ issueId, agent: 'devin', status: 'queued' }).run();
+    db.insert(agentRuns).values({ issueId, agent: 'codex', status: 'running' }).run();
+    // 완료/실패는 카운트에 안 잡힘.
+    db.insert(agentRuns).values({ issueId, agent: 'devin', status: 'completed' }).run();
+    db.insert(agentRuns).values({ issueId, agent: 'codex', status: 'failed' }).run();
+
+    const rows = getAgentWorkloads();
+    expect(rows).toEqual([
+      { agent: 'devin', running: 2, queued: 1, recentEtaText: null },
+      { agent: 'codex', running: 1, queued: 0, recentEtaText: null },
+    ]);
+  });
+
+  it('14일 내 완료 runs 의 평균 etaSec → 사람용 ETA 텍스트', () => {
+    const repoId = setupProject();
+    const issueId = db
+      .insert(issues)
+      .values({ repoId, title: 't', spec: 's', assigneeKind: 'agent', assigneeId: 'devin' })
+      .returning({ id: issues.id })
+      .get().id;
+    db.insert(agentRuns).values({ issueId, agent: 'devin', status: 'running' }).run();
+    // 완료 runs: 60s, 120s, 180s → 평균 120s → "~2분"
+    db.insert(agentRuns)
+      .values({ issueId, agent: 'devin', status: 'completed', etaSec: 60, completedAt: new Date() })
+      .run();
+    db.insert(agentRuns)
+      .values({
+        issueId,
+        agent: 'devin',
+        status: 'completed',
+        etaSec: 120,
+        completedAt: new Date(),
+      })
+      .run();
+    db.insert(agentRuns)
+      .values({
+        issueId,
+        agent: 'devin',
+        status: 'completed',
+        etaSec: 180,
+        completedAt: new Date(),
+      })
+      .run();
+
+    const rows = getAgentWorkloads();
+    expect(rows[0].recentEtaText).toBe('~2분');
   });
 });

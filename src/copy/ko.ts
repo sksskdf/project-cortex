@@ -166,7 +166,10 @@ export const ko = {
       notFound: 'PR 을 찾을 수 없습니다.',
     },
     workload: {
-      count: (current: number, capacity: number) => `${current} / ${capacity}`,
+      // 실 agent_runs 카운트 — running/queued 둘 다 0 인 에이전트는 어차피 목록에 안 옴.
+      activity: (running: number, queued: number) =>
+        queued > 0 ? `진행 ${running} · 대기 ${queued}` : `진행 ${running}`,
+      recentEta: (etaText: string) => `최근 평균 ${etaText}`,
       empty: '진행 중인 에이전트가 없습니다 — 이슈에서 에이전트를 시작하면 여기에 표시됩니다.',
     },
     cluster: {
