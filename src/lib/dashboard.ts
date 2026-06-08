@@ -342,3 +342,62 @@ export async function getDashboardClusters(): Promise<DashboardClusterSummary[]>
     note: clusterNotes[r.cluster.pattern] ?? `평균 신뢰 ${r.cluster.avgConfidence}`,
   }));
 }
+
+// 대시보드 "에이전트 워크로드" — 진행 중(queued/running) agent_runs 를 agent 이름으로 집계.
+// 이전엔 빈 fixture 였음. 실 데이터로: 에이전트별 큐/실행 카운트 + 최근 완료 ETA 중앙값.
+// capacity 개념 없음(외부 에이전트는 Cortex 가 통제 안 함) — 진행 카운트만 솔직히 노출.
+export type AgentWorkloadRow = {
+  agent: string; // agent 식별자 (e.g. 'devin', 'codex', 'claude-code')
+  running: number; // status='running'
+  queued: number; // status='queued'
+  recentEtaText: string | null; // 최근 완료 runs 의 etaSec 중앙값을 사람용 문자열로. 데이터 없으면 null.
+};
+
+export function getAgentWorkloads(): AgentWorkloadRow[] {
+  const active = db
+    .select({ agent: agentRuns.agent, status: agentRuns.status })
+    .from(agentRuns)
+    .where(inArray(agentRuns.status, ['queued', 'running']))
+    .all();
+  if (active.length === 0) return [];
+
+  // 에이전트별 큐/실행 카운트.
+  const counts = new Map<string, { running: number; queued: number }>();
+  for (const r of active) {
+    const cur = counts.get(r.agent) ?? { running: 0, queued: 0 };
+    if (r.status === 'running') cur.running += 1;
+    else if (r.status === 'queued') cur.queued += 1;
+    counts.set(r.agent, cur);
+  }
+
+  // 최근 14일 완료 runs 의 etaSec 평균 — 에이전트별 ETA 표시.
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const etaRows = db
+    .select({ agent: agentRuns.agent, etaSec: avg(agentRuns.etaSec) })
+    .from(agentRuns)
+    .where(and(eq(agentRuns.status, 'completed'), gte(agentRuns.completedAt, fourteenDaysAgo)))
+    .groupBy(agentRuns.agent)
+    .all();
+  const etaByAgent = new Map<string, number>();
+  for (const r of etaRows) {
+    const v = typeof r.etaSec === 'number' ? r.etaSec : Number(r.etaSec);
+    if (Number.isFinite(v) && v > 0) etaByAgent.set(r.agent, v);
+  }
+
+  return [...counts.entries()]
+    .map(([agent, c]) => ({
+      agent,
+      running: c.running,
+      queued: c.queued,
+      recentEtaText: formatEtaSec(etaByAgent.get(agent) ?? null),
+    }))
+    .sort((a, b) => b.running - a.running || b.queued - a.queued || a.agent.localeCompare(b.agent));
+}
+
+// 초 단위 ETA 를 사람용 문자열로. null 이면 null(UI 가 표시 안 함).
+function formatEtaSec(sec: number | null): string | null {
+  if (sec === null) return null;
+  if (sec < 60) return `~${Math.round(sec)}초`;
+  if (sec < 3600) return `~${Math.round(sec / 60)}분`;
+  return `~${(sec / 3600).toFixed(1)}시간`;
+}

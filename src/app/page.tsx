@@ -3,13 +3,14 @@ import { ko as t } from '@/copy/ko';
 import { CheckIcon } from '@/components/icons';
 import { NewIssueDialog } from '@/components/NewIssueDialog';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
-import { agentWorkloads, type AgentWorkload } from '@/fixtures/dashboard';
 import { currentUser } from '@/lib/config';
 import {
+  getAgentWorkloads,
   getDashboardClusters,
   getDashboardStats,
   getRecentMerges,
   getTodayRows,
+  type AgentWorkloadRow,
 } from '@/lib/dashboard';
 import { DashboardNotesWidget } from '@/components/DashboardNotesWidget';
 import { DashboardProjectsWidget } from '@/components/DashboardProjectsWidget';
@@ -28,14 +29,6 @@ import { listDashboardProjects } from '@/lib/roadmap';
 import { listTodos } from '@/lib/todos';
 import type { StatDelta } from '@/lib/types';
 import styles from './page.module.css';
-
-type WorkloadBarTone = AgentWorkload['bar'];
-
-const workloadBarClass: Record<WorkloadBarTone, string> = {
-  blue: styles.workloadBar,
-  green: `${styles.workloadBar} ${styles.workloadBarGreen}`,
-  yellow: `${styles.workloadBar} ${styles.workloadBarYellow}`,
-};
 
 function inboxStatIcon() {
   return (
@@ -149,9 +142,9 @@ function DeltaBadge({ delta }: { delta: StatDelta }) {
   );
 }
 
-function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkload> }) {
+function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkloadRow> }) {
   if (rows.length === 0) {
-    // agent_runs 데이터 없는 상태 — Phase 8 onboarding 이후 채워짐.
+    // 실 agent_runs 가 비어 있음(진행 중 0). "진행 중인 에이전트 없음" 안내.
     return (
       <div className={styles.workloadCard}>
         <div className={styles.workloadEmpty}>{t.dashboard.workload.empty}</div>
@@ -161,23 +154,21 @@ function WorkloadCard({ rows }: { rows: ReadonlyArray<AgentWorkload> }) {
   return (
     <div className={styles.workloadCard}>
       <div className={styles.workload}>
-        {rows.map((row) => {
-          const pct = Math.round((row.current / row.capacity) * 100);
-          return (
-            <div key={row.name} className={styles.workloadRow}>
-              <div className={styles.workloadHead}>
-                <span className={styles.workloadName}>{row.name}</span>
-                <span className={styles.workloadCount}>
-                  {t.dashboard.workload.count(row.current, row.capacity)}
-                </span>
-              </div>
-              <div className={styles.workloadBarTrack}>
-                <div className={workloadBarClass[row.bar]} style={{ width: `${pct}%` }} />
-              </div>
-              <span className={styles.workloadEta}>{row.eta}</span>
+        {rows.map((row) => (
+          <div key={row.agent} className={styles.workloadRow}>
+            <div className={styles.workloadHead}>
+              <span className={styles.workloadName}>{row.agent}</span>
+              <span className={styles.workloadCount}>
+                {t.dashboard.workload.activity(row.running, row.queued)}
+              </span>
             </div>
-          );
-        })}
+            {row.recentEtaText && (
+              <span className={styles.workloadEta}>
+                {t.dashboard.workload.recentEta(row.recentEtaText)}
+              </span>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -192,6 +183,9 @@ export default async function DashboardPage() {
     getRecentMerges(200),
     getDashboardClusters(),
   ]);
+  // 실 agent_runs 워크로드 — 이전엔 빈 fixture(가짜 데이터 회피용)였음.
+  // queued/running 카운트 + 14일 ETA 평균. 빈 상태는 WorkloadCard 가 안내.
+  const agentWorkloads = getAgentWorkloads();
   const notifications = listRecentNotifications();
   const unreadCount = unreadNotificationCount();
   const unreadMerges = unreadMergedCount();

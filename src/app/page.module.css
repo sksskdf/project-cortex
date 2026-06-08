@@ -565,27 +565,6 @@
   color: var(--ds-color-text-02);
 }
 
-.workloadBarTrack {
-  height: 6px;
-  background: var(--ds-color-line-02);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.workloadBar {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--ds-color-secondary-01);
-}
-
-.workloadBarGreen {
-  background: var(--ds-color-state-success-accent);
-}
-
-.workloadBarYellow {
-  background: var(--ds-color-state-warning-base);
-}
-
 .workloadEta {
   font-size: var(--ds-typography-font-size-12);
   color: var(--ds-color-text-02);
