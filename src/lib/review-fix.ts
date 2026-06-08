@@ -98,12 +98,23 @@ function realGit(cwd: string, args: ReadonlyArray<string>): Promise<GitResult> {
   });
 }
 
-// PR 당 자동 반영 시도 횟수 (in-process). 프로세스 재시작 시 리셋 — 안전망 성격.
-const fixAttempts = new Map<number, number>();
+// PR 당 자동 반영 시도 횟수 — 검수 P1-3 영속화. 재시작 후에도 유지(이전엔 in-process Map
+// 이라 인프라 일시 오류로 멀쩡한 PR 의 카운터가 reset 되어 무한 루프 방어가 약했음).
 
-// 테스트용 — 시도 카운터 리셋.
+function getReviewFixAttempts(prId: number): number {
+  return db.select({ n: prs.reviewFixAttempts }).from(prs).where(eq(prs.id, prId)).get()?.n ?? 0;
+}
+
+function incReviewFixAttempts(prId: number, current: number): void {
+  db.update(prs)
+    .set({ reviewFixAttempts: current + 1 })
+    .where(eq(prs.id, prId))
+    .run();
+}
+
+// 테스트용 — 모든 PR 의 시도 카운터 0 으로(in-memory 시절 clear() 동치).
 export function resetReviewAttempts(): void {
-  fixAttempts.clear();
+  db.update(prs).set({ reviewFixAttempts: 0 }).run();
 }
 
 export async function attemptAddressReview(input: ReviewFixInput): Promise<ReviewFixResult> {
@@ -153,7 +164,7 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
   // 같은 워크스페이스를 만지는 다른 자동화(conflict-resolve/test-fix/pull)와 직렬화 —
   // reset --hard·checkout·commit 이 겹쳐 트리가 깨지거나 반쯤 머지된 채 push 되지 않게(검수 발견).
   return withWorkspaceLock(cwd, async (): Promise<ReviewFixResult> => {
-    const attempts = fixAttempts.get(pr.id) ?? 0;
+    const attempts = getReviewFixAttempts(pr.id);
     if (attempts >= MAX_FIX_ATTEMPTS) {
       await comment(
         installationId,
@@ -191,7 +202,7 @@ export async function attemptAddressReview(input: ReviewFixInput): Promise<Revie
 
     // 실제 반영 시도 카운트 — fetch/checkout 같은 인프라 실패는 claude 가 돌기 전이라 시도로 치지
     // 않는다(검수 발견: 인프라 일시 오류가 멀쩡한 PR 을 영구 max-attempts 로 잠그던 버그). claude 직전 증가.
-    fixAttempts.set(pr.id, attempts + 1);
+    incReviewFixAttempts(pr.id, attempts);
 
     // 2) 리뷰 피드백 반영을 claude 에 위임 (cwd 안 파일 편집). 커밋·푸시는 Cortex 가 결정적으로.
     // in-flight 표시 시작 — 종료는 성공 return / fail(터미널)에서 clear.
